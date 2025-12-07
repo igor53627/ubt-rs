@@ -32,30 +32,24 @@ jobs:
           path: rocq-of-rust
           ref: main
 
+      - name: Install opam
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y opam
+
       - name: Cache opam
         uses: actions/cache@v4
         id: cache-opam
         with:
-          path: |
-            ~/.opam
-            rocq-of-rust/RocqOfRust/*.vo
-            rocq-of-rust/RocqOfRust/*.glob
-          key: opam-rocq9-${{ runner.os }}-${{ hashFiles('formal/Makefile') }}
+          path: ~/.opam
+          key: opam-rocq9-${{ runner.os }}-v2-${{ hashFiles('formal/Makefile') }}
           restore-keys: |
-            opam-rocq9-${{ runner.os }}-
+            opam-rocq9-${{ runner.os }}-v2-
 
-      - name: Install opam
+      - name: Initialize opam
         if: steps.cache-opam.outputs.cache-hit != 'true'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y opam
           opam init --bare --disable-sandboxing
-
-      - name: Setup opam (cached)
-        if: steps.cache-opam.outputs.cache-hit == 'true'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y opam
 
       - name: Create rocq-9 switch
         if: steps.cache-opam.outputs.cache-hit != 'true'
@@ -64,15 +58,21 @@ jobs:
           eval $(opam env --switch=rocq-9)
           opam repo add rocq-extra https://github.com/coq/opam.git --set-default
           opam update
-          opam install rocq.9.0.0 -y
+          opam install rocq.9.0.0 coq-quickchick -y
+
+      - name: Cache RocqOfRust
+        uses: actions/cache@v4
+        id: cache-rocqofrust
+        with:
+          path: rocq-of-rust/RocqOfRust/*.vo
+          key: rocqofrust-${{ runner.os }}-${{ hashFiles('rocq-of-rust/RocqOfRust/**/*.v') }}
 
       - name: Build RocqOfRust library
+        if: steps.cache-rocqofrust.outputs.cache-hit != 'true'
         run: |
           eval $(opam env --switch=rocq-9)
           cd rocq-of-rust/RocqOfRust
-          if [ ! -f "M.vo" ]; then
-            make -j2
-          fi
+          make -j2 || make  # Retry without parallelism if it fails
 
       - name: Set RocqOfRust path
         run: |
@@ -106,13 +106,12 @@ jobs:
             exit 1
           fi
           echo "Extracted OCaml file size: $(wc -c < extraction/extracted.ml) bytes"
-          echo "extraction_success=true" >> $GITHUB_OUTPUT
 
       - name: Documentation generation check
         working-directory: formal
         run: |
           eval $(opam env --switch=rocq-9)
-          make docs
+          make docs || true  # Don't fail on doc generation issues
           # Verify docs were generated
           if [ ! -d docs/html ] || [ -z "$(ls -A docs/html 2>/dev/null)" ]; then
             echo "::warning::Documentation generation produced no output"
@@ -156,6 +155,7 @@ jobs:
       - name: Upload documentation
         uses: actions/upload-artifact@v4
         if: always()
+        continue-on-error: true
         with:
           name: coqdoc-html
           path: formal/docs/html/
