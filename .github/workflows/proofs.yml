@@ -25,10 +25,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # NOTE: Linking layer requires RocqOfRust which needs Rocq 9.0
-      # Rocq 9.0 packages are not yet available in standard opam repos
-      # The linking layer is verified locally with: eval $(opam env --switch=rocq-9) && make linking
-      # For now, CI only verifies core proofs with Coq 8.19
+      # NOTE: Linking layer requires RocqOfRust library
+      # RocqOfRust requires cloning and building from https://github.com/formal-land/rocq-of-rust
+      # The linking layer can be verified locally with: make linking
+      # For CI, we skip linking to avoid the long RocqOfRust build time
 
       - name: Install opam
         run: |
@@ -40,33 +40,33 @@ jobs:
         id: cache-opam
         with:
           path: ~/.opam
-          key: opam-coq819-${{ runner.os }}-v5-${{ hashFiles('formal/Makefile') }}
+          key: opam-rocq9-${{ runner.os }}-v1-${{ hashFiles('formal/Makefile') }}
           restore-keys: |
-            opam-coq819-${{ runner.os }}-v5-
+            opam-rocq9-${{ runner.os }}-v1-
 
       - name: Initialize opam
         if: steps.cache-opam.outputs.cache-hit != 'true'
         run: |
           opam init --bare --disable-sandboxing
 
-      - name: Create Coq switch
+      - name: Create Rocq switch
         if: steps.cache-opam.outputs.cache-hit != 'true'
         run: |
           # Create switch with OCaml 4.14.2
-          opam switch create coq-8.19 ocaml-base-compiler.4.14.2
-          eval $(opam env --switch=coq-8.19)
+          opam switch create rocq-9 ocaml-base-compiler.4.14.2
+          eval $(opam env --switch=rocq-9)
           
-          # Add Coq released repo
-          opam repo add coq-released https://coq.inria.fr/opam/released --set-default
+          # Add Rocq released repo
+          opam repo add rocq-released https://rocq-prover.org/opam/released --set-default
           opam update
           
-          # Install Coq 8.19 (stable, well-supported)
-          opam install coq.8.19.2 -y
+          # Install Rocq 9.0 (uses Stdlib namespace)
+          opam pin add rocq-prover 9.0.0 -y
 
       - name: Build core proofs (without QuickChick)
         working-directory: formal
         run: |
-          eval $(opam env --switch=coq-8.19)
+          eval $(opam env --switch=rocq-9)
           make clean
           # Build specs, simulations, and core proofs (skip quickchick_tests.v)
           make specs
@@ -76,7 +76,7 @@ jobs:
       - name: OCaml extraction verification
         working-directory: formal
         run: |
-          eval $(opam env --switch=coq-8.19)
+          eval $(opam env --switch=rocq-9)
           make extract
           # Verify extracted files exist and have content
           if [ ! -f extraction/extracted.ml ]; then
@@ -92,7 +92,7 @@ jobs:
       - name: Documentation generation check
         working-directory: formal
         run: |
-          eval $(opam env --switch=coq-8.19)
+          eval $(opam env --switch=rocq-9)
           make docs || true  # Don't fail on doc generation issues
           # Verify docs were generated
           if [ ! -d docs/html ] || [ -z "$(ls -A docs/html 2>/dev/null)" ]; then
@@ -104,7 +104,7 @@ jobs:
       - name: Generate audit report
         working-directory: formal
         run: |
-          eval $(opam env --switch=coq-8.19)
+          eval $(opam env --switch=rocq-9)
           make audit
 
       - name: Verify axiom count
@@ -150,7 +150,7 @@ jobs:
           echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| Core Proofs | ✅ |" >> $GITHUB_STEP_SUMMARY
-          echo "| Linking Layer | ⏭️ Skipped (requires Rocq 9) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Linking Layer | ⏭️ Skipped (requires RocqOfRust) |" >> $GITHUB_STEP_SUMMARY
           echo "| OCaml Extraction | ✅ |" >> $GITHUB_STEP_SUMMARY
           echo "| Documentation | ✅ |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
