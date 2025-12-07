@@ -209,7 +209,7 @@ These properties are assumed rather than proven:
 
 ## Verification Metrics
 
-```
+```text
 Source Files:
   specs/          2 files,   ~650 lines
   simulations/    3 files, ~1,250 lines  

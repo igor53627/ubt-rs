@@ -364,7 +364,7 @@ All previously admitted proofs have been completed. Below is the record of what 
 
 ### 6.1 Core Dependencies
 
-```
+```text
                       ┌─────────────────────────────────────────┐
                       │         CRYPTO FOUNDATION               │
                       │  (hash_value, hash_pair, hash_stem)     │
@@ -393,7 +393,7 @@ All previously admitted proofs have been completed. Below is the record of what 
 
 ### 6.2 Verkle Dependencies
 
-```
+```text
 ┌─────────────────────────────────────────────┐
 │          VERKLE PRIMITIVES                  │
 │  verkle_commit, verkle_open, verkle_verify  │
@@ -423,7 +423,7 @@ All previously admitted proofs have been completed. Below is the record of what 
 
 ### 6.3 Linking Layer Dependencies
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                         MONADIC FOUNDATION                               │
 │              Run.run_pure, Run.run_bind, Run.run_panic                   │
@@ -573,7 +573,7 @@ Axiom get_insert_same : forall t k v d, v <> zero32 -> tree_get (tree_insert t k
 
 ## 10. Verification Status Summary
 
-```
+```text
                     ┌────────────────────────────────────────┐
                     │     ✅ VERIFICATION COMPLETE           │
                     └────────────────────────────────────────┘

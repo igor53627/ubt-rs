@@ -89,7 +89,7 @@ Inductive SimNode : Type :=
 
 The linking layer (`linking/operations.v`) bridges the translation and simulation:
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                    LINKING STRATEGY                         │
 ├─────────────────────────────────────────────────────────────┤

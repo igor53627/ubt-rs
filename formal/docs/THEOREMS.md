@@ -11,7 +11,7 @@ This document provides spec-level documentation for all major theorems in the UB
 
 The formal verification uses an abstraction function `sim_tree_get` that defines the abstract map semantics:
 
-```
+```text
 sim_tree_get : SimTree → TreeKey → option Value
 ```
 

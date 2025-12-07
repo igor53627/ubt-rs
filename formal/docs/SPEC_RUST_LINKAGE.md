@@ -6,7 +6,7 @@ This document explains how the Coq (Rocq) formal specifications connect to the R
 
 The verification follows a **refinement approach**:
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │  specs/tree_spec.v         Abstract specification (EIP-7864)   │
 │       ↓ refines                                                 │

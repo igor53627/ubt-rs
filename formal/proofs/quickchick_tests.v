@@ -200,12 +200,30 @@ Proof. reflexivity. Qed.
          (returnGen empty_tree)
          (List.repeat tt n)) |}.
 
-(* Shrinkers *)
+(* Shrinkers - basic implementations to help debug failing tests *)
 
-#[export] Instance shrinkStem : Shrink Stem := {| shrink := fun _ => [] |}.
-#[export] Instance shrinkTreeKey : Shrink TreeKey := {| shrink := fun _ => [] |}.
-#[export] Instance shrinkValue : Shrink Value := {| shrink := fun _ => [] |}.
-#[export] Instance shrinkSimTree : Shrink SimTree := {| shrink := fun _ => [] |}.
+#[export] Instance shrinkStem : Shrink Stem := 
+  {| shrink := fun s => 
+       (* Shrink to simpler stems: try zero stem and stems with smaller values *)
+       [mkStem (repeat 0 31); gen_stem_from_byte 0; gen_stem_from_byte 1] |}.
+
+#[export] Instance shrinkTreeKey : Shrink TreeKey := 
+  {| shrink := fun k =>
+       (* Shrink to simpler keys: try subindex 0, and simpler stems *)
+       let simpler_stems := shrink (tk_stem k) in
+       map (fun s => mkTreeKey s (tk_subindex k)) simpler_stems ++
+       [mkTreeKey (tk_stem k) 0; mkTreeKey (gen_stem_from_byte 0) 0] |}.
+
+#[export] Instance shrinkValue : Shrink Value := 
+  {| shrink := fun v =>
+       (* Shrink to zero value or simpler non-zero values *)
+       if is_zero_value v then [] 
+       else [zero32; gen_nonzero_value 1] |}.
+
+#[export] Instance shrinkSimTree : Shrink SimTree := 
+  {| shrink := fun _ => 
+       (* Trees are complex; shrink to empty tree *)
+       [empty_tree] |}.
 
 (* Show instances *)
 
