@@ -71,6 +71,7 @@ jobs:
           }
           
           # Verify installation (Rocq 9 uses rocqc, with coqc as alias)
+          eval $(opam env --switch=rocq-9)
           which rocqc && rocqc --version || (which coqc && coqc --version)
 
       - name: Build core proofs (without QuickChick)
