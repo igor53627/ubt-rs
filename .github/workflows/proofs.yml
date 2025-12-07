@@ -70,14 +70,14 @@ jobs:
             opam install rocq-prover -y
           }
           
-          # Verify installation
-          which coqc && coqc --version
+          # Verify installation (Rocq 9 uses rocqc, with coqc as alias)
+          which rocqc && rocqc --version || (which coqc && coqc --version)
 
       - name: Build core proofs (without QuickChick)
         working-directory: formal
         run: |
           eval $(opam env --switch=rocq-9)
-          which coqc && coqc --version
+          which rocqc && rocqc --version || (which coqc && coqc --version)
           make clean
           # Build specs, simulations, and core proofs (skip quickchick_tests.v)
           make specs
