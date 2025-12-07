@@ -56,12 +56,13 @@ jobs:
           opam switch create rocq-9 ocaml-base-compiler.4.14.2
           eval $(opam env --switch=rocq-9)
           
-          # Add Rocq released repo
+          # Add Rocq released repo (contains rocq-prover 9.0.0)
           opam repo add rocq-released https://rocq-prover.org/opam/released --set-default
           opam update
           
-          # Install Rocq 9.0 (uses Stdlib namespace)
-          opam install rocq-prover.9.0.0 -y
+          # Install Rocq 9.0 using pin (as per official docs)
+          # This builds from source and takes ~7 minutes
+          opam pin add rocq-prover 9.0.0 -y
           
           # Verify installation
           which coqc && coqc --version
