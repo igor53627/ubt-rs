@@ -69,8 +69,9 @@ Definition zero32 : bytes32 := repeat 0%Z 32.
 Axiom hash_zero : Hash zero32 zero32 = zero32.
 Axiom hash_single_zero : HashSingle zero32 = zero32.
 
-(** Hash is deterministic *)
-Axiom hash_deterministic : forall a b, Hash a b = Hash a b.
+(** Hash is deterministic - provable from reflexivity *)
+Lemma hash_deterministic : forall a b, Hash a b = Hash a b.
+Proof. reflexivity. Qed.
 
 (** Collision resistance (assumed) *)
 Axiom hash_collision_resistant : 
