@@ -42,9 +42,9 @@ jobs:
         id: cache-opam
         with:
           path: ~/.opam
-          key: opam-rocq9-${{ runner.os }}-v2-${{ hashFiles('formal/Makefile') }}
+          key: opam-rocq9-${{ runner.os }}-v4-${{ hashFiles('formal/Makefile') }}
           restore-keys: |
-            opam-rocq9-${{ runner.os }}-v2-
+            opam-rocq9-${{ runner.os }}-v4-
 
       - name: Initialize opam
         if: steps.cache-opam.outputs.cache-hit != 'true'
@@ -54,18 +54,23 @@ jobs:
       - name: Create rocq-9 switch
         if: steps.cache-opam.outputs.cache-hit != 'true'
         run: |
+          # Create switch with OCaml 4.14.2
           opam switch create rocq-9 ocaml-base-compiler.4.14.2
           eval $(opam env --switch=rocq-9)
-          opam repo add rocq-extra https://github.com/coq/opam.git --set-default
+          
+          # Add Coq released repo (contains Rocq/Coq packages)
+          opam repo add coq-released https://coq.inria.fr/opam/released --set-default
           opam update
-          opam install rocq.9.0.0 coq-quickchick -y
+          
+          # Install Coq 9.0.1 (the Rocq compatibility package) and QuickChick
+          opam install coq.9.0.1 coq-quickchick -y
 
       - name: Cache RocqOfRust
         uses: actions/cache@v4
         id: cache-rocqofrust
         with:
           path: rocq-of-rust/RocqOfRust/*.vo
-          key: rocqofrust-${{ runner.os }}-${{ hashFiles('rocq-of-rust/RocqOfRust/**/*.v') }}
+          key: rocqofrust-${{ runner.os }}-v2-${{ hashFiles('rocq-of-rust/RocqOfRust/**/*.v') }}
 
       - name: Build RocqOfRust library
         if: steps.cache-rocqofrust.outputs.cache-hit != 'true'
