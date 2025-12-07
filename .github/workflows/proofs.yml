@@ -57,12 +57,18 @@ jobs:
           eval $(opam env --switch=rocq-9)
           
           # Add Rocq released repo (contains rocq-prover 9.0.0)
-          opam repo add rocq-released https://rocq-prover.org/opam/released --set-default
+          opam repo add rocq-released https://rocq-prover.org/opam/released --set-default || true
           opam update
+          
+          # Debug: show available packages
+          opam search rocq-prover || true
           
           # Install Rocq 9.0 using pin (as per official docs)
           # This builds from source and takes ~7 minutes
-          opam pin add rocq-prover 9.0.0 -y
+          opam pin add rocq-prover 9.0.0 -y || {
+            echo "opam pin failed, trying opam install"
+            opam install rocq-prover -y
+          }
           
           # Verify installation
           which coqc && coqc --version
