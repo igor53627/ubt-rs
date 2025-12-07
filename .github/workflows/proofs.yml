@@ -1,0 +1,178 @@
+name: Proof Verification
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'formal/**'
+      - '.github/workflows/proofs.yml'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'formal/**'
+      - '.github/workflows/proofs.yml'
+  workflow_dispatch:
+
+jobs:
+  verify-proofs:
+    runs-on: ubuntu-latest
+    
+    env:
+      OPAMYES: 1
+      OPAMJOBS: 2
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Checkout rocq-of-rust
+        uses: actions/checkout@v4
+        with:
+          repository: formal-land/rocq-of-rust
+          path: rocq-of-rust
+          ref: main
+
+      - name: Cache opam
+        uses: actions/cache@v4
+        id: cache-opam
+        with:
+          path: |
+            ~/.opam
+            rocq-of-rust/RocqOfRust/*.vo
+            rocq-of-rust/RocqOfRust/*.glob
+          key: opam-rocq9-${{ runner.os }}-${{ hashFiles('formal/Makefile') }}
+          restore-keys: |
+            opam-rocq9-${{ runner.os }}-
+
+      - name: Install opam
+        if: steps.cache-opam.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y opam
+          opam init --bare --disable-sandboxing
+
+      - name: Setup opam (cached)
+        if: steps.cache-opam.outputs.cache-hit == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y opam
+
+      - name: Create rocq-9 switch
+        if: steps.cache-opam.outputs.cache-hit != 'true'
+        run: |
+          opam switch create rocq-9 ocaml-base-compiler.4.14.2
+          eval $(opam env --switch=rocq-9)
+          opam repo add rocq-extra https://github.com/coq/opam.git --set-default
+          opam update
+          opam install rocq.9.0.0 -y
+
+      - name: Build RocqOfRust library
+        run: |
+          eval $(opam env --switch=rocq-9)
+          cd rocq-of-rust/RocqOfRust
+          if [ ! -f "M.vo" ]; then
+            make -j2
+          fi
+
+      - name: Set RocqOfRust path
+        run: |
+          echo "ROCQOFRUST_PATH=${{ github.workspace }}/rocq-of-rust/RocqOfRust" >> $GITHUB_ENV
+
+      - name: Build proofs
+        working-directory: formal
+        run: |
+          eval $(opam env --switch=rocq-9)
+          make clean
+          make all
+
+      - name: Build linking layer
+        working-directory: formal
+        run: |
+          eval $(opam env --switch=rocq-9)
+          make linking ROCQOFRUST_PATH=${{ env.ROCQOFRUST_PATH }}
+
+      - name: OCaml extraction verification
+        working-directory: formal
+        run: |
+          eval $(opam env --switch=rocq-9)
+          make extract
+          # Verify extracted files exist and have content
+          if [ ! -f extraction/extracted.ml ]; then
+            echo "::error::OCaml extraction failed - extracted.ml not generated"
+            exit 1
+          fi
+          if [ ! -s extraction/extracted.ml ]; then
+            echo "::error::OCaml extraction failed - extracted.ml is empty"
+            exit 1
+          fi
+          echo "Extracted OCaml file size: $(wc -c < extraction/extracted.ml) bytes"
+          echo "extraction_success=true" >> $GITHUB_OUTPUT
+
+      - name: Documentation generation check
+        working-directory: formal
+        run: |
+          eval $(opam env --switch=rocq-9)
+          make docs
+          # Verify docs were generated
+          if [ ! -d docs/html ] || [ -z "$(ls -A docs/html 2>/dev/null)" ]; then
+            echo "::warning::Documentation generation produced no output"
+          else
+            echo "Generated $(find docs/html -name '*.html' | wc -l) HTML files"
+          fi
+
+      - name: Generate audit report
+        working-directory: formal
+        run: |
+          eval $(opam env --switch=rocq-9)
+          make audit
+
+      - name: Verify axiom count
+        working-directory: formal
+        run: |
+          make verify-axioms
+
+      - name: Check admit threshold
+        working-directory: formal
+        run: |
+          # Set threshold - adjust as proofs are completed
+          make check-admits ADMIT_THRESHOLD=10
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: proof-audit
+          path: formal/audit-report.txt
+          retention-days: 30
+
+      - name: Upload extracted OCaml
+        uses: actions/upload-artifact@v4
+        with:
+          name: extracted-ocaml
+          path: |
+            formal/extraction/extracted.ml
+            formal/extraction/extracted.mli
+          retention-days: 30
+
+      - name: Upload documentation
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coqdoc-html
+          path: formal/docs/html/
+          retention-days: 30
+
+      - name: Build Summary
+        run: |
+          echo "## Proof Verification Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Core Proofs | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| Linking Layer | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| OCaml Extraction | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| Documentation | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Audit Report" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          tail -20 formal/audit-report.txt >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

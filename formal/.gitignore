@@ -1,0 +1,49 @@
+# Rocq compiled files
+*.vo
+*.vok
+*.vos
+*.glob
+*.aux
+*.nia.cache
+
+# Dependency files
+.depend
+.lia.cache
+
+# Extraction generated files
+extraction/extracted.ml
+extraction/extracted.mli
+extracted.ml
+extracted.mli
+
+# OCaml compiled files
+*.cmi
+*.cmo
+*.cmx
+*.o
+*.a
+*.cma
+*.cmxa
+extraction/test_ubt
+
+# Rust target directories
+**/target/
+extraction/ffi/rust/target/
+ffi/target/
+
+# Dune build directories
+**/_build/
+
+# Documentation generated files
+docs/html/
+
+# Audit reports
+audit-report.txt
+
+# Editor files
+*~
+\#*\#
+.#*
+
+# macOS
+.DS_Store

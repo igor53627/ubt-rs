@@ -1,0 +1,174 @@
+name: Proof Lint
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'formal/**/*.v'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'formal/**/*.v'
+
+jobs:
+  lint-proofs:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Count axioms and admits
+        id: count
+        working-directory: formal
+        run: |
+          chmod +x scripts/count_axioms.sh
+          ./scripts/count_axioms.sh > current-counts.txt
+          cat current-counts.txt
+          
+          # Extract counts for comparison
+          ADMITTED=$(grep "^ADMITTED:" current-counts.txt | cut -d: -f2)
+          AXIOMS=$(grep "^AXIOMS:" current-counts.txt | cut -d: -f2)
+          ADMITS=$(grep "^ADMITS:" current-counts.txt | cut -d: -f2)
+          PARAMS=$(grep "^PARAMETERS:" current-counts.txt | cut -d: -f2)
+          
+          echo "admitted=$ADMITTED" >> $GITHUB_OUTPUT
+          echo "axioms=$AXIOMS" >> $GITHUB_OUTPUT
+          echo "admits=$ADMITS" >> $GITHUB_OUTPUT
+          echo "params=$PARAMS" >> $GITHUB_OUTPUT
+
+      - name: Check for admit tactics in proofs
+        id: admit-check
+        working-directory: formal
+        run: |
+          echo "Checking for 'admit.' tactics in proof files..."
+          
+          # Only check proofs/ and linking/ directories (not simulations which may have WIP)
+          ADMIT_TACTICS=$(grep -rn '\badmit\.' proofs/ linking/ 2>/dev/null || true)
+          
+          if [ -n "$ADMIT_TACTICS" ]; then
+            echo "::warning::Found admit tactics in proof files:"
+            echo "$ADMIT_TACTICS"
+            echo ""
+            echo "These should be replaced with actual proofs before merging."
+            echo "has_admits=true" >> $GITHUB_OUTPUT
+            echo "admit_locations<<EOF" >> $GITHUB_OUTPUT
+            echo "$ADMIT_TACTICS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "✓ No admit tactics found in proof files"
+            echo "has_admits=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check for Admitted without justification
+        working-directory: formal
+        run: |
+          echo "Checking for Admitted proofs without TODO comments..."
+          
+          # Look for Admitted. without a preceding TODO or FIXME comment
+          for file in $(find proofs linking -name "*.v" 2>/dev/null); do
+            ADMITTED_LINES=$(grep -n 'Admitted\.' "$file" 2>/dev/null || true)
+            if [ -n "$ADMITTED_LINES" ]; then
+              while IFS= read -r line; do
+                LINE_NUM=$(echo "$line" | cut -d: -f1)
+                PREV_LINE=$((LINE_NUM - 1))
+                if [ "$PREV_LINE" -gt 0 ]; then
+                  HAS_TODO=$(sed -n "${PREV_LINE}p" "$file" | grep -i 'TODO\|FIXME\|WIP' || true)
+                  if [ -z "$HAS_TODO" ]; then
+                    echo "::warning file=$file,line=$LINE_NUM::Admitted without TODO/FIXME comment"
+                  fi
+                fi
+              done <<< "$ADMITTED_LINES"
+            fi
+          done
+
+      - name: Compare with base branch
+        if: github.event_name == 'pull_request'
+        working-directory: formal
+        run: |
+          # Get counts from base branch
+          git checkout ${{ github.base_ref }} -- . 2>/dev/null || true
+          
+          if [ -f scripts/count_axioms.sh ]; then
+            ./scripts/count_axioms.sh > base-counts.txt 2>/dev/null || echo -e "ADMITTED:0\nAXIOMS:0\nPARAMETERS:0\nADMITS:0" > base-counts.txt
+            
+            BASE_ADMITTED=$(grep "^ADMITTED:" base-counts.txt | cut -d: -f2 || echo "0")
+            BASE_AXIOMS=$(grep "^AXIOMS:" base-counts.txt | cut -d: -f2 || echo "0")
+            BASE_ADMITS=$(grep "^ADMITS:" base-counts.txt | cut -d: -f2 || echo "0")
+            
+            # Restore current branch
+            git checkout ${{ github.sha }} -- .
+            
+            CURR_ADMITTED=${{ steps.count.outputs.admitted }}
+            CURR_AXIOMS=${{ steps.count.outputs.axioms }}
+            CURR_ADMITS=${{ steps.count.outputs.admits }}
+            
+            echo "=== Comparison with base branch ==="
+            echo "Admitted: $BASE_ADMITTED -> $CURR_ADMITTED"
+            echo "Axioms: $BASE_AXIOMS -> $CURR_AXIOMS"
+            echo "admit tactics: $BASE_ADMITS -> $CURR_ADMITS"
+            
+            # Admitted count changes
+            if [ "$CURR_ADMITTED" -gt "$BASE_ADMITTED" ]; then
+              echo "::warning::Admitted count increased from $BASE_ADMITTED to $CURR_ADMITTED"
+            elif [ "$CURR_ADMITTED" -lt "$BASE_ADMITTED" ]; then
+              echo "::notice::Admitted count decreased from $BASE_ADMITTED to $CURR_ADMITTED"
+            fi
+            
+            # Axiom count changes
+            if [ "$CURR_AXIOMS" -gt "$BASE_AXIOMS" ]; then
+              echo "::error::Axiom count increased from $BASE_AXIOMS to $CURR_AXIOMS - requires justification"
+            fi
+            
+            # admit tactic changes (stricter - should not increase)
+            if [ "$CURR_ADMITS" -gt "$BASE_ADMITS" ]; then
+              echo "::error::admit tactics increased from $BASE_ADMITS to $CURR_ADMITS"
+              echo "admit tactics should not be added to proofs/ or linking/"
+              exit 1
+            fi
+          fi
+
+      - name: Fail on admits in core proofs
+        if: steps.admit-check.outputs.has_admits == 'true' && github.event_name == 'pull_request'
+        run: |
+          echo "::error::Found admit. tactics in proofs/ or linking/ directories"
+          echo "Please complete these proofs or use Admitted. with a TODO comment"
+          echo ""
+          echo "Locations:"
+          echo "${{ steps.admit-check.outputs.admit_locations }}"
+          exit 1
+
+      - name: Summary
+        run: |
+          echo "## Proof Lint Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Count | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          
+          ADMITTED=${{ steps.count.outputs.admitted }}
+          AXIOMS=${{ steps.count.outputs.axioms }}
+          ADMITS=${{ steps.count.outputs.admits }}
+          PARAMS=${{ steps.count.outputs.params }}
+          
+          # Status indicators
+          if [ "$ADMITS" -gt 0 ]; then
+            ADMIT_STATUS="⚠️"
+          else
+            ADMIT_STATUS="✅"
+          fi
+          
+          echo "| Admitted | $ADMITTED | ℹ️ |" >> $GITHUB_STEP_SUMMARY
+          echo "| Axioms | $AXIOMS | ℹ️ |" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameters | $PARAMS | ℹ️ |" >> $GITHUB_STEP_SUMMARY
+          echo "| admit tactics | $ADMITS | $ADMIT_STATUS |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "$ADMITS" -gt 0 ]; then
+            echo "### ⚠️ Warning: admit tactics found" >> $GITHUB_STEP_SUMMARY
+            echo "The following files contain \`admit.\` tactics that should be completed:" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            grep -rn '\badmit\.' formal/proofs/ formal/linking/ 2>/dev/null >> $GITHUB_STEP_SUMMARY || true
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi

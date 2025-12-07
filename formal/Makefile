@@ -10,7 +10,8 @@ ROCQOFRUST_PATH := $(HOME)/pse/paradigm/rocq-of-rust/RocqOfRust
 COQFLAGS := -Q specs UBT.Specs -Q simulations UBT.Sim -Q proofs UBT.Proofs
 
 # Flags for translated code (needs RocqOfRust)
-COQFLAGS_TRANS := -R $(ROCQOFRUST_PATH) RocqOfRust -Q src UBT.Src
+# Note: Uses -Q src src to match the auto-generated "Require Export src.xxx" paths
+COQFLAGS_TRANS := -R $(ROCQOFRUST_PATH) RocqOfRust -Q src src
 
 # Source files
 SPEC_FILES := specs/tree_spec.v specs/embedding_spec.v
@@ -21,8 +22,13 @@ TRANS_FILES := $(wildcard src/*.v)
 ALL_V := $(SPEC_FILES) $(SIM_FILES) $(PROOF_FILES)
 ALL_VO := $(ALL_V:.v=.vo)
 TRANS_VO := $(TRANS_FILES:.v=.vo)
+LINKING_FILES := $(wildcard linking/*.v)
+LINKING_VO := $(LINKING_FILES:.v=.vo)
 
-.PHONY: all clean specs simulations proofs translate translation check-deps help
+# Flags for linking layer (needs RocqOfRust + simulations + src)
+COQFLAGS_LINKING := -R $(ROCQOFRUST_PATH) RocqOfRust -Q simulations UBT.Sim -Q src src -Q linking UBT.Linking
+
+.PHONY: all clean specs simulations proofs translate translation linking extract extract-test extract-clean docs docs-clean check-deps help ci ci-full audit verify-axioms check-admits
 
 all: specs simulations proofs
 
@@ -37,6 +43,9 @@ proofs: simulations $(PROOF_FILES:.v=.vo)
 
 # Build translated Rust code (requires RocqOfRust library)
 translation: $(TRANS_VO)
+
+# Build linking layer (requires RocqOfRust + simulations + translation)
+linking: simulations translation $(LINKING_VO)
 
 # Compile spec/sim/proof .v to .vo
 specs/%.vo: specs/%.v
@@ -58,6 +67,24 @@ src/%.vo: src/%.v
 		exit 1; \
 	fi
 
+# Compile linking .v to .vo
+linking/%.vo: linking/%.v
+	@if [ -d "$(ROCQOFRUST_PATH)" ]; then \
+		$(COQC) $(COQFLAGS_LINKING) $<; \
+	else \
+		echo "Error: RocqOfRust not found at $(ROCQOFRUST_PATH)"; \
+		echo "Build it first: cd rocq-of-rust/RocqOfRust && make"; \
+		exit 1; \
+	fi
+
+# Explicit dependencies for linking layer
+linking/operations.vo: linking/types.vo
+
+# Explicit dependencies for simulations layer
+simulations/tree.vo: simulations/crypto.vo
+simulations/verkle.vo: simulations/tree.vo
+simulations/security.vo: simulations/crypto.vo simulations/tree.vo
+
 # Generate dependencies
 depend:
 	$(COQDEP) $(COQFLAGS) $(ALL_V) > .depend
@@ -68,12 +95,66 @@ translate:
 	cd .. && cargo +nightly-2024-12-07 rocq-of-rust
 	@echo "Translation complete. Check src/ for generated .v files."
 
+# OCaml Extraction
+# Flags for extraction (needs simulations)
+COQFLAGS_EXTRACT := -Q specs UBT.Specs -Q simulations UBT.Sim -Q extraction UBT.Extract
+
+# Extract to OCaml (depends on simulations being compiled)
+extract: simulations extraction/extract.vo
+	@echo "OCaml extraction complete!"
+	@echo "Generated files:"
+	@echo "  extraction/extracted.ml"
+	@echo "  extraction/extracted.mli"
+	@echo ""
+	@echo "To compile the tests (optional):"
+	@echo "  cd extraction && ocamlfind ocamlopt extracted.ml test_extracted.ml -o test_ubt"
+
+extraction/extract.vo: extraction/extract.v
+	$(COQC) $(COQFLAGS_EXTRACT) $<
+	@if [ -f extracted.ml ]; then mv extracted.ml extracted.mli extraction/; fi
+
+# Build and run extracted OCaml tests (optional - requires OCaml toolchain)
+extract-test: extract
+	@echo "Compiling extracted OCaml code..."
+	@cd extraction && ocamlfind ocamlopt -package zarith -linkpkg extracted.ml test_extracted.ml -o test_ubt 2>/dev/null || \
+		(ocamlopt extracted.ml test_extracted.ml -o test_ubt 2>/dev/null || \
+		echo "OCaml compilation failed - this is optional, extracted.ml is still usable")
+	@if [ -f extraction/test_ubt ]; then \
+		echo "Running tests..."; \
+		./extraction/test_ubt; \
+	fi
+
+extract-clean:
+	rm -f extraction/*.vo extraction/*.glob extraction/*.vok extraction/*.vos
+	rm -f extraction/extracted.ml extraction/extracted.mli
+	rm -f extraction/test_ubt extraction/*.cmi extraction/*.cmx extraction/*.o
+
+# Documentation generation using coqdoc
+COQDOC := coqdoc
+COQDOC_FLAGS := --toc --interpolate --utf8 --html \
+	-Q specs UBT.Specs -Q simulations UBT.Sim -Q proofs UBT.Proofs
+DOC_DIR := docs/html
+
+# Generate HTML documentation
+docs: specs simulations proofs
+	@mkdir -p $(DOC_DIR)
+	@echo "Generating HTML documentation..."
+	$(COQDOC) $(COQDOC_FLAGS) -d $(DOC_DIR) \
+		$(SPEC_FILES) $(SIM_FILES) $(PROOF_FILES)
+	@echo "Documentation generated in $(DOC_DIR)/"
+	@echo "Open docs/html/toc.html to browse."
+
+# Clean generated documentation
+docs-clean:
+	rm -rf $(DOC_DIR)
+
 # Clean generated files
-clean:
+clean: extract-clean docs-clean
 	rm -f specs/*.vo specs/*.glob specs/*.vok specs/*.vos
 	rm -f simulations/*.vo simulations/*.glob simulations/*.vok simulations/*.vos
 	rm -f proofs/*.vo proofs/*.glob proofs/*.vok proofs/*.vos
 	rm -f src/*.vo src/*.glob src/*.vok src/*.vos
+	rm -f linking/*.vo linking/*.glob linking/*.vok linking/*.vos
 	rm -f .depend
 
 # Check if dependencies are installed
@@ -91,6 +172,50 @@ check-deps:
 		echo "RocqOfRust: NOT FOUND"; \
 	fi
 
+# CI Targets
+# Basic CI build (for PRs)
+ci: clean all linking
+	@echo "CI build complete!"
+
+# Full CI build with all checks (for release verification)
+ci-full: ci extract docs audit check-admits
+	@echo "Full CI verification complete!"
+
+# Audit axioms and admits (generates report)
+audit:
+	@chmod +x scripts/count_axioms.sh
+	@./scripts/count_axioms.sh | tee audit-report.txt
+
+# List all axioms with counts (for review)
+verify-axioms:
+	@echo "=== Axiom Verification Report ==="
+	@echo ""
+	@echo "Axiom declarations:"
+	@grep -rn '^Axiom' specs/ simulations/ proofs/ linking/ 2>/dev/null || echo "  (none in specs/sim/proofs/linking)"
+	@echo ""
+	@echo "Parameter declarations:"
+	@grep -rn '^Parameter' specs/ simulations/ proofs/ linking/ 2>/dev/null || echo "  (none in specs/sim/proofs/linking)"
+	@echo ""
+	@echo "Summary:"
+	@AXIOMS=$$(grep -rh '^Axiom' specs/ simulations/ proofs/ linking/ 2>/dev/null | wc -l); \
+	PARAMS=$$(grep -rh '^Parameter' specs/ simulations/ proofs/ linking/ 2>/dev/null | wc -l); \
+	echo "  Total Axioms: $$AXIOMS"; \
+	echo "  Total Parameters: $$PARAMS"
+
+# Threshold for allowed admits (set to current count)
+ADMIT_THRESHOLD ?= 10
+
+# Check admits don't exceed threshold
+check-admits:
+	@echo "Checking admit count against threshold ($(ADMIT_THRESHOLD))..."
+	@ADMITS=$$(grep -rn '\badmit\.' proofs/ linking/ 2>/dev/null | wc -l | tr -d ' '); \
+	if [ "$$ADMITS" -gt "$(ADMIT_THRESHOLD)" ]; then \
+		echo "ERROR: admit count ($$ADMITS) exceeds threshold ($(ADMIT_THRESHOLD))"; \
+		exit 1; \
+	else \
+		echo "OK: admit count ($$ADMITS) within threshold ($(ADMIT_THRESHOLD))"; \
+	fi
+
 # Help
 help:
 	@echo "UBT Formal Verification Makefile"
@@ -102,12 +227,24 @@ help:
 	@echo "  proofs      - Build proof files"
 	@echo "  translation - Build translated Rust code (requires RocqOfRust)"
 	@echo "  translate   - Re-translate Rust to Rocq (requires rocq-of-rust)"
-	@echo "  clean       - Remove generated files"
+	@echo "  linking     - Build linking layer (requires RocqOfRust)"
+	@echo "  extract     - Extract to OCaml (generates extraction/extracted.ml)"
+	@echo "  extract-test- Build and run OCaml tests (optional)"
+	@echo "  extract-clean- Clean extraction artifacts"
+	@echo "  docs        - Generate HTML documentation (coqdoc)"
+	@echo "  docs-clean  - Remove generated documentation"
+	@echo "  clean       - Remove all generated files"
 	@echo "  check-deps  - Verify dependencies are installed"
+	@echo "  ci          - CI build (clean + all + linking)"
+	@echo "  ci-full     - Full CI with extraction, docs, audit, and checks"
+	@echo "  audit       - Count axioms and admits, generate report"
+	@echo "  verify-axioms - List all axioms with locations"
+	@echo "  check-admits - Fail if admits exceed threshold"
 	@echo "  help        - Show this message"
 	@echo ""
 	@echo "Prerequisites:"
 	@echo "  - Rocq 9.x (opam switch rocq-9)"
-	@echo "  - RocqOfRust library (for 'translation' target)"
+	@echo "  - RocqOfRust library (for 'translation' and 'linking' targets)"
+	@echo "  - coqdoc (included with Rocq, for 'docs' target)"
 
 -include .depend
