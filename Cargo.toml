@@ -1,0 +1,39 @@
+[package]
+name = "ubt"
+version = "0.1.0"
+edition = "2021"
+description = "Unified Binary Tree implementation based on EIP-7864"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/paradigmxyz/reth"
+keywords = ["ethereum", "eip-7864", "binary-tree", "state-tree"]
+categories = ["cryptography", "data-structures"]
+
+[dependencies]
+# Hashing - BLAKE3 for tree merkleization (hash function TBD per EIP)
+blake3 = "1.5"
+
+# SHA256 for key derivation (per go-ethereum reference implementation)
+sha2 = "0.10"
+
+# Ethereum primitives (compatible with reth)
+alloy-primitives = "1"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"], optional = true }
+
+# Error handling
+thiserror = "2"
+
+# Hex encoding for debug output
+hex = "0.4"
+
+[dev-dependencies]
+rand = "0.8"
+proptest = "1.4"
+criterion = "0.5"
+
+[features]
+default = []
+serde = ["dep:serde", "alloy-primitives/serde"]
+
+

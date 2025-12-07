@@ -1,0 +1,294 @@
+{
+  "eip": 7864,
+  "title": "Ethereum state using a unified binary tree",
+  "description": "Switch Ethereum state tree to a unified binary tree",
+  "status": "Draft",
+  "type": "Standards Track",
+  "category": "Core",
+  "created": "2025-01-20",
+  "discussion_url": "https://ethereum-magicians.org/t/eip-7864-ethereum-state-using-a-unified-binary-tree/22611",
+  "authors": [
+    {
+      "name": "Vitalik Buterin",
+      "github": "vbuterin"
+    },
+    {
+      "name": "Guillaume Ballet",
+      "github": "gballet"
+    },
+    {
+      "name": "Dankrad Feist",
+      "github": "dankrad"
+    },
+    {
+      "name": "Ignacio Hagopian",
+      "github": "jsign"
+    },
+    {
+      "name": "Kevaundray Wedderburn",
+      "github": "kevaundray"
+    },
+    {
+      "name": "Tanishq Jasoria",
+      "github": "tanishqjasoria"
+    },
+    {
+      "name": "Gajinder Singh",
+      "github": "g11tech"
+    },
+    {
+      "name": "Danno Ferrin",
+      "github": "shemnon"
+    },
+    {
+      "name": "Piper Merriam",
+      "github": "pipermerriam"
+    },
+    {
+      "name": "Gottfried Herold",
+      "github": "GottfriedHerold"
+    }
+  ],
+  "requires": [],
+  "abstract": "Introduce a new binary state tree, intended to replace the hexary patricia trees. Account and storage tries are merged into a single tree with 32-byte keys, which also contains contracts code. Account data is broken into independent leaves which are grouped by 256 in order to provide some locality.",
+  "motivation": {
+    "summary": "Ethereum's long-term goal is to allow blocks to be proved with validity proof so that chain verification is as simple and fast as possible.",
+    "problems_with_current_mpt": [
+      "Uses RLP for node encoding",
+      "Uses Keccak as a hashing function (not SNARK-friendly)",
+      "Is a tree of trees structure",
+      "Does not include account code as part of the state",
+      "Large Merkle proof sizes due to hexary structure"
+    ],
+    "proof_size_comparison": {
+      "hexary_tree_expected_proof_size": "3840 bytes for single branch in 2^32 size tree",
+      "worst_case_block_proof": "330MB for 30M gas accessing single bytes of different account codes"
+    }
+  },
+  "specification": {
+    "hash_function": {
+      "note": "Hash function not final",
+      "current_reference_implementation": "BLAKE3",
+      "candidates": ["BLAKE3", "Keccak", "Poseidon2"],
+      "poseidon2_considerations": "Ongoing EF cryptography initiative assessing security properties"
+    },
+    "notable_changes": [
+      "Account and storage tries merged into single trie",
+      "RLP no longer used",
+      "Account code is chunked and included in the tree",
+      "Account data is co-located in the tree to reduce branch openings"
+    ],
+    "tree_structure": {
+      "key_size": 32,
+      "value_size": 32,
+      "stem_size": 31,
+      "subindex_size": 1,
+      "stem_subtree_size": 256,
+      "node_types": [
+        {
+          "name": "InternalNode",
+          "fields": ["left_hash", "right_hash"],
+          "description": "Internal branching node"
+        },
+        {
+          "name": "StemNode",
+          "fields": ["stem", "left_hash", "right_hash"],
+          "description": "Node at the end of a stem path containing 256 leaf values"
+        },
+        {
+          "name": "LeafNode",
+          "fields": ["value"],
+          "description": "32-byte value or empty"
+        },
+        {
+          "name": "EmptyNode",
+          "fields": [],
+          "description": "Represents empty node/sub-tree"
+        }
+      ]
+    },
+    "node_merkelization": {
+      "hash_function_rules": {
+        "empty_input": "hash([0x00] * 64) = [0x00] * 32",
+        "normal_input": "hash(value) = H(value)"
+      },
+      "valid_input_lengths": [32, 64],
+      "node_hash_formulas": {
+        "internal_node": "hash(left_hash || right_hash)",
+        "stem_node": "hash(stem || 0x00 || hash(left_hash || right_hash))",
+        "leaf_node": "hash(value)",
+        "empty_node": "[0x00] * 32"
+      }
+    },
+    "tree_embedding": {
+      "parameters": {
+        "BASIC_DATA_LEAF_KEY": 0,
+        "CODE_HASH_LEAF_KEY": 1,
+        "HEADER_STORAGE_OFFSET": 64,
+        "CODE_OFFSET": 128,
+        "STEM_SUBTREE_WIDTH": 256,
+        "MAIN_STORAGE_OFFSET": "256^31"
+      },
+      "invariants": [
+        "STEM_SUBTREE_WIDTH > CODE_OFFSET > HEADER_STORAGE_OFFSET",
+        "HEADER_STORAGE_OFFSET > leaf keys",
+        "MAIN_STORAGE_OFFSET must be power of STEM_SUBTREE_WIDTH"
+      ],
+      "address_conversion": "Prepend 12 zero bytes to convert Address to Address32"
+    },
+    "header_values": {
+      "basic_data_layout": [
+        {
+          "name": "version",
+          "offset": 0,
+          "size": 1
+        },
+        {
+          "name": "reserved",
+          "offset": 1,
+          "size": 4
+        },
+        {
+          "name": "code_size",
+          "offset": 5,
+          "size": 3
+        },
+        {
+          "name": "nonce",
+          "offset": 8,
+          "size": 8
+        },
+        {
+          "name": "balance",
+          "offset": 16,
+          "size": 16
+        }
+      ],
+      "encoding": "big-endian",
+      "notes": [
+        "code_size can be extended to 4 bytes without version change",
+        "Packing reduces gas costs by requiring only one branch opening"
+      ]
+    },
+    "code": {
+      "chunk_size": 32,
+      "code_slice_size": 31,
+      "chunk_format": {
+        "byte_0": "Number of leading bytes that are part of PUSHDATA",
+        "bytes_1_to_31": "31 bytes of code"
+      },
+      "push_constants": {
+        "PUSH_OFFSET": 95,
+        "PUSH1": 96,
+        "PUSH32": 127
+      }
+    },
+    "storage": {
+      "first_slots_location": "In account stem at HEADER_STORAGE_OFFSET",
+      "first_slots_count": 64,
+      "main_storage_location": "MAIN_STORAGE_OFFSET + storage_key",
+      "note": "Slots in same STEM_SUBTREE_WIDTH range share single stem"
+    },
+    "related_eips": {
+      "fork": "EIP-7612",
+      "access_events": "EIP-4762"
+    }
+  },
+  "rationale": {
+    "single_tree_design": {
+      "reasons": [
+        "Simplicity: easier to work with key/value store abstraction",
+        "Uniformity: state uniformly spread throughout tree",
+        "Extensibility: account headers and code in same structure as storage"
+      ],
+      "benefits": [
+        "Simpler witness gas rules",
+        "Better state-syncing algorithms",
+        "Reduced effectiveness of unbalanced tree-filling attacks"
+      ]
+    },
+    "snark_friendliness_and_post_quantum": {
+      "design_goals": [
+        "Simple tree structure without complex branching rules",
+        "No extension nodes in middle of branches",
+        "No RLP encoding",
+        "Efficient implementations both out and in circuits"
+      ],
+      "hash_function_candidates": {
+        "BLAKE3": {
+          "pros": [
+            "Good out-of-circuit performance",
+            "Reasonable in-circuit performance",
+            "Well-established security"
+          ],
+          "status": "Current reference implementation"
+        },
+        "Keccak": {
+          "pros": [
+            "Already used in Ethereum",
+            "Well-studied security"
+          ],
+          "cons": ["Less efficient for circuit proving"]
+        },
+        "Poseidon2": {
+          "pros": [
+            "Excellent in-circuit performance",
+            "Better proving throughput"
+          ],
+          "cons": ["Security analysis ongoing"]
+        }
+      },
+      "post_quantum_considerations": {
+        "timeline": "Quantum computers potentially real in 2030s",
+        "nist_recommendation": "Stop using ECC by 2030",
+        "advantage_over_verkle": "Only depends on hash functions, which are post-quantum safe"
+      }
+    },
+    "arity_2": {
+      "reason": "Minimizes witness size",
+      "formula": "branch_size ≈ 32 * (k-1) * log(N) / log(k)",
+      "comparison_table": {
+        "description": "Branch lengths for N = 2^24",
+        "data": [
+          {"arity": 2, "chunks": 24, "bytes": 768},
+          {"arity": 4, "chunks": 36, "bytes": 1152},
+          {"arity": 8, "chunks": 56, "bytes": 1792},
+          {"arity": 16, "chunks": 90, "bytes": 2880}
+        ]
+      }
+    },
+    "tree_depth": {
+      "approach": "Avoid full 248-bit depth of Sparse Merkle Tree",
+      "reason": "Reduces hashing load in proving systems",
+      "trade_off": "Avoid extension nodes for simplicity despite potential optimization"
+    },
+    "state_expiry": {
+      "compatibility": "Could apply strategies like EIP-7736",
+      "potential_solutions": [
+        "Add epoch field to StemNode",
+        "Use 247-bits for stem with two subtrees: StemValuesNode and StemMetaNode"
+      ]
+    }
+  },
+  "backwards_compatibility": {
+    "breaking_changes": [
+      {
+        "issue": "Gas costs for code chunk access",
+        "impact": "May affect applications' economic viability",
+        "mitigation": "Increase gas limit while implementing"
+      },
+      {
+        "issue": "Tree structure change",
+        "impact": "In-EVM proofs of historical state no longer work",
+        "mitigation": null
+      }
+    ]
+  },
+  "security_considerations": {
+    "status": "Needs discussion"
+  },
+  "implementation": {
+    "related_eips": ["EIP-7612", "EIP-4762", "EIP-7748", "EIP-7736"]
+  },
+  "copyright": "CC0"
+}

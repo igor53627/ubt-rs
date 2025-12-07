@@ -1,0 +1,319 @@
+//! Tree embedding for Ethereum state.
+//!
+//! This module defines how Ethereum state (accounts, storage, code) is mapped
+//! to tree keys per EIP-7864.
+//!
+//! ## Layout Overview
+//!
+//! Each account has a "base stem" derived from its address. Within that stem's subtree:
+//! - Subindex 0: Basic data (version, code size, nonce, balance)
+//! - Subindex 1: Code hash
+//! - Subindexes 2-63: Reserved for future use
+//! - Subindexes 64-127: First 64 storage slots (HEADER_STORAGE_OFFSET)
+//! - Subindexes 128-255: First 128 code chunks (CODE_OFFSET)
+//!
+//! Storage slots beyond the first 64 and code chunks beyond the first 128
+//! are stored in separate stems calculated from the account address and slot/chunk index.
+//!
+//! ## Key Derivation
+//!
+//! Per go-ethereum reference implementation, keys are derived using SHA256:
+//! ```text
+//! key = SHA256(zeroHash[:12] || address[:] || inputKey[:31])
+//! key[31] = inputKey[31]  // subindex preserved
+//! ```
+
+use alloy_primitives::{Address, B256, U256};
+use sha2::{Sha256, Digest};
+
+use crate::{Stem, TreeKey, SubIndex, STEM_LEN};
+
+/// Subindex for basic account data (nonce, balance, code size)
+pub const BASIC_DATA_LEAF_KEY: SubIndex = 0;
+
+/// Subindex for code hash
+pub const CODE_HASH_LEAF_KEY: SubIndex = 1;
+
+/// Offset in basic data leaf for code size (bytes 5-7)
+pub const BASIC_DATA_CODE_SIZE_OFFSET: usize = 5;
+
+/// Offset in basic data leaf for nonce (bytes 8-15)
+pub const BASIC_DATA_NONCE_OFFSET: usize = 8;
+
+/// Offset in basic data leaf for balance (bytes 16-31)
+pub const BASIC_DATA_BALANCE_OFFSET: usize = 16;
+
+/// Offset for first 64 storage slots within account stem (subindexes 64-127)
+pub const HEADER_STORAGE_OFFSET: SubIndex = 64;
+
+/// Offset for first 128 code chunks within account stem (subindexes 128-255)
+pub const CODE_OFFSET: SubIndex = 128;
+
+/// Width of a stem subtree (256 values)
+pub const STEM_SUBTREE_WIDTH: u64 = 256;
+
+/// Main storage offset marker byte (1 << 248 represented as first byte = 1)
+const MAIN_STORAGE_MARKER: u8 = 1;
+
+/// Zero hash prefix used in key derivation (12 zero bytes)
+const ZERO_PREFIX: [u8; 12] = [0u8; 12];
+
+/// Derive a tree key using the go-ethereum algorithm.
+///
+/// Per reference implementation:
+/// ```text
+/// key = SHA256(zeroHash[:12] || address[:] || inputKey[:31])
+/// key[31] = inputKey[31]
+/// ```
+pub fn get_binary_tree_key(address: &Address, input_key: &[u8; 32]) -> TreeKey {
+    let mut hasher = Sha256::new();
+    hasher.update(&ZERO_PREFIX);
+    hasher.update(address.as_slice());
+    hasher.update(&input_key[..31]);
+    
+    let hash = hasher.finalize();
+    let mut stem_bytes = [0u8; STEM_LEN];
+    stem_bytes.copy_from_slice(&hash[..STEM_LEN]);
+    
+    TreeKey::new(Stem::new(stem_bytes), input_key[31])
+}
+
+/// Get the tree key for basic account data (nonce, balance, code size).
+pub fn get_basic_data_key(address: &Address) -> TreeKey {
+    let mut k = [0u8; 32];
+    k[31] = BASIC_DATA_LEAF_KEY;
+    get_binary_tree_key(address, &k)
+}
+
+/// Get the tree key for code hash.
+pub fn get_code_hash_key(address: &Address) -> TreeKey {
+    let mut k = [0u8; 32];
+    k[31] = CODE_HASH_LEAF_KEY;
+    get_binary_tree_key(address, &k)
+}
+
+/// Get the tree key for a storage slot.
+///
+/// Per go-ethereum reference:
+/// - Slots 0-63: stored at subindex (64 + slot) in account stem
+/// - Slots >= 64: stored with main storage offset (k[0] = 1)
+pub fn get_storage_slot_key(address: &Address, slot: &[u8; 32]) -> TreeKey {
+    let mut k = [0u8; 32];
+    
+    // Check if key belongs to account header (first 31 bytes zero, last byte < 64)
+    let is_header_slot = slot[..31].iter().all(|&b| b == 0) && slot[31] < 64;
+    
+    if is_header_slot {
+        // Header storage: subindex = 64 + slot
+        k[31] = HEADER_STORAGE_OFFSET + slot[31];
+    } else {
+        // Main storage: set marker byte and copy slot
+        k[0] = MAIN_STORAGE_MARKER; // 1 << 248
+        k[1..32].copy_from_slice(&slot[..31]);
+        k[31] = slot[31];
+    }
+    
+    get_binary_tree_key(address, &k)
+}
+
+/// Get the tree key for a storage slot from U256.
+pub fn get_storage_slot_key_u256(address: &Address, slot: U256) -> TreeKey {
+    get_storage_slot_key(address, &slot.to_be_bytes::<32>())
+}
+
+/// Get the tree key for a code chunk.
+///
+/// Per go-ethereum reference:
+/// - Chunks are indexed starting at offset 128
+/// - chunkOffset = 128 + chunkNumber
+pub fn get_code_chunk_key(address: &Address, chunk_number: u64) -> TreeKey {
+    let chunk_offset = 128u64 + chunk_number;
+    let mut k = [0u8; 32];
+    
+    // Store chunk offset as little-endian in bytes 24-31 per geth
+    k[24..32].copy_from_slice(&chunk_offset.to_le_bytes());
+    
+    get_binary_tree_key(address, &k)
+}
+
+/// Basic account data packed into a single 32-byte leaf.
+///
+/// Layout (per EIP-7864 / go-ethereum):
+/// - Byte 0: Version (currently 0)
+/// - Bytes 1-4: Reserved
+/// - Bytes 5-7: Code size (3 bytes, big-endian)
+/// - Bytes 8-15: Nonce (8 bytes, big-endian)
+/// - Bytes 16-31: Balance (16 bytes, big-endian)
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct BasicDataLeaf {
+    /// Version byte (currently 0)
+    pub version: u8,
+    /// Code size in bytes (max ~16MB with 3 bytes)
+    pub code_size: u32,
+    /// Account nonce
+    pub nonce: u64,
+    /// Account balance
+    pub balance: u128,
+}
+
+impl BasicDataLeaf {
+    /// Create a new basic data leaf.
+    pub const fn new(nonce: u64, balance: u128, code_size: u32) -> Self {
+        Self {
+            version: 0,
+            code_size,
+            nonce,
+            balance,
+        }
+    }
+
+    /// Encode to a 32-byte value.
+    pub fn encode(&self) -> B256 {
+        let mut bytes = [0u8; 32];
+        bytes[0] = self.version;
+        // bytes[1..5] = reserved
+        bytes[5..8].copy_from_slice(&self.code_size.to_be_bytes()[1..4]); // 3 bytes
+        bytes[8..16].copy_from_slice(&self.nonce.to_be_bytes());
+        bytes[16..32].copy_from_slice(&self.balance.to_be_bytes());
+        B256::from(bytes)
+    }
+
+    /// Decode from a 32-byte value.
+    pub fn decode(value: B256) -> Self {
+        let bytes = value.as_slice();
+        
+        let mut code_size_bytes = [0u8; 4];
+        code_size_bytes[1..4].copy_from_slice(&bytes[5..8]);
+        
+        let mut nonce_bytes = [0u8; 8];
+        nonce_bytes.copy_from_slice(&bytes[8..16]);
+        
+        let mut balance_bytes = [0u8; 16];
+        balance_bytes.copy_from_slice(&bytes[16..32]);
+        
+        Self {
+            version: bytes[0],
+            code_size: u32::from_be_bytes(code_size_bytes),
+            nonce: u64::from_be_bytes(nonce_bytes),
+            balance: u128::from_be_bytes(balance_bytes),
+        }
+    }
+}
+
+/// Helper struct for computing account keys.
+pub struct AccountStem {
+    /// The account address
+    pub address: Address,
+}
+
+impl AccountStem {
+    /// Create a new account stem helper from an address.
+    pub fn new(address: Address) -> Self {
+        Self { address }
+    }
+
+    /// Get the tree key for basic data.
+    pub fn basic_data_key(&self) -> TreeKey {
+        get_basic_data_key(&self.address)
+    }
+
+    /// Get the tree key for code hash.
+    pub fn code_hash_key(&self) -> TreeKey {
+        get_code_hash_key(&self.address)
+    }
+
+    /// Get the tree key for a storage slot.
+    pub fn storage_key(&self, slot: U256) -> TreeKey {
+        get_storage_slot_key_u256(&self.address, slot)
+    }
+
+    /// Get the tree key for a code chunk.
+    pub fn code_chunk_key(&self, chunk_index: u64) -> TreeKey {
+        get_code_chunk_key(&self.address, chunk_index)
+    }
+}
+
+// Legacy exports for backwards compatibility
+pub use get_basic_data_key as account_stem_basic_data;
+pub use get_storage_slot_key_u256 as storage_key;
+pub use get_code_chunk_key as code_chunk_key;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_data_roundtrip() {
+        let original = BasicDataLeaf::new(42, 1000000, 1024);
+        let encoded = original.encode();
+        let decoded = BasicDataLeaf::decode(encoded);
+        assert_eq!(original, decoded);
+    }
+
+    #[test]
+    fn test_storage_key_header_slots() {
+        let address = Address::repeat_byte(0x42);
+        let base_key = get_basic_data_key(&address);
+        
+        for slot in 0..64u8 {
+            let mut slot_bytes = [0u8; 32];
+            slot_bytes[31] = slot;
+            let key = get_storage_slot_key(&address, &slot_bytes);
+            // Header slots share the same stem as basic data
+            assert_eq!(key.stem, base_key.stem);
+            assert_eq!(key.subindex, HEADER_STORAGE_OFFSET + slot);
+        }
+    }
+
+    #[test]
+    fn test_storage_key_main_storage() {
+        let address = Address::repeat_byte(0x42);
+        let base_key = get_basic_data_key(&address);
+        
+        // Slot 100 should be in main storage (different stem)
+        let mut slot_bytes = [0u8; 32];
+        slot_bytes[31] = 100;
+        let key = get_storage_slot_key(&address, &slot_bytes);
+        
+        assert_ne!(key.stem, base_key.stem);
+    }
+
+    #[test]
+    fn test_code_chunk_key() {
+        let address = Address::repeat_byte(0x42);
+        
+        // Test that code chunk keys are deterministic
+        let key0a = get_code_chunk_key(&address, 0);
+        let key0b = get_code_chunk_key(&address, 0);
+        assert_eq!(key0a, key0b);
+        
+        // Different chunks have different keys
+        let key1 = get_code_chunk_key(&address, 1);
+        assert_ne!(key0a.to_bytes(), key1.to_bytes());
+        
+        // Different addresses have different keys for same chunk
+        let addr2 = Address::repeat_byte(0x43);
+        let key0_addr2 = get_code_chunk_key(&addr2, 0);
+        assert_ne!(key0a.stem, key0_addr2.stem);
+    }
+
+    #[test]
+    fn test_key_derivation_deterministic() {
+        let address = Address::repeat_byte(0x42);
+        let key1 = get_basic_data_key(&address);
+        let key2 = get_basic_data_key(&address);
+        assert_eq!(key1, key2);
+    }
+
+    #[test]
+    fn test_different_addresses_different_stems() {
+        let addr1 = Address::repeat_byte(0x01);
+        let addr2 = Address::repeat_byte(0x02);
+        
+        let key1 = get_basic_data_key(&addr1);
+        let key2 = get_basic_data_key(&addr2);
+        
+        assert_ne!(key1.stem, key2.stem);
+    }
+}
