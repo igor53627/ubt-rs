@@ -82,21 +82,29 @@ Definition storage_slot_key (addr : Address) (slot : StorageSlot) : list Z :=
 
 (** ** Code Chunk Keys *)
 
-(** Code chunk key derivation *)
+(** Code chunk key derivation - corrected per EIP-7864 *)
 Definition code_chunk_key (addr : Address) (chunk_num : Z) : list Z :=
-  (* chunkOffset = 128 + chunkNum, stored as little-endian in bytes 24-31 *)
-  let offset := (CODE_OFFSET + chunk_num)%Z in
-  let input := repeat 0%Z 24 ++ 
-    (* Little-endian encoding of offset in 8 bytes *)
-    [Z.land offset 255;
-     Z.land (Z.shiftr offset 8) 255;
-     Z.land (Z.shiftr offset 16) 255;
-     Z.land (Z.shiftr offset 24) 255;
-     Z.land (Z.shiftr offset 32) 255;
-     Z.land (Z.shiftr offset 40) 255;
-     Z.land (Z.shiftr offset 48) 255;
-     Z.land (Z.shiftr offset 56) 255] in
-  derive_tree_key addr input.
+  let pos := (CODE_OFFSET + chunk_num)%Z in
+  if (pos <? STEM_SUBTREE_WIDTH)%Z then
+    (* First 128 chunks: same stem as account, subindex = pos *)
+    let input := repeat 0%Z 31 ++ [pos] in
+    derive_tree_key addr input
+  else
+    (* Later chunks: encode stem_index into first 31 bytes *)
+    let stem_index := (pos / STEM_SUBTREE_WIDTH)%Z in
+    let subindex := (pos mod STEM_SUBTREE_WIDTH)%Z in
+    (* encode stem_index as big-endian in bytes 23-30 *)
+    let input := repeat 0%Z 23 ++ 
+      [Z.land (Z.shiftr stem_index 56) 255;
+       Z.land (Z.shiftr stem_index 48) 255;
+       Z.land (Z.shiftr stem_index 40) 255;
+       Z.land (Z.shiftr stem_index 32) 255;
+       Z.land (Z.shiftr stem_index 24) 255;
+       Z.land (Z.shiftr stem_index 16) 255;
+       Z.land (Z.shiftr stem_index 8) 255;
+       Z.land stem_index 255;
+       subindex] in
+    derive_tree_key addr input.
 
 (** ** Basic Data Layout *)
 
@@ -253,34 +261,27 @@ Proof.
   reflexivity.
 Qed.
 
-(** [AXIOM:SPEC] First 128 code chunks share stem with account.
+(** First 128 code chunks share stem with account.
     
-    This property is specified in the Verkle tree EIP but cannot be
-    derived from SHA256 properties alone because the hash inputs differ:
-    - basic_data_key uses tree_index = 0
-    - code_chunk_key uses tree_index = 128 + chunk_num
-    
-    The stems would only be equal if SHA256 produces the same first 31 bytes
-    for these different inputs, which contradicts collision resistance.
-    
-    This suggests either:
-    1. The EIP spec has a different derivation we haven't captured
-    2. The stem sharing is achieved through a different mechanism
-    3. This property is not actually required by the spec
-    
-    We axiomatize this as a specification-level assumption to be
-    validated against the actual EIP implementation. *)
-Axiom header_code_same_stem_spec :
-  forall addr chunk_num,
-    (0 <= chunk_num < 128)%Z ->
-    firstn 31 (code_chunk_key addr chunk_num) = firstn 31 (basic_data_key addr).
-
-(** Wrapper theorem using the axiom. *)
+    With the corrected EIP-7864 implementation:
+    - For chunk_num in [0, 128), pos = 128 + chunk_num is in [128, 256)
+    - Since pos < 256 = STEM_SUBTREE_WIDTH, we use input = repeat 0 31 ++ [pos]
+    - Therefore firstn 31 input = repeat 0 31, same as basic_data_key
+    - The SHA256 hash input is identical, so stems are equal. *)
 Theorem header_code_same_stem :
   forall addr chunk_num,
     (0 <= chunk_num < 128)%Z ->
     firstn 31 (code_chunk_key addr chunk_num) = firstn 31 (basic_data_key addr).
 Proof.
   intros addr chunk_num Hrange.
-  apply header_code_same_stem_spec. exact Hrange.
+  unfold code_chunk_key, basic_data_key, derive_tree_key.
+  (* pos = 128 + chunk_num, with chunk_num in [0, 128), so pos in [128, 256) *)
+  (* Since pos < 256 = STEM_SUBTREE_WIDTH, the condition (pos <? 256) is true *)
+  assert (Hpos : (CODE_OFFSET + chunk_num <? STEM_SUBTREE_WIDTH)%Z = true).
+  { unfold CODE_OFFSET, STEM_SUBTREE_WIDTH. lia. }
+  rewrite Hpos.
+  (* Now both use input with firstn 31 input = repeat 0 31 *)
+  rewrite !firstn_31_repeat_0_app.
+  rewrite !firstn_firstn_app by (rewrite SHA256_length; lia).
+  reflexivity.
 Qed.
