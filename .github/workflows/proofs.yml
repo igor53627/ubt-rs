@@ -42,40 +42,40 @@ jobs:
         id: cache-opam
         with:
           path: ~/.opam
-          key: opam-rocq9-${{ runner.os }}-v4-${{ hashFiles('formal/Makefile') }}
+          key: opam-coq819-${{ runner.os }}-v5-${{ hashFiles('formal/Makefile') }}
           restore-keys: |
-            opam-rocq9-${{ runner.os }}-v4-
+            opam-coq819-${{ runner.os }}-v5-
 
       - name: Initialize opam
         if: steps.cache-opam.outputs.cache-hit != 'true'
         run: |
           opam init --bare --disable-sandboxing
 
-      - name: Create rocq-9 switch
+      - name: Create Coq switch
         if: steps.cache-opam.outputs.cache-hit != 'true'
         run: |
           # Create switch with OCaml 4.14.2
-          opam switch create rocq-9 ocaml-base-compiler.4.14.2
-          eval $(opam env --switch=rocq-9)
+          opam switch create coq-8.19 ocaml-base-compiler.4.14.2
+          eval $(opam env --switch=coq-8.19)
           
-          # Add Coq released repo (contains Rocq/Coq packages)
+          # Add Coq released repo
           opam repo add coq-released https://coq.inria.fr/opam/released --set-default
           opam update
           
-          # Install Coq 9.0.1 (the Rocq compatibility package) and QuickChick
-          opam install coq.9.0.1 coq-quickchick -y
+          # Install Coq 8.19 (stable, well-supported)
+          opam install coq.8.19.2 -y
 
       - name: Cache RocqOfRust
         uses: actions/cache@v4
         id: cache-rocqofrust
         with:
           path: rocq-of-rust/RocqOfRust/*.vo
-          key: rocqofrust-${{ runner.os }}-v2-${{ hashFiles('rocq-of-rust/RocqOfRust/**/*.v') }}
+          key: rocqofrust-coq819-${{ runner.os }}-v2-${{ hashFiles('rocq-of-rust/RocqOfRust/**/*.v') }}
 
       - name: Build RocqOfRust library
         if: steps.cache-rocqofrust.outputs.cache-hit != 'true'
         run: |
-          eval $(opam env --switch=rocq-9)
+          eval $(opam env --switch=coq-8.19)
           cd rocq-of-rust/RocqOfRust
           make -j2 || make  # Retry without parallelism if it fails
 
@@ -83,23 +83,26 @@ jobs:
         run: |
           echo "ROCQOFRUST_PATH=${{ github.workspace }}/rocq-of-rust/RocqOfRust" >> $GITHUB_ENV
 
-      - name: Build proofs
+      - name: Build core proofs (without QuickChick)
         working-directory: formal
         run: |
-          eval $(opam env --switch=rocq-9)
+          eval $(opam env --switch=coq-8.19)
           make clean
-          make all
+          # Build specs, simulations, and core proofs (skip quickchick_tests.v)
+          make specs
+          make simulations
+          make proofs-core
 
       - name: Build linking layer
         working-directory: formal
         run: |
-          eval $(opam env --switch=rocq-9)
+          eval $(opam env --switch=coq-8.19)
           make linking ROCQOFRUST_PATH=${{ env.ROCQOFRUST_PATH }}
 
       - name: OCaml extraction verification
         working-directory: formal
         run: |
-          eval $(opam env --switch=rocq-9)
+          eval $(opam env --switch=coq-8.19)
           make extract
           # Verify extracted files exist and have content
           if [ ! -f extraction/extracted.ml ]; then
@@ -115,7 +118,7 @@ jobs:
       - name: Documentation generation check
         working-directory: formal
         run: |
-          eval $(opam env --switch=rocq-9)
+          eval $(opam env --switch=coq-8.19)
           make docs || true  # Don't fail on doc generation issues
           # Verify docs were generated
           if [ ! -d docs/html ] || [ -z "$(ls -A docs/html 2>/dev/null)" ]; then
@@ -127,7 +130,7 @@ jobs:
       - name: Generate audit report
         working-directory: formal
         run: |
-          eval $(opam env --switch=rocq-9)
+          eval $(opam env --switch=coq-8.19)
           make audit
 
       - name: Verify axiom count

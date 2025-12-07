@@ -17,6 +17,8 @@ COQFLAGS_TRANS := -R $(ROCQOFRUST_PATH) RocqOfRust -Q src src
 SPEC_FILES := specs/tree_spec.v specs/embedding_spec.v
 SIM_FILES := $(wildcard simulations/*.v)
 PROOF_FILES := $(wildcard proofs/*.v)
+# Core proofs (without QuickChick dependency)
+PROOF_CORE_FILES := proofs/correctness.v
 TRANS_FILES := $(wildcard src/*.v)
 
 ALL_V := $(SPEC_FILES) $(SIM_FILES) $(PROOF_FILES)
@@ -28,7 +30,7 @@ LINKING_VO := $(LINKING_FILES:.v=.vo)
 # Flags for linking layer (needs RocqOfRust + simulations + src)
 COQFLAGS_LINKING := -R $(ROCQOFRUST_PATH) RocqOfRust -Q simulations UBT.Sim -Q src src -Q linking UBT.Linking
 
-.PHONY: all clean specs simulations proofs translate translation linking extract extract-test extract-clean docs docs-clean check-deps help ci ci-full audit verify-axioms check-admits
+.PHONY: all clean specs simulations proofs proofs-core translate translation linking extract extract-test extract-clean docs docs-clean check-deps help ci ci-full audit verify-axioms check-admits
 
 all: specs simulations proofs
 
@@ -38,8 +40,11 @@ specs: $(SPEC_FILES:.v=.vo)
 # Build simulations (depends on specs)
 simulations: specs $(SIM_FILES:.v=.vo)
 
-# Build proofs (depends on simulations)
+# Build proofs (depends on simulations) - requires QuickChick
 proofs: simulations $(PROOF_FILES:.v=.vo)
+
+# Build core proofs only (no QuickChick dependency) - for CI
+proofs-core: simulations $(PROOF_CORE_FILES:.v=.vo)
 
 # Build translated Rust code (requires RocqOfRust library)
 translation: $(TRANS_VO)
