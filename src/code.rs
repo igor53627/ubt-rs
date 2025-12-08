@@ -21,7 +21,10 @@ pub struct CodeChunk {
 impl CodeChunk {
     /// Create a new code chunk.
     pub const fn new(leading_pushdata: u8, data: [u8; CODE_CHUNK_DATA_SIZE]) -> Self {
-        Self { leading_pushdata, data }
+        Self {
+            leading_pushdata,
+            data,
+        }
     }
 
     /// Encode to a 32-byte value.
@@ -67,23 +70,23 @@ pub fn chunkify_code(bytecode: &[u8]) -> Vec<CodeChunk> {
 
     let num_chunks = (bytecode.len() + CODE_CHUNK_DATA_SIZE - 1) / CODE_CHUNK_DATA_SIZE;
     let mut chunks = Vec::with_capacity(num_chunks);
-    
+
     // Track how many bytes of PUSHDATA remain from previous instruction
     let mut pushdata_remaining: usize = 0;
 
     for chunk_idx in 0..num_chunks {
         let start = chunk_idx * CODE_CHUNK_DATA_SIZE;
         let end = std::cmp::min(start + CODE_CHUNK_DATA_SIZE, bytecode.len());
-        
+
         // How many bytes at the start of this chunk are PUSHDATA from previous chunk?
         let leading_pushdata = std::cmp::min(pushdata_remaining, end - start) as u8;
-        
+
         let mut data = [0u8; CODE_CHUNK_DATA_SIZE];
         let chunk_data = &bytecode[start..end];
         data[..chunk_data.len()].copy_from_slice(chunk_data);
-        
+
         chunks.push(CodeChunk::new(leading_pushdata, data));
-        
+
         // Update pushdata_remaining for next chunk
         if pushdata_remaining > CODE_CHUNK_DATA_SIZE {
             pushdata_remaining -= CODE_CHUNK_DATA_SIZE;
@@ -113,13 +116,13 @@ pub fn chunkify_code(bytecode: &[u8]) -> Vec<CodeChunk> {
 /// Reconstruct bytecode from chunks.
 pub fn dechunkify_code(chunks: &[CodeChunk], code_size: usize) -> Vec<u8> {
     let mut bytecode = Vec::with_capacity(code_size);
-    
+
     for chunk in chunks {
         let remaining = code_size.saturating_sub(bytecode.len());
         let to_copy = std::cmp::min(remaining, CODE_CHUNK_DATA_SIZE);
         bytecode.extend_from_slice(&chunk.data[..to_copy]);
     }
-    
+
     bytecode
 }
 
@@ -137,7 +140,7 @@ mod tests {
     fn test_simple_code() {
         let code = vec![0x60, 0x00, 0x60, 0x00]; // PUSH1 0 PUSH1 0
         let chunks = chunkify_code(&code);
-        
+
         assert_eq!(chunks.len(), 1);
         assert_eq!(chunks[0].leading_pushdata, 0);
         assert_eq!(&chunks[0].data[..4], &code[..]);
@@ -148,9 +151,9 @@ mod tests {
         // Create code where PUSH32 spans two chunks
         let mut code = vec![0x7f]; // PUSH32
         code.extend_from_slice(&[0x11; 32]); // 32 bytes of push data
-        
+
         let chunks = chunkify_code(&code);
-        
+
         assert_eq!(chunks.len(), 2);
         assert_eq!(chunks[0].leading_pushdata, 0); // First chunk starts with PUSH32 opcode
         assert_eq!(chunks[1].leading_pushdata, 2); // Second chunk has 2 bytes of pushdata (31 bytes in first chunk, 2 remain)
@@ -170,10 +173,10 @@ mod tests {
         data[0] = 0x60;
         data[1] = 0x80;
         let chunk = CodeChunk::new(5, data);
-        
+
         let encoded = chunk.encode();
         let decoded = CodeChunk::decode(encoded);
-        
+
         assert_eq!(chunk, decoded);
     }
 }

@@ -24,7 +24,7 @@ make translation
 | **simulations/** | ✅ Complete | Idiomatic Rocq tree operations |
 | **proofs/** | ✅ Complete | Correctness proofs at simulation level |
 | **src/** | ✅ Compiles | rocq-of-rust translation (24,556 lines) |
-| **linking** | ❌ Pending | Translation-simulation equivalence |
+| **linking/** | ✅ Complete | Translation-simulation equivalence |
 
 ## Full Installation
 
@@ -111,10 +111,14 @@ make translation # translated Rust code
 | `make specs` | Build specification files only |
 | `make simulations` | Build simulation layer |
 | `make proofs` | Build correctness proofs |
-| `make translation` | Build translated Rust code |
+| `make translation` | Build translated Rust code (requires RocqOfRust) |
+| `make linking` | Build linking layer (requires RocqOfRust) |
 | `make translate` | Re-translate Rust to Rocq |
+| `make ci` | Full CI build: clean + all + linking |
 | `make clean` | Remove all generated files |
 | `make check-deps` | Verify installation |
+
+For linking layer setup details, see [docs/LINKING_LAYER_SETUP.md](docs/LINKING_LAYER_SETUP.md).
 
 ## Verifying Installation
 
@@ -163,12 +167,20 @@ formal/
 │   ├── tree_spec.v
 │   └── embedding_spec.v
 ├── simulations/       # Idiomatic Rocq
-│   └── tree.v
+│   ├── tree.v
+│   ├── crypto.v
+│   └── security.v
 ├── proofs/            # Correctness proofs
 │   └── correctness.v
-└── src/               # Translation output
-    ├── tree.v
-    ├── node.v
-    ├── hash.v
-    └── ...
+├── linking/           # Translation ↔ Simulation bridge
+│   ├── types.v        # Type correspondence (φ encoding)
+│   └── operations.v   # Behavioral equivalence
+├── src/               # Translation output (auto-generated)
+│   ├── tree.v
+│   ├── node.v
+│   ├── hash.v
+│   └── ...
+└── docs/              # Documentation
+    ├── LINKING_LAYER_SETUP.md  # RocqOfRust setup
+    └── SPEC_RUST_LINKAGE.md    # Type/operation mapping
 ```

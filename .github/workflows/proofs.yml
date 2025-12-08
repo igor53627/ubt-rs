@@ -84,6 +84,17 @@ jobs:
           make simulations
           make proofs-core
 
+      - name: Install QuickChick
+        run: |
+          eval $(opam env --switch=rocq-9)
+          opam install coq-quickchick -y
+
+      - name: Run QuickChick tests
+        working-directory: formal
+        run: |
+          eval $(opam env --switch=rocq-9)
+          make quickchick
+
       - name: OCaml extraction verification
         working-directory: formal
         run: |
@@ -161,6 +172,7 @@ jobs:
           echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| Core Proofs | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| QuickChick Tests | ✅ |" >> $GITHUB_STEP_SUMMARY
           echo "| Linking Layer | ⏭️ Skipped (requires RocqOfRust) |" >> $GITHUB_STEP_SUMMARY
           echo "| OCaml Extraction | ✅ |" >> $GITHUB_STEP_SUMMARY
           echo "| Documentation | ✅ |" >> $GITHUB_STEP_SUMMARY

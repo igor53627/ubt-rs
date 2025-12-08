@@ -1,6 +1,7 @@
 # UBT Formal Verification - Axiom Audit
 
 **Generated:** December 2024  
+**Last Updated:** December 2024 (axiom reduction)  
 **Status:** ✅ **VERIFICATION COMPLETE** - All admits closed  
 **Rocq Version:** 9.x
 
@@ -11,13 +12,18 @@
 | Category | Count | Risk Level | Notes |
 |----------|-------|------------|-------|
 | Crypto Assumptions (hash) | 12 | Low (standard) | Rogaway-Shrimpton definitions |
-| Verkle Crypto Axioms | 14 | Low (standard) | Kate-Zaverucha-Goldberg / IPA |
-| Specification Axioms | 8 | Low (well-formed) | Functional correctness properties |
+| Verkle Crypto Axioms | 13 | Low (standard) | Kate-Zaverucha-Goldberg / IPA |
+| Specification Axioms | 6 | Low (well-formed) | Functional correctness properties |
 | Linking/Execution Axioms | 18 | Low (verified) | rocq-of-rust translation |
 | Parameters (abstract types) | 26 | N/A | Abstract types and functions |
 | Security Axioms | 14 | Low (structural) | Game-based security in security.v |
 | Admitted Proofs | **0** | ✅ Complete | All admits closed |
-| **Total Axioms** | **67** | - | - |
+| **Total Axioms** | **64** | - | - |
+
+**Recent Axiom Reductions:**
+- `nth_error_key_unique` (verkle.v) → Proven from NoDup_nth_error
+- `hash_injective` (tree_spec.v) → Trivially provable (conclusion was True)
+- `hash_collision_resistant` (tree_spec.v) → Trivially provable (disjunct was True)
 
 **Verification Complete (December 2024):**
 - All 11 previously admitted proofs have been closed
@@ -28,15 +34,15 @@
 
 ### Files Audited
 
-| File | Axioms | Parameters | Admitted |
-|------|--------|------------|----------|
-| `simulations/crypto.v` | 8 | 3 | 0 |
-| `simulations/tree.v` | 4 | 3 | 0 |
-| `simulations/verkle.v` | 11 | 10 | 0 |
-| `simulations/security.v` | 14 | 0 | 0 |
-| `specs/tree_spec.v` | 8 | 3 | 0 |
-| `specs/embedding_spec.v` | 3 | 1 | 0 |
-| `linking/operations.v` | 18 | 6 | 0 |
+| File | Axioms | Parameters | Admitted | Notes |
+|------|--------|------------|----------|-------|
+| `simulations/crypto.v` | 8 | 3 | 0 | |
+| `simulations/tree.v` | 4 | 3 | 0 | |
+| `simulations/verkle.v` | 10 | 10 | 0 | -1 (nth_error_key_unique→lemma) |
+| `simulations/security.v` | 14 | 0 | 0 | |
+| `specs/tree_spec.v` | 6 | 3 | 0 | -2 (hash_injective, hash_collision_resistant→lemmas) |
+| `specs/embedding_spec.v` | 1 | 1 | 0 | |
+| `linking/operations.v` | 18 | 6 | 0 | |
 
 ---
 
@@ -252,17 +258,21 @@ High-level correctness properties that define expected behavior.
 |----------|-------|-----------|--------|
 | `specs/tree_spec.v:69` | `hash_zero` | `Hash zero32 zero32 = zero32` | Design choice |
 | `specs/tree_spec.v:70` | `hash_single_zero` | `HashSingle zero32 = zero32` | Design choice |
-| `specs/tree_spec.v:73` | `hash_deterministic` | `Hash a b = Hash a b` | Trivial (reflexivity) |
-| `specs/tree_spec.v:76-78` | `hash_collision_resistant` | Collision → (equal inputs ∨ True) | Weakened form |
-| `specs/tree_spec.v:150-155` | `hash_injective` | WellFormed trees with same hash → equivalent | Needs tree equality |
-| `specs/tree_spec.v:166-170` | `insert_order_independent` | Insert commutativity | Should be theorem |
-| `specs/tree_spec.v:175-178` | `get_insert_same` | Get after insert returns value | Should be theorem |
-| `specs/tree_spec.v:181-184` | `get_insert_other` | Get at different key unchanged | Should be theorem |
+| `specs/tree_spec.v:73` | `hash_deterministic` | `Hash a b = Hash a b` | ✅ Lemma (reflexivity) |
+| `specs/tree_spec.v:76-78` | `hash_collision_resistant` | Collision → (equal inputs ∨ True) | ✅ Lemma (trivial: right; trivial) |
+| `specs/tree_spec.v:150-155` | `hash_injective` | WellFormed trees with same hash → True | ✅ Lemma (trivial) |
+| `specs/tree_spec.v:170` | `insert_order_independent` | Insert commutativity | Should be theorem |
+| `specs/tree_spec.v:179` | `get_insert_same` | Get after insert returns value | Should be theorem |
+| `specs/tree_spec.v:185` | `get_insert_other` | Get at different key unchanged | Should be theorem |
+
+**Axioms Converted to Lemmas (December 2024):**
+- `hash_collision_resistant`: Had `\/ True` disjunct, making it trivially provable
+- `hash_injective`: Had `True` conclusion (placeholder), now properly documented
 
 **Why These Exist:**  
 These specification-level axioms capture the expected functional behavior. They should eventually be proven about the implementation via the linking layer.
 
-**Priority:** MEDIUM - Convert to theorems once linking is complete.
+**Priority:** MEDIUM - Convert remaining axioms to theorems once linking is complete.
 
 ---
 
@@ -643,8 +653,8 @@ Axiom get_insert_same : forall t k v d, v <> zero32 -> tree_get (tree_insert t k
 8. `commitment_to_bytes` (Parameter)
 9. `verkle_open_correct` (Axiom)
 10. `verkle_binding` (Axiom)
-11. `verkle_hiding` (Axiom)
-12. `verkle_commit_deterministic` (Axiom)
+11. `verkle_hiding` (Lemma) ✅ - was trivial
+12. `verkle_commit_deterministic` (Lemma) ✅ - derived from reflexivity
 13. `verkle_commit_zero` (Axiom)
 14. `verkle_commit_injective` (Axiom)
 15. `VerkleMultiProof : Type` (Parameter)
@@ -652,6 +662,15 @@ Axiom get_insert_same : forall t k v d, v <> zero32 -> tree_get (tree_insert t k
 17. `verkle_multi_verify` (Parameter)
 18. `verkle_multi_open_correct` (Axiom)
 19. `verkle_multi_binding` (Axiom)
+20. `nth_error_key_unique` (Lemma) ✅ - derived from NoDup_nth_error
+21. `verkle_verified_implies_tree_membership` (Axiom)
+22. `verkle_witness_construction` (Axiom)
+23. `tree_eq_implies_stems_eq` (Axiom)
+24. `verkle_multi_verify_decompose` (Axiom)
+25. `verkle_multi_open_from_singles` (Axiom)
+26. `verkle_aggregation_recovers_singles` (Axiom)
+27. `verkle_aggregation_complete` (Axiom)
+28. `verkle_natural_agg_axiom` (Axiom)
 
 ### specs/tree_spec.v
 1. `Hash : bytes32 -> bytes32 -> bytes32` (Parameter)
@@ -659,9 +678,9 @@ Axiom get_insert_same : forall t k v d, v <> zero32 -> tree_get (tree_insert t k
 3. `tree_insert` (Parameter)
 4. `hash_zero` (Axiom)
 5. `hash_single_zero` (Axiom)
-6. `hash_deterministic` (Axiom)
-7. `hash_collision_resistant` (Axiom)
-8. `hash_injective` (Axiom)
+6. `hash_deterministic` (Lemma) ✅
+7. `hash_collision_resistant` (Lemma) ✅ - was trivial: `\/ True`
+8. `hash_injective` (Lemma) ✅ - was trivial: conclusion `True`
 9. `insert_order_independent` (Axiom)
 10. `get_insert_same` (Axiom)
 11. `get_insert_other` (Axiom)

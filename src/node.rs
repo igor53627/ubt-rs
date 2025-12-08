@@ -196,11 +196,11 @@ mod tests {
         let hasher = Blake3Hasher;
         let stem = Stem::new([0u8; 31]);
         let mut node: StemNode = StemNode::new(stem);
-        
+
         node.set_value(0, B256::repeat_byte(0x42));
         assert_eq!(node.get_value(0), Some(B256::repeat_byte(0x42)));
         assert_eq!(node.get_value(1), None);
-        
+
         let hash = node.hash(&hasher);
         assert_ne!(hash, B256::ZERO);
     }
@@ -210,13 +210,13 @@ mod tests {
         let hasher = Sha256Hasher;
         let stem = Stem::new([0u8; 31]);
         let mut node = StemNode::new(stem);
-        
+
         // Set a single value
         node.set_value(0, B256::repeat_byte(0x01));
-        
+
         let hash = node.hash(&hasher);
         assert_ne!(hash, B256::ZERO);
-        
+
         // Hash should be deterministic
         let hash2 = node.hash(&hasher);
         assert_eq!(hash, hash2);
@@ -227,7 +227,7 @@ mod tests {
         let hasher = Sha256Hasher;
         let stem = Stem::new([0u8; 31]);
         let node = StemNode::new(stem);
-        
+
         // Empty stem node should still have non-zero hash (stem contributes)
         let hash = node.hash(&hasher);
         // With all-zero stem and all-zero values, subtree is zero

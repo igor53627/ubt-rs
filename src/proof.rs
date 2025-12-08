@@ -5,7 +5,7 @@
 
 use alloy_primitives::B256;
 
-use crate::{Hasher, Stem, TreeKey, UbtError, error::Result, StemNode, Node, STEM_LEN};
+use crate::{error::Result, Hasher, Node, Stem, StemNode, TreeKey, UbtError, STEM_LEN};
 
 /// Direction in the tree (for proof paths)
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -20,10 +20,7 @@ pub enum Direction {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ProofNode {
     /// Sibling hash at an internal node level
-    Internal {
-        sibling: B256,
-        direction: Direction,
-    },
+    Internal { sibling: B256, direction: Direction },
     /// Stem node with the stem and subtree sibling hashes
     Stem {
         stem: Stem,
@@ -31,10 +28,7 @@ pub enum ProofNode {
         subtree_siblings: Vec<B256>,
     },
     /// Extension proof (stem differs from expected)
-    Extension {
-        stem: Stem,
-        stem_hash: B256,
-    },
+    Extension { stem: Stem, stem_hash: B256 },
 }
 
 /// A Merkle proof for a value in the UBT.
@@ -76,7 +70,10 @@ impl Proof {
                         Direction::Right => hasher.hash_64(sibling, &current_hash),
                     };
                 }
-                ProofNode::Stem { stem, subtree_siblings } => {
+                ProofNode::Stem {
+                    stem,
+                    subtree_siblings,
+                } => {
                     // Rebuild subtree hash from siblings
                     for (level, sibling) in subtree_siblings.iter().enumerate() {
                         let bit = (self.key.subindex >> (7 - level)) & 1;
@@ -93,7 +90,7 @@ impl Proof {
                     // Non-existence proof: the stem differs
                     if stem == &self.key.stem {
                         return Err(UbtError::InvalidProof(
-                            "Extension proof with matching stem".to_string()
+                            "Extension proof with matching stem".to_string(),
                         ));
                     }
                     current_hash = *stem_hash;
@@ -108,13 +105,13 @@ impl Proof {
     pub fn size(&self) -> usize {
         let mut size = 32 + 1; // key stem + subindex
         size += 33; // value (32 bytes + 1 byte for Option tag)
-        
+
         for node in &self.path {
             size += match node {
                 ProofNode::Internal { .. } => 32 + 1, // sibling + direction
-                ProofNode::Stem { subtree_siblings, .. } => {
-                    STEM_LEN + subtree_siblings.len() * 32
-                }
+                ProofNode::Stem {
+                    subtree_siblings, ..
+                } => STEM_LEN + subtree_siblings.len() * 32,
                 ProofNode::Extension { .. } => STEM_LEN + 32,
             };
         }
@@ -129,22 +126,22 @@ pub fn generate_stem_proof<H: Hasher>(
     hasher: &H,
 ) -> (Option<B256>, Vec<B256>) {
     let value = stem_node.get_value(subindex);
-    
+
     // Hash all values
     let mut data = [B256::ZERO; 256];
     for (&idx, &v) in &stem_node.values {
         data[idx as usize] = hasher.hash_32(&v);
     }
-    
+
     // Collect siblings while building tree
     let mut siblings = Vec::with_capacity(8);
     let mut idx = subindex as usize;
-    
+
     for level in 0..8 {
         // Sibling index
         let sibling_idx = idx ^ 1;
         siblings.push(data[sibling_idx]);
-        
+
         // Build next level
         let pairs = 256 >> (level + 1);
         for i in 0..pairs {
@@ -152,10 +149,10 @@ pub fn generate_stem_proof<H: Hasher>(
             let right = data[i * 2 + 1];
             data[i] = hasher.hash_64(&left, &right);
         }
-        
+
         idx /= 2;
     }
-    
+
     (value, siblings)
 }
 
@@ -234,12 +231,12 @@ mod tests {
         let hasher = Sha256Hasher;
         let stem = Stem::new([0u8; 31]);
         let mut node = StemNode::new(stem);
-        
+
         node.set_value(0, B256::repeat_byte(0x42));
         node.set_value(5, B256::repeat_byte(0x43));
-        
+
         let (value, siblings) = generate_stem_proof(&node, 0, &hasher);
-        
+
         assert_eq!(value, Some(B256::repeat_byte(0x42)));
         assert_eq!(siblings.len(), 8);
     }
@@ -248,9 +245,9 @@ mod tests {
     fn test_proof_size() {
         let key = TreeKey::from_bytes(B256::repeat_byte(0x01));
         let path = vec![
-            ProofNode::Internal { 
-                sibling: B256::ZERO, 
-                direction: Direction::Left 
+            ProofNode::Internal {
+                sibling: B256::ZERO,
+                direction: Direction::Left,
             },
             ProofNode::Stem {
                 stem: key.stem,
@@ -258,7 +255,7 @@ mod tests {
             },
         ];
         let proof = Proof::new(key, Some(B256::repeat_byte(0x42)), path);
-        
+
         let size = proof.size();
         println!("Proof size: {} bytes", size);
         assert!(size > 0);
@@ -269,13 +266,13 @@ mod tests {
         let hasher = Sha256Hasher;
         let stem = Stem::new([0u8; 31]);
         let mut node = StemNode::new(stem);
-        
+
         let value = B256::repeat_byte(0x42);
         node.set_value(0, value);
-        
+
         // Generate proof
         let (_, siblings) = generate_stem_proof(&node, 0, &hasher);
-        
+
         let key = TreeKey::new(stem, 0);
         let proof = Proof::new(
             key,
@@ -285,11 +282,11 @@ mod tests {
                 subtree_siblings: siblings,
             }],
         );
-        
+
         // The computed root should match the node's hash
         let expected_root = node.hash(&hasher);
         let result = proof.verify(&hasher, &expected_root);
-        
+
         assert!(result.is_ok());
         assert!(result.unwrap());
     }

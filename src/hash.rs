@@ -25,7 +25,7 @@ pub trait Hasher: Clone + Default + Send + Sync {
         input[..31].copy_from_slice(stem);
         input[31] = 0x00;
         input[32..].copy_from_slice(subtree_root.as_slice());
-        
+
         self.hash_raw(&input)
     }
 
@@ -44,7 +44,7 @@ impl Hasher for Sha256Hasher {
         if value.is_zero() {
             return B256::ZERO;
         }
-        use sha2::{Sha256, Digest};
+        use sha2::{Digest, Sha256};
         let hash = Sha256::digest(value.as_slice());
         B256::from_slice(&hash)
     }
@@ -53,8 +53,8 @@ impl Hasher for Sha256Hasher {
         if left.is_zero() && right.is_zero() {
             return B256::ZERO;
         }
-        
-        use sha2::{Sha256, Digest};
+
+        use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         hasher.update(left.as_slice());
         hasher.update(right.as_slice());
@@ -65,7 +65,7 @@ impl Hasher for Sha256Hasher {
         if input.iter().all(|&b| b == 0) {
             return B256::ZERO;
         }
-        use sha2::{Sha256, Digest};
+        use sha2::{Digest, Sha256};
         B256::from_slice(&Sha256::digest(input))
     }
 }
@@ -89,11 +89,11 @@ impl Hasher for Blake3Hasher {
         if left.is_zero() && right.is_zero() {
             return B256::ZERO;
         }
-        
+
         let mut input = [0u8; 64];
         input[..32].copy_from_slice(left.as_slice());
         input[32..].copy_from_slice(right.as_slice());
-        
+
         B256::from_slice(blake3::hash(&input).as_bytes())
     }
 
@@ -112,7 +112,7 @@ mod tests {
     #[test]
     fn test_zero_hash_special_case_sha256() {
         let hasher = Sha256Hasher;
-        
+
         assert_eq!(hasher.hash_32(&B256::ZERO), B256::ZERO);
         assert_eq!(hasher.hash_64(&B256::ZERO, &B256::ZERO), B256::ZERO);
     }
@@ -120,7 +120,7 @@ mod tests {
     #[test]
     fn test_zero_hash_special_case_blake3() {
         let hasher = Blake3Hasher;
-        
+
         assert_eq!(hasher.hash_32(&B256::ZERO), B256::ZERO);
         assert_eq!(hasher.hash_64(&B256::ZERO, &B256::ZERO), B256::ZERO);
     }
@@ -129,10 +129,10 @@ mod tests {
     fn test_non_zero_hash_sha256() {
         let hasher = Sha256Hasher;
         let value = B256::repeat_byte(0x42);
-        
+
         let hash = hasher.hash_32(&value);
         assert_ne!(hash, B256::ZERO);
-        
+
         let hash2 = hasher.hash_64(&value, &B256::ZERO);
         assert_ne!(hash2, B256::ZERO);
     }
@@ -141,10 +141,10 @@ mod tests {
     fn test_non_zero_hash_blake3() {
         let hasher = Blake3Hasher;
         let value = B256::repeat_byte(0x42);
-        
+
         let hash = hasher.hash_32(&value);
         assert_ne!(hash, B256::ZERO);
-        
+
         let hash2 = hasher.hash_64(&value, &B256::ZERO);
         assert_ne!(hash2, B256::ZERO);
     }
@@ -153,7 +153,7 @@ mod tests {
     fn test_sha256_deterministic() {
         let hasher = Sha256Hasher;
         let value = B256::repeat_byte(0x42);
-        
+
         let hash1 = hasher.hash_32(&value);
         let hash2 = hasher.hash_32(&value);
         assert_eq!(hash1, hash2);

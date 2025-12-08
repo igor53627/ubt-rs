@@ -63,6 +63,18 @@ impl Stem {
     }
 }
 
+impl Ord for Stem {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
+impl PartialOrd for Stem {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 impl fmt::Debug for Stem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Stem(0x{})", hex::encode(self.0))
@@ -144,7 +156,7 @@ mod tests {
         let mut bytes = [0u8; STEM_LEN];
         bytes[0] = 0b10000000; // MSB set
         let stem = Stem(bytes);
-        
+
         assert!(stem.bit_at(0));
         assert!(!stem.bit_at(1));
         assert!(!stem.bit_at(7));
@@ -156,13 +168,13 @@ mod tests {
         let mut bytes2 = [0u8; STEM_LEN];
         bytes2[0] = 0b10000000;
         let stem2 = Stem(bytes2);
-        
+
         assert_eq!(stem1.first_differing_bit(&stem2), Some(0));
-        
+
         let mut bytes3 = [0u8; STEM_LEN];
         bytes3[0] = 0b00000001;
         let stem3 = Stem(bytes3);
-        
+
         assert_eq!(stem1.first_differing_bit(&stem3), Some(7));
     }
 

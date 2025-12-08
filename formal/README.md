@@ -196,6 +196,8 @@ All verification goals achieved (December 2024):
 - [Verification Status](docs/VERIFICATION_STATUS.md) - Current proof status
 - [Axiom Audit](docs/axiom_audit.md) - Detailed audit of all 67 axioms
 - [Theorems Reference](docs/THEOREMS.md) - Complete theorem documentation including security proofs
+- [Linking Layer Setup](docs/LINKING_LAYER_SETUP.md) - RocqOfRust setup and linking layer
+- [Spec-Rust Linkage](docs/SPEC_RUST_LINKAGE.md) - Type/operation mapping
 - [FFI Integration](docs/FFI_INTEGRATION.md) - OCaml extraction ↔ Rust UBT bridge
 - [INSTALL.md](INSTALL.md) - Setup instructions
 
