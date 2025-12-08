@@ -6,39 +6,21 @@ This document compares the Rust UBT implementation (`src/`) with the formal Rocq
 
 ## Verification Architecture
 
-```
-                       VERIFICATION ARCHITECTURE
+```mermaid
+flowchart TD
+    A[Rust Source<br/>src/tree.rs, embedding.rs, node.rs] -->|rocq-of-rust| B[Translation<br/>formal/src/*.v]
+    B -->|*_executes axioms| C[Linking Layer<br/>formal/linking/types.v, operations.v]
+    C -->|φ encoding| D[Simulation<br/>formal/simulations/tree.v, crypto.v]
+    D -->|proven theorems| E[Specification<br/>formal/specs/tree_spec.v, embedding_spec.v]
 
-  +-------------------+
-  |    Rust Source    |  src/tree.rs, embedding.rs, node.rs
-  +---------+---------+
-            |
-            |  rocq-of-rust
-            v
-  +-------------------+
-  |    Translation    |  formal/src/*.v (monadic Rocq)
-  +---------+---------+
-            |
-            |  *_executes axioms
-            v
-  +-------------------+
-  |   Linking Layer   |  formal/linking/types.v, operations.v
-  +---------+---------+
-            |
-            |  phi encoding (tree_refines)
-            v
-  +-------------------+
-  |    Simulation     |  formal/simulations/tree.v, crypto.v
-  +---------+---------+
-            |
-            |  proven theorems
-            v
-  +-------------------+
-  |   Specification   |  formal/specs/tree_spec.v, embedding_spec.v
-  +-------------------+
-
-  Metrics: 0 admits | 40 axioms | 26 params | 50k QuickChick tests
+    style A fill:#2d5016,stroke:#4a8522,color:#fff
+    style B fill:#1a3a5c,stroke:#2d6da3,color:#fff
+    style C fill:#5c3d1a,stroke:#a36d2d,color:#fff
+    style D fill:#1a5c5c,stroke:#2da3a3,color:#fff
+    style E fill:#3d1a5c,stroke:#6d2da3,color:#fff
 ```
+
+**Metrics:** 0 admits | 40 axioms | 26 parameters | 50k QuickChick tests
 
 ## Type Correspondences
 
