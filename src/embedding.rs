@@ -123,10 +123,12 @@ pub fn get_storage_slot_key(address: &Address, slot: &[u8; 32]) -> TreeKey {
         }
 
         // Byte 0: 1 (from 256^30) + slot[0]
-        // Note: if slot[0] = 255, sum would be 256 and overflow. In practice,
-        // slot values this large are not expected per EIP assumptions.
-        let sum = 1u16 + slot[0] as u16;
-        k[0] = sum as u8;
+        // Note: if slot[0] >= 255, this would overflow. Per EIP-7864, such
+        // slot values are not expected in practice. We use checked_add to
+        // catch any violations during development.
+        k[0] = slot[0]
+            .checked_add(1)
+            .expect("slot[0] >= 255 not supported per EIP-7864");
 
         // subindex = slot % 256 = slot[31]
         k[31] = slot[31];

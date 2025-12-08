@@ -15,6 +15,7 @@ pub const SUBINDEX_BITS: usize = 8;
 
 /// A 31-byte stem that identifies a subtree of 256 values.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Stem(pub [u8; STEM_LEN]);
 
 impl Stem {
@@ -92,6 +93,7 @@ pub type SubIndex = u8;
 
 /// A complete 32-byte tree key (stem + subindex).
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TreeKey {
     /// The 31-byte stem identifying the subtree.
     pub stem: Stem,

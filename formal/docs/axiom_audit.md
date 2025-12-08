@@ -2,7 +2,7 @@
 
 **Generated:** December 2024  
 **Last Updated:** December 2024 (axiom reduction)  
-**Status:** **VERIFICATION COMPLETE** - All admits closed  
+**Status:** **VERIFICATION COMPLETE** - All admits closed
 **Rocq Version:** 9.x
 
 ---
