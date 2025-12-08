@@ -185,19 +185,17 @@ These theorems are axiomatized (trusted) rather than proven:
 
 ## Linking Architecture
 
-```mermaid
-flowchart TD
-    A["Rust Source<br/>src/tree.rs, node.rs, key.rs, hash.rs"]
-    B["Translated Rust (M monad)<br/>src.tree.tree.Impl_ubt_tree_UnifiedBinaryTree_H.*"]
-    C["Type Links<br/>linking/types.v"]
-    D["Simulation Model<br/>simulations/tree.v"]
-    E["Verified Properties<br/>tree.v, crypto.v"]
-
-    A -->|RocqOfRust translation| B
-    B -->|tree_refines relation| C
-    C -->|φ encoding| D
-    D -->|proven properties| E
-```
+| Layer                | Location                                          | Transformation         |
+|----------------------|---------------------------------------------------|------------------------|
+| Rust Source          | src/tree.rs, node.rs, key.rs, hash.rs             |                        |
+|                      |                                                   | RocqOfRust translation |
+| Translated Rust      | src.tree.tree.Impl_ubt_tree_UnifiedBinaryTree_H.* |                        |
+|                      |                                                   | tree_refines relation  |
+| Type Links           | linking/types.v                                   |                        |
+|                      |                                                   | φ encoding             |
+| Simulation Model     | simulations/tree.v                                |                        |
+|                      |                                                   | proven properties      |
+| Verified Properties  | tree.v, crypto.v                                  |                        |
 
 ## Recommendations for Closing Gaps
 
