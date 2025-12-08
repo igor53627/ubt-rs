@@ -1,7 +1,7 @@
 //! Main tree implementation.
 
 use alloy_primitives::B256;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::{Blake3Hasher, Hasher, InternalNode, Node, Stem, StemNode, TreeKey};
 
@@ -11,7 +11,7 @@ use crate::{Blake3Hasher, Hasher, InternalNode, Node, Stem, StemNode, TreeKey};
 /// Keys are split into a 31-byte stem (tree path) and 1-byte subindex (within subtree).
 #[derive(Clone, Debug)]
 pub struct UnifiedBinaryTree<H: Hasher = Blake3Hasher> {
-    /// Root node of the tree
+    /// Root node of the tree (kept for potential proof generation)
     root: Node,
     /// Hasher instance
     hasher: H,
@@ -19,6 +19,12 @@ pub struct UnifiedBinaryTree<H: Hasher = Blake3Hasher> {
     stems: HashMap<Stem, StemNode>,
     /// Whether the root hash needs to be recomputed
     root_dirty: bool,
+    /// Cache of stem hashes - maps stem to its computed hash
+    stem_hash_cache: HashMap<Stem, B256>,
+    /// Stems that need their hash recomputed
+    dirty_stem_hashes: HashSet<Stem>,
+    /// Cached root hash (computed from stem_hash_cache)
+    root_hash_cached: B256,
 }
 
 impl<H: Hasher> Default for UnifiedBinaryTree<H> {
@@ -35,6 +41,9 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
             hasher: H::default(),
             stems: HashMap::new(),
             root_dirty: false,
+            stem_hash_cache: HashMap::new(),
+            dirty_stem_hashes: HashSet::new(),
+            root_hash_cached: B256::ZERO,
         }
     }
 
@@ -45,6 +54,9 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
             hasher,
             stems: HashMap::new(),
             root_dirty: false,
+            stem_hash_cache: HashMap::new(),
+            dirty_stem_hashes: HashSet::new(),
+            root_hash_cached: B256::ZERO,
         }
     }
 
@@ -64,6 +76,9 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
             hasher: H::default(),
             stems: HashMap::with_capacity(capacity),
             root_dirty: false,
+            stem_hash_cache: HashMap::with_capacity(capacity),
+            dirty_stem_hashes: HashSet::new(),
+            root_hash_cached: B256::ZERO,
         }
     }
 
@@ -74,6 +89,9 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
             hasher,
             stems: HashMap::with_capacity(capacity),
             root_dirty: false,
+            stem_hash_cache: HashMap::with_capacity(capacity),
+            dirty_stem_hashes: HashSet::new(),
+            root_hash_cached: B256::ZERO,
         }
     }
 
@@ -98,7 +116,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
             self.rebuild_root();
             self.root_dirty = false;
         }
-        self.root.hash(&self.hasher)
+        self.root_hash_cached
     }
 
     /// Check if the tree is empty.
@@ -125,6 +143,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
             .entry(key.stem)
             .or_insert_with(|| StemNode::new(key.stem));
         stem_node.set_value(key.subindex, value);
+        self.dirty_stem_hashes.insert(key.stem);
         self.root_dirty = true;
     }
 
@@ -142,21 +161,82 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
                 self.stems.remove(&key.stem);
             }
         }
+        self.dirty_stem_hashes.insert(key.stem);
         self.root_dirty = true;
+    }
+
+    /// Compute the hash for a stem node.
+    fn compute_stem_hash(&self, stem: &Stem) -> B256 {
+        if let Some(stem_node) = self.stems.get(stem) {
+            stem_node.hash(&self.hasher)
+        } else {
+            B256::ZERO
+        }
     }
 
     /// Rebuild the root from all stem nodes.
     fn rebuild_root(&mut self) {
-        if self.stems.is_empty() {
+        // Collect dirty stems first to avoid borrow conflict
+        let dirty_stems: Vec<_> = self.dirty_stem_hashes.drain().collect();
+
+        // Recompute hashes for dirty stems only
+        for stem in dirty_stems {
+            let hash = self.compute_stem_hash(&stem);
+            if hash.is_zero() {
+                self.stem_hash_cache.remove(&stem);
+            } else {
+                self.stem_hash_cache.insert(stem, hash);
+            }
+        }
+
+        if self.stem_hash_cache.is_empty() {
             self.root = Node::Empty;
+            self.root_hash_cached = B256::ZERO;
             return;
         }
 
-        // Sort stems once for deterministic and efficient tree building
-        let mut stems: Vec<_> = self.stems.keys().cloned().collect();
-        stems.sort();
+        // Sort stem hashes for deterministic tree building
+        let mut stem_hashes: Vec<_> = self.stem_hash_cache.iter()
+            .map(|(s, h)| (*s, *h))
+            .collect();
+        stem_hashes.sort_by_key(|(s, _)| *s);
 
+        // Compute root hash directly from stem hashes (no double hashing)
+        self.root_hash_cached = self.build_root_hash_from_stem_hashes(&stem_hashes, 0);
+
+        // Also rebuild the Node tree for potential proof generation
+        let stems: Vec<_> = stem_hashes.iter().map(|(s, _)| *s).collect();
         self.root = self.build_tree_from_sorted_stems(&stems, 0);
+    }
+
+    /// Build the root hash directly from sorted stem hashes.
+    /// This avoids recomputing stem hashes via Node::hash.
+    fn build_root_hash_from_stem_hashes(&self, stem_hashes: &[(Stem, B256)], depth: usize) -> B256 {
+        if stem_hashes.is_empty() {
+            return B256::ZERO;
+        }
+
+        if stem_hashes.len() == 1 {
+            return stem_hashes[0].1;
+        }
+
+        debug_assert!(depth < 248, "Tree depth exceeded maximum of 248 bits");
+
+        let split_point = stem_hashes.partition_point(|(s, _)| !s.bit_at(depth));
+        let (left, right) = stem_hashes.split_at(split_point);
+
+        let left_hash = self.build_root_hash_from_stem_hashes(left, depth + 1);
+        let right_hash = self.build_root_hash_from_stem_hashes(right, depth + 1);
+
+        if left_hash.is_zero() && right_hash.is_zero() {
+            B256::ZERO
+        } else if left_hash.is_zero() {
+            right_hash
+        } else if right_hash.is_zero() {
+            left_hash
+        } else {
+            self.hasher.hash_64(&left_hash, &right_hash)
+        }
     }
 
     /// Build the tree structure from a sorted list of stems using slice partitioning.
@@ -204,6 +284,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     /// Note: This is a low-level mutating API. Any modifications to the returned
     /// `StemNode` will affect the tree's root hash.
     pub fn get_or_create_stem(&mut self, stem: Stem) -> &mut StemNode {
+        self.dirty_stem_hashes.insert(stem);
         self.root_dirty = true;
         self.stems
             .entry(stem)
@@ -238,6 +319,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
                 .entry(key.stem)
                 .or_insert_with(|| StemNode::new(key.stem));
             stem_node.set_value(key.subindex, value);
+            self.dirty_stem_hashes.insert(key.stem);
         }
         self.rebuild_root();
         self.root_dirty = false;
@@ -256,6 +338,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
                 .entry(key.stem)
                 .or_insert_with(|| StemNode::new(key.stem));
             stem_node.set_value(key.subindex, value);
+            self.dirty_stem_hashes.insert(key.stem);
             count += 1;
             on_progress(count);
         }
