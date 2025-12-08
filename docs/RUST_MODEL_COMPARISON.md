@@ -2,6 +2,44 @@
 
 This document compares the Rust UBT implementation (`src/`) with the formal Rocq model (`formal/`).
 
+> **See also:** [formal/docs/RUST_MODEL_COMPARISON.md](../formal/docs/RUST_MODEL_COMPARISON.md) for the detailed linking strategy.
+
+## Verification Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        VERIFICATION ARCHITECTURE                         │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ┌─────────────────┐                                                    │
+│  │   Rust Source   │  src/tree.rs, src/embedding.rs, src/node.rs       │
+│  └────────┬────────┘                                                    │
+│           │ rocq-of-rust                                                │
+│           ▼                                                             │
+│  ┌─────────────────┐                                                    │
+│  │  Translation    │  formal/src/*.v (monadic Rocq)                    │
+│  └────────┬────────┘                                                    │
+│           │ *_executes axioms                                           │
+│           ▼                                                             │
+│  ┌─────────────────┐                                                    │
+│  │  Linking Layer  │  formal/linking/types.v, operations.v             │
+│  └────────┬────────┘                                                    │
+│           │ φ encoding (tree_refines relation)                          │
+│           ▼                                                             │
+│  ┌─────────────────┐                                                    │
+│  │   Simulation    │  formal/simulations/tree.v, crypto.v, verkle.v    │
+│  └────────┬────────┘                                                    │
+│           │ proven theorems                                             │
+│           ▼                                                             │
+│  ┌─────────────────┐                                                    │
+│  │  Specification  │  formal/specs/tree_spec.v, embedding_spec.v       │
+│  └─────────────────┘                                                    │
+│                                                                         │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Metrics: 0 admits │ 40 axioms │ 26 parameters │ 50k QuickChick tests  │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
 ## Type Correspondences
 
 | Rust Type | Rocq Type | File Location |
