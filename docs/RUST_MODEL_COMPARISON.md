@@ -8,16 +8,16 @@ This document compares the Rust UBT implementation (`src/`) with the formal Rocq
 
 ```mermaid
 flowchart TD
-    A[Rust Source<br/>src/tree.rs, embedding.rs, node.rs] -->|rocq-of-rust| B[Translation<br/>formal/src/*.v]
-    B -->|*_executes axioms| C[Linking Layer<br/>formal/linking/types.v, operations.v]
-    C -->|φ encoding| D[Simulation<br/>formal/simulations/tree.v, crypto.v]
-    D -->|proven theorems| E[Specification<br/>formal/specs/tree_spec.v, embedding_spec.v]
+    A["1. Rust Source"]
+    B["2. Translation"]
+    C["3. Linking Layer"]
+    D["4. Simulation"]
+    E["5. Specification"]
 
-    style A fill:#2d5016,stroke:#4a8522,color:#fff
-    style B fill:#1a3a5c,stroke:#2d6da3,color:#fff
-    style C fill:#5c3d1a,stroke:#a36d2d,color:#fff
-    style D fill:#1a5c5c,stroke:#2da3a3,color:#fff
-    style E fill:#3d1a5c,stroke:#6d2da3,color:#fff
+    A -->|rocq-of-rust| B
+    B -->|*_executes axioms| C
+    C -->|φ encoding| D
+    D -->|proven theorems| E
 ```
 
 **Metrics:** 0 admits | 40 axioms | 26 parameters | 50k QuickChick tests
