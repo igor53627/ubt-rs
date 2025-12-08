@@ -10,12 +10,25 @@ use crate::{Blake3Hasher, Hasher, Stem, SubIndex, TreeKey, STEM_LEN};
 
 /// A streaming tree builder that computes root hash with minimal memory.
 ///
-/// Usage:
-/// 1. Sort all (TreeKey, B256) entries by key (stem, then subindex)
-/// 2. Call `build_root_hash` with the sorted iterator
-/// 3. Receives the root hash without keeping the full tree in memory
+/// # Usage
 ///
-/// Memory usage is O(tree_depth + stem_size) instead of O(num_entries).
+/// 1. Sort all `(TreeKey, B256)` entries by key (stem, then subindex) in lexicographic order
+/// 2. Call `build_root_hash` with the sorted iterator
+/// 3. Receive the root hash without keeping the full tree in memory
+///
+/// # Memory Usage
+///
+/// Memory usage is O(num_stems + tree_depth) instead of O(num_entries), since:
+/// - We keep one `Vec<(Stem, B256)>` of stem hashes (one per unique stem)
+/// - We use slice-based recursion with no additional allocations
+///
+/// # Sorting Requirement
+///
+/// Entries **MUST** be sorted by `(stem, subindex)` in lexicographic order for:
+/// - Correct stem grouping (entries with same stem must be consecutive)
+/// - Deterministic root hash (sorted stem order ensures canonical tree shape)
+///
+/// In debug builds, strict ascending order is asserted. Duplicate keys are not allowed.
 pub struct StreamingTreeBuilder<H: Hasher = Blake3Hasher> {
     hasher: H,
 }
@@ -59,8 +72,8 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
             return B256::ZERO;
         }
 
-        // Build tree from stem hashes
-        self.build_tree_hash(stem_hashes, 0)
+        // Build tree from stem hashes (sorted by stem since entries were sorted)
+        self.build_tree_hash(&stem_hashes, 0)
     }
 
     /// Collect all entries grouped by stem, compute hash for each stem.
@@ -154,8 +167,11 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
         self.hasher.hash_stem_node(stem.as_bytes(), &subtree_root)
     }
 
-    /// Build tree hash from list of (stem, hash) pairs.
-    fn build_tree_hash(&self, stem_hashes: Vec<(Stem, B256)>, depth: usize) -> B256 {
+    /// Build tree hash from sorted slice of (stem, hash) pairs.
+    ///
+    /// Uses partition_point + split_at for O(n) splits with no allocation,
+    /// matching the optimization in `UnifiedBinaryTree::build_tree_from_sorted_stems`.
+    fn build_tree_hash(&self, stem_hashes: &[(Stem, B256)], depth: usize) -> B256 {
         if stem_hashes.is_empty() {
             return B256::ZERO;
         }
@@ -164,13 +180,17 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
             return stem_hashes[0].1;
         }
 
-        if depth >= STEM_LEN * 8 {
-            panic!("Tree depth exceeded maximum");
-        }
+        debug_assert!(
+            depth < STEM_LEN * 8,
+            "Tree depth exceeded maximum of {} bits",
+            STEM_LEN * 8
+        );
 
-        // Partition by bit at depth: left = bit 0, right = bit 1
-        let (left, right): (Vec<_>, Vec<_>) =
-            stem_hashes.into_iter().partition(|(s, _)| !s.bit_at(depth));
+        // partition_point finds the first index with bit_at(depth) == 1
+        // (i.e. where !bit_at becomes false), so stem_hashes[0..split_point]
+        // all have bit 0 and stem_hashes[split_point..] all have bit 1 at this depth.
+        let split_point = stem_hashes.partition_point(|(s, _)| !s.bit_at(depth));
+        let (left, right) = stem_hashes.split_at(split_point);
 
         let left_hash = self.build_tree_hash(left, depth + 1);
         let right_hash = self.build_tree_hash(right, depth + 1);

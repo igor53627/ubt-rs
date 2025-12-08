@@ -60,6 +60,38 @@ let root = tree.root_hash();
 let value = tree.get(&key);
 ```
 
+### Batch Operations
+
+For inserting many values efficiently, use batch operations:
+
+```rust
+use ubt::{UnifiedBinaryTree, TreeKey, Blake3Hasher, B256, Stem};
+
+// Pre-allocate for known capacity
+let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::with_capacity(1_000_000);
+
+// Batch insert (single tree rebuild at the end)
+let entries: Vec<(TreeKey, B256)> = vec![/* ... */];
+tree.insert_batch(entries);
+```
+
+### Streaming Tree Builder (Memory-Efficient)
+
+For large migrations where memory is constrained, use the streaming builder:
+
+```rust
+use ubt::{StreamingTreeBuilder, TreeKey, Blake3Hasher, B256, Stem};
+
+// Entries MUST be sorted by (stem, subindex)
+let mut entries: Vec<(TreeKey, B256)> = vec![/* ... */];
+entries.sort_by(|a, b| (a.0.stem, a.0.subindex).cmp(&(b.0.stem, b.0.subindex)));
+
+let builder: StreamingTreeBuilder<Blake3Hasher> = StreamingTreeBuilder::new();
+let root = builder.build_root_hash(entries);
+```
+
+The streaming builder computes the root hash without keeping the full tree in memory.
+
 ### Working with Accounts
 
 ```rust
@@ -188,6 +220,7 @@ ubt/
 │   ├── key.rs       # Tree keys and stems
 │   ├── hash.rs      # Hash trait and implementations
 │   ├── embedding.rs # State embedding
+│   ├── streaming.rs # Streaming tree builder
 │   └── ...
 ├── formal/          # Formal verification
 │   ├── specs/       # Rocq specifications

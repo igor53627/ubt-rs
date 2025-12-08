@@ -40,7 +40,7 @@ jobs:
         id: cache-opam
         with:
           path: ~/.opam
-          key: opam-rocq9-${{ runner.os }}-v1-${{ hashFiles('formal/Makefile') }}
+          key: opam-rocq9-${{ runner.os }}-v2-${{ hashFiles('formal/Makefile') }}
           restore-keys: |
             opam-rocq9-${{ runner.os }}-v1-
 
@@ -58,6 +58,8 @@ jobs:
           
           # Add Rocq released repo (contains rocq-prover 9.0.0)
           opam repo add rocq-released https://rocq-prover.org/opam/released --set-default || true
+          # Add Coq released repo (contains coq-quickchick)
+          opam repo add coq-released https://coq.inria.fr/opam/released || true
           opam update
           
           # Debug: show available packages
