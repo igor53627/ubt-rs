@@ -63,21 +63,21 @@ jobs:
           # Debug: show available packages
           opam search rocq-prover || true
           
-          # Install Rocq 9.0 using pin (as per official docs)
-          # This builds from source and takes ~7 minutes
-          opam pin add rocq-prover 9.0.0 -y || {
-            echo "opam pin failed, trying opam install"
-            opam install rocq-prover -y
-          }
+          # Install Coq 9.0 (compatibility package that provides coqc binary)
+          # rocq-prover alone doesn't provide coqc, we need the coq compat package
+          opam pin add coq 9.0.0 -y || opam install coq -y
           
           # Verify installation
-          which coqc && coqc --version
+          eval $(opam env --switch=rocq-9)
+          echo "PATH=$PATH"
+          ls -la ~/.opam/rocq-9/bin/ | grep -E "coq|rocq" || true
+          coqc --version
 
       - name: Build core proofs (without QuickChick)
         working-directory: formal
         run: |
           eval $(opam env --switch=rocq-9)
-          which coqc && coqc --version
+          coqc --version
           make clean
           # Build specs, simulations, and core proofs (skip quickchick_tests.v)
           make specs

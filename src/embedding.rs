@@ -123,16 +123,28 @@ pub fn get_storage_slot_key_u256(address: &Address, slot: U256) -> TreeKey {
 
 /// Get the tree key for a code chunk.
 ///
-/// Per go-ethereum reference:
-/// - Chunks are indexed starting at offset 128
-/// - chunkOffset = 128 + chunkNumber
+/// Per EIP-7864:
+/// - First 128 chunks (pos 128-255) go in account stem at subindex 128+chunk_num
+/// - Chunks >= 128 go in separate stems calculated from stem_index
 pub fn get_code_chunk_key(address: &Address, chunk_number: u64) -> TreeKey {
-    let chunk_offset = 128u64 + chunk_number;
+    let pos = CODE_OFFSET as u64 + chunk_number;
+    
+    // First 128 chunks (pos < 256) go in account stem
+    if pos < STEM_SUBTREE_WIDTH {
+        let mut k = [0u8; 32];
+        k[31] = pos as u8; // subindex 128..255
+        return get_binary_tree_key(address, &k);
+    }
+    
+    // Chunks >= 128 go in separate stems per EIP
+    let stem_index = pos / STEM_SUBTREE_WIDTH;
+    let subindex = (pos % STEM_SUBTREE_WIDTH) as u8;
+    
     let mut k = [0u8; 32];
-    
-    // Store chunk offset as little-endian in bytes 24-31 per geth
-    k[24..32].copy_from_slice(&chunk_offset.to_le_bytes());
-    
+    // Encode stem_index into first 31 bytes (big-endian)
+    let stem_bytes = stem_index.to_be_bytes();
+    k[23..31].copy_from_slice(&stem_bytes); // align to end of 31-byte prefix
+    k[31] = subindex;
     get_binary_tree_key(address, &k)
 }
 
@@ -315,5 +327,23 @@ mod tests {
         let key2 = get_basic_data_key(&addr2);
         
         assert_ne!(key1.stem, key2.stem);
+    }
+
+    #[test]
+    fn test_code_chunks_share_account_stem() {
+        let address = Address::repeat_byte(0x42);
+        let basic_key = get_basic_data_key(&address);
+        
+        // First 128 code chunks should share stem with basic data
+        for chunk_idx in 0..128u64 {
+            let chunk_key = get_code_chunk_key(&address, chunk_idx);
+            assert_eq!(chunk_key.stem, basic_key.stem,
+                "Chunk {} should share account stem", chunk_idx);
+            assert_eq!(chunk_key.subindex, (128 + chunk_idx) as u8);
+        }
+        
+        // Chunk 128+ should be in different stems
+        let chunk_128_key = get_code_chunk_key(&address, 128);
+        assert_ne!(chunk_128_key.stem, basic_key.stem);
     }
 }

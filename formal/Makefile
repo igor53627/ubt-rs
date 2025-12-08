@@ -1,7 +1,8 @@
 # Makefile for UBT Formal Verification
 
-COQC := coqc
-COQDEP := coqdep
+# Rocq 9 uses rocqc/rocqdep, fallback to coqc/coqdep for compatibility
+COQC := $(shell which rocqc 2>/dev/null || echo coqc)
+COQDEP := $(shell which rocqdep 2>/dev/null || echo coqdep)
 
 # Path to RocqOfRust library (adjust if installed elsewhere)
 ROCQOFRUST_PATH := $(HOME)/pse/paradigm/rocq-of-rust/RocqOfRust

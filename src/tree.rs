@@ -175,6 +175,23 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         }
         self.rebuild_root();
     }
+
+    /// Batch insert multiple key-value pairs with progress callback.
+    pub fn insert_batch_with_progress(
+        &mut self,
+        entries: impl IntoIterator<Item = (TreeKey, B256)>,
+        mut on_progress: impl FnMut(usize),
+    ) {
+        let mut count = 0usize;
+        for (key, value) in entries {
+            let stem_node = self.stems.entry(key.stem)
+                .or_insert_with(|| StemNode::new(key.stem));
+            stem_node.set_value(key.subindex, value);
+            count += 1;
+            on_progress(count);
+        }
+        self.rebuild_root();
+    }
 }
 
 #[cfg(test)]
