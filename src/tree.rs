@@ -17,6 +17,8 @@ pub struct UnifiedBinaryTree<H: Hasher = Blake3Hasher> {
     hasher: H,
     /// Cached stem nodes for efficient access
     stems: HashMap<Stem, StemNode>,
+    /// Whether the root hash needs to be recomputed
+    root_dirty: bool,
 }
 
 impl<H: Hasher> Default for UnifiedBinaryTree<H> {
@@ -32,6 +34,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
             root: Node::Empty,
             hasher: H::default(),
             stems: HashMap::new(),
+            root_dirty: false,
         }
     }
 
@@ -41,6 +44,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
             root: Node::Empty,
             hasher,
             stems: HashMap::new(),
+            root_dirty: false,
         }
     }
 
@@ -59,6 +63,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
             root: Node::Empty,
             hasher: H::default(),
             stems: HashMap::with_capacity(capacity),
+            root_dirty: false,
         }
     }
 
@@ -68,6 +73,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
             root: Node::Empty,
             hasher,
             stems: HashMap::with_capacity(capacity),
+            root_dirty: false,
         }
     }
 
@@ -84,7 +90,14 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     }
 
     /// Get the root hash of the tree.
-    pub fn root_hash(&self) -> B256 {
+    ///
+    /// This will trigger a rebuild of the tree structure if any modifications
+    /// have been made since the last call to `root_hash()`.
+    pub fn root_hash(&mut self) -> B256 {
+        if self.root_dirty {
+            self.rebuild_root();
+            self.root_dirty = false;
+        }
         self.root.hash(&self.hasher)
     }
 
@@ -112,7 +125,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
             .entry(key.stem)
             .or_insert_with(|| StemNode::new(key.stem));
         stem_node.set_value(key.subindex, value);
-        self.rebuild_root();
+        self.root_dirty = true;
     }
 
     /// Insert a value using a B256 key.
@@ -129,7 +142,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
                 self.stems.remove(&key.stem);
             }
         }
-        self.rebuild_root();
+        self.root_dirty = true;
     }
 
     /// Rebuild the root from all stem nodes.
@@ -187,7 +200,11 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     }
 
     /// Get mutable access to a stem node, creating it if it doesn't exist.
+    ///
+    /// Note: This is a low-level mutating API. Any modifications to the returned
+    /// `StemNode` will affect the tree's root hash.
     pub fn get_or_create_stem(&mut self, stem: Stem) -> &mut StemNode {
+        self.root_dirty = true;
         self.stems
             .entry(stem)
             .or_insert_with(|| StemNode::new(stem))
@@ -223,6 +240,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
             stem_node.set_value(key.subindex, value);
         }
         self.rebuild_root();
+        self.root_dirty = false;
     }
 
     /// Batch insert multiple key-value pairs with progress callback.
@@ -242,6 +260,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
             on_progress(count);
         }
         self.rebuild_root();
+        self.root_dirty = false;
     }
 }
 
@@ -251,7 +270,7 @@ mod tests {
 
     #[test]
     fn test_empty_tree() {
-        let tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
         assert!(tree.is_empty());
         assert_eq!(tree.root_hash(), B256::ZERO);
     }
@@ -336,7 +355,7 @@ mod tests {
 
     #[test]
     fn test_with_capacity() {
-        let tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::with_capacity(1000);
+        let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::with_capacity(1000);
         assert!(tree.is_empty());
         assert_eq!(tree.root_hash(), B256::ZERO);
     }
@@ -408,5 +427,107 @@ mod tests {
             root1, root2,
             "Sorted stem tree building should produce deterministic roots"
         );
+    }
+
+    #[test]
+    fn test_deferred_root_computation() {
+        let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+
+        let key1 = TreeKey::from_bytes(B256::repeat_byte(0x01));
+        let key2 = TreeKey::from_bytes(B256::repeat_byte(0x02));
+        let key3 = TreeKey::from_bytes(B256::repeat_byte(0x03));
+
+        tree.insert(key1, B256::repeat_byte(0x11));
+        assert!(tree.root_dirty, "root should be dirty after first insert");
+
+        tree.insert(key2, B256::repeat_byte(0x22));
+        assert!(tree.root_dirty, "root should still be dirty after second insert");
+
+        tree.insert(key3, B256::repeat_byte(0x33));
+        assert!(tree.root_dirty, "root should still be dirty after third insert");
+
+        let hash1 = tree.root_hash();
+        assert!(!tree.root_dirty, "root should be clean after root_hash()");
+        assert_ne!(hash1, B256::ZERO, "root hash should be non-zero");
+
+        let hash2 = tree.root_hash();
+        assert_eq!(hash1, hash2, "calling root_hash() again should return same value");
+
+        let mut tree2: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        tree2.insert(key1, B256::repeat_byte(0x11));
+        tree2.insert(key2, B256::repeat_byte(0x22));
+        tree2.insert(key3, B256::repeat_byte(0x33));
+        let hash3 = tree2.root_hash();
+        assert_eq!(hash1, hash3, "deferred computation should produce same hash as immediate");
+    }
+
+    #[test]
+    fn test_mixed_single_and_batch_inserts_root() {
+        let mut tree1: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        let mut tree2: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+
+        let k1 = TreeKey::from_bytes(B256::repeat_byte(0x01));
+        let k2 = TreeKey::from_bytes(B256::repeat_byte(0x02));
+        let k3 = TreeKey::from_bytes(B256::repeat_byte(0x03));
+
+        tree1.insert(k1, B256::repeat_byte(0x11));
+        tree1.insert(k2, B256::repeat_byte(0x22));
+        tree1.insert(k3, B256::repeat_byte(0x33));
+        let h1 = tree1.root_hash();
+
+        tree2.insert(k1, B256::repeat_byte(0x11));
+        tree2.insert_batch([
+            (k2, B256::repeat_byte(0x22)),
+            (k3, B256::repeat_byte(0x33)),
+        ]);
+        let h2 = tree2.root_hash();
+
+        assert_eq!(h1, h2);
+    }
+
+    #[test]
+    fn test_insert_batch_clears_dirty_flag() {
+        let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+
+        let k1 = TreeKey::from_bytes(B256::repeat_byte(0x01));
+        let k2 = TreeKey::from_bytes(B256::repeat_byte(0x02));
+
+        tree.insert(k1, B256::repeat_byte(0x11));
+        assert!(tree.root_dirty);
+
+        tree.insert_batch([(k2, B256::repeat_byte(0x22))]);
+        assert!(!tree.root_dirty, "insert_batch should leave root clean");
+
+        let _ = tree.root_hash();
+        assert!(!tree.root_dirty, "root_hash after clean batch should keep root clean");
+    }
+
+    #[test]
+    fn test_delete_to_empty_resets_root_hash() {
+        let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        let key = TreeKey::from_bytes(B256::repeat_byte(0x01));
+
+        tree.insert(key, B256::repeat_byte(0x42));
+        assert_ne!(tree.root_hash(), B256::ZERO);
+
+        tree.delete(&key);
+        let root = tree.root_hash();
+        assert_eq!(root, B256::ZERO);
+    }
+
+    #[test]
+    fn test_get_or_create_stem_marks_dirty() {
+        let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        let stem = Stem::new([0u8; 31]);
+
+        let _ = tree.root_hash();
+        assert!(!tree.root_dirty);
+
+        let node = tree.get_or_create_stem(stem);
+        node.set_value(0, B256::repeat_byte(0x42));
+        assert!(tree.root_dirty, "get_or_create_stem should mark root dirty");
+
+        let hash = tree.root_hash();
+        assert_ne!(hash, B256::ZERO);
     }
 }

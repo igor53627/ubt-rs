@@ -86,6 +86,7 @@ impl InternalNode {
 /// 2. Build 8-level binary tree from bottom up
 /// 3. Final hash = hash(stem || 0x00 || subtree_root)
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct StemNode {
     /// The 31-byte stem
     pub stem: Stem,
