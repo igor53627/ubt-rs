@@ -133,7 +133,7 @@ impl Hasher for MyHasher {
 
 This crate includes formal verification using [rocq-of-rust](https://github.com/formal-land/rocq-of-rust) and the Rocq proof assistant. All proofs are complete with **0 admits remaining**.
 
-[![Formal Verification](https://github.com/paradigmxyz/ubt/actions/workflows/formal.yml/badge.svg)](https://github.com/paradigmxyz/ubt/actions/workflows/formal.yml)
+[![Proof Verification](https://github.com/igor53627/ubt-rs/actions/workflows/proofs.yml/badge.svg)](https://github.com/igor53627/ubt-rs/actions/workflows/proofs.yml)
 
 ### Proven Properties
 
