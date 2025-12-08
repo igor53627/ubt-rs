@@ -52,8 +52,8 @@ jobs:
       - name: Create Rocq switch
         if: steps.cache-opam.outputs.cache-hit != 'true'
         run: |
-          # Create switch with OCaml 4.14.2
-          opam switch create rocq-9 ocaml-base-compiler.4.14.2
+          # Create switch with OCaml 4.14.2 (or use existing)
+          opam switch create rocq-9 ocaml-base-compiler.4.14.2 || opam switch rocq-9
           eval $(opam env --switch=rocq-9)
           
           # Add Rocq released repo (contains rocq-prover 9.0.0)
