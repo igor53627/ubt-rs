@@ -6,6 +6,9 @@
 use alloy_primitives::B256;
 use std::collections::HashMap;
 
+#[cfg(feature = "parallel")]
+use rayon::prelude::*;
+
 use crate::{Blake3Hasher, Hasher, Stem, SubIndex, TreeKey, STEM_LEN};
 
 /// A streaming tree builder that computes root hash with minimal memory.
@@ -74,6 +77,116 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
 
         // Build tree from stem hashes (sorted by stem since entries were sorted)
         self.build_tree_hash(&stem_hashes, 0)
+    }
+
+    /// Build the root hash from a sorted iterator of (TreeKey, B256) entries using parallel
+    /// stem hashing.
+    ///
+    /// This method uses rayon to compute stem hashes in parallel for large batches, which can
+    /// significantly speed up rebuilds with many stems.
+    ///
+    /// The entries MUST be sorted by (stem, subindex) in lexicographic order.
+    /// In debug builds, this is asserted.
+    ///
+    /// Returns B256::ZERO for empty input.
+    #[cfg(feature = "parallel")]
+    pub fn build_root_hash_parallel(
+        &self,
+        entries: impl IntoIterator<Item = (TreeKey, B256)>,
+    ) -> B256 {
+        let mut entries_iter = entries.into_iter().peekable();
+
+        if entries_iter.peek().is_none() {
+            return B256::ZERO;
+        }
+
+        // Group entries by stem (serial - streaming through sorted entries)
+        let stem_groups = self.collect_stem_groups(&mut entries_iter);
+
+        if stem_groups.is_empty() {
+            return B256::ZERO;
+        }
+
+        // Compute stem hashes in parallel
+        let mut stem_hashes: Vec<(Stem, B256)> = stem_groups
+            .into_par_iter()
+            .map(|(stem, values)| {
+                let hash = self.compute_stem_hash(&stem, &values);
+                (stem, hash)
+            })
+            .collect();
+
+        // Sort by stem for deterministic order (parallel collect doesn't preserve order)
+        stem_hashes.sort_by(|a, b| a.0.cmp(&b.0));
+
+        // Build tree from stem hashes (serial - O(n) and fast)
+        self.build_tree_hash(&stem_hashes, 0)
+    }
+
+    /// Collect entries grouped by stem without computing hashes.
+    /// Used by parallel version to separate grouping from hashing.
+    #[cfg(feature = "parallel")]
+    fn collect_stem_groups<I: Iterator<Item = (TreeKey, B256)>>(
+        &self,
+        entries: &mut std::iter::Peekable<I>,
+    ) -> Vec<(Stem, HashMap<SubIndex, B256>)> {
+        let mut stem_groups: Vec<(Stem, HashMap<SubIndex, B256>)> = Vec::new();
+        let mut current_stem: Option<Stem> = None;
+        let mut current_values: HashMap<SubIndex, B256> = HashMap::new();
+
+        #[cfg(debug_assertions)]
+        let mut prev_key: Option<TreeKey> = None;
+
+        for (key, value) in entries.by_ref() {
+            #[cfg(debug_assertions)]
+            {
+                if let Some(prev) = prev_key {
+                    debug_assert!(
+                        (prev.stem, prev.subindex) < (key.stem, key.subindex),
+                        "Entries must be sorted: {:?} should come before {:?}",
+                        prev,
+                        key
+                    );
+                }
+                prev_key = Some(key);
+            }
+
+            match current_stem {
+                Some(stem) if stem == key.stem => {
+                    // Same stem, accumulate value
+                    if !value.is_zero() {
+                        current_values.insert(key.subindex, value);
+                    }
+                }
+                Some(stem) => {
+                    // New stem, finalize previous
+                    if !current_values.is_empty() {
+                        stem_groups.push((stem, std::mem::take(&mut current_values)));
+                    }
+                    // Start new stem
+                    current_stem = Some(key.stem);
+                    if !value.is_zero() {
+                        current_values.insert(key.subindex, value);
+                    }
+                }
+                None => {
+                    // First stem
+                    current_stem = Some(key.stem);
+                    if !value.is_zero() {
+                        current_values.insert(key.subindex, value);
+                    }
+                }
+            }
+        }
+
+        // Finalize last stem
+        if let Some(stem) = current_stem {
+            if !current_values.is_empty() {
+                stem_groups.push((stem, current_values));
+            }
+        }
+
+        stem_groups
     }
 
     /// Collect all entries grouped by stem, compute hash for each stem.
@@ -289,5 +402,59 @@ mod tests {
         tree.insert_batch(entries);
 
         assert_eq!(streaming_root, tree.root_hash());
+    }
+
+    #[cfg(feature = "parallel")]
+    #[test]
+    fn test_parallel_matches_serial() {
+        let builder: StreamingTreeBuilder<Blake3Hasher> = StreamingTreeBuilder::new();
+
+        // Create test data with many stems
+        let mut entries: Vec<(TreeKey, B256)> = Vec::new();
+        for i in 0u8..50 {
+            let mut stem_bytes = [0u8; 31];
+            stem_bytes[0] = i;
+            stem_bytes[10] = i.wrapping_mul(3);
+            stem_bytes[20] = i.wrapping_mul(7);
+            let stem = Stem::new(stem_bytes);
+            for j in 0u8..10 {
+                let key = TreeKey::new(stem, j);
+                let value = B256::repeat_byte(i.wrapping_add(j).wrapping_mul(2).max(1));
+                entries.push((key, value));
+            }
+        }
+
+        // Sort entries
+        entries.sort_by(|a, b| (a.0.stem, a.0.subindex).cmp(&(b.0.stem, b.0.subindex)));
+
+        let serial_root = builder.build_root_hash(entries.clone());
+        let parallel_root = builder.build_root_hash_parallel(entries);
+
+        assert_eq!(
+            parallel_root, serial_root,
+            "Parallel and serial should produce identical root hashes"
+        );
+    }
+
+    #[cfg(feature = "parallel")]
+    #[test]
+    fn test_parallel_empty() {
+        let builder: StreamingTreeBuilder<Blake3Hasher> = StreamingTreeBuilder::new();
+        let entries: Vec<(TreeKey, B256)> = vec![];
+        assert_eq!(builder.build_root_hash_parallel(entries), B256::ZERO);
+    }
+
+    #[cfg(feature = "parallel")]
+    #[test]
+    fn test_parallel_single_entry() {
+        let builder: StreamingTreeBuilder<Blake3Hasher> = StreamingTreeBuilder::new();
+        let key = TreeKey::from_bytes(B256::repeat_byte(0x01));
+        let value = B256::repeat_byte(0x42);
+
+        let entries = vec![(key, value)];
+        let parallel_root = builder.build_root_hash_parallel(entries.clone());
+        let serial_root = builder.build_root_hash(entries);
+
+        assert_eq!(parallel_root, serial_root);
     }
 }

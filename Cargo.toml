@@ -12,6 +12,9 @@ categories = ["cryptography", "data-structures"]
 # Hashing - BLAKE3 for tree merkleization (hash function TBD per EIP)
 blake3 = "1.5"
 
+# Parallel processing
+rayon = { version = "1.10", optional = true }
+
 # SHA256 for key derivation (per go-ethereum reference implementation)
 sha2 = "0.10"
 
@@ -35,5 +38,6 @@ criterion = "0.5"
 [features]
 default = []
 serde = ["dep:serde", "alloy-primitives/serde"]
+parallel = ["rayon"]
 
 
