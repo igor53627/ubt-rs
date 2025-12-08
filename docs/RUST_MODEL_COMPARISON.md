@@ -6,19 +6,17 @@ This document compares the Rust UBT implementation (`src/`) with the formal Rocq
 
 ## Verification Architecture
 
-```mermaid
-flowchart TD
-    A["1. Rust Source"]
-    B["2. Translation"]
-    C["3. Linking Layer"]
-    D["4. Simulation"]
-    E["5. Specification"]
-
-    A -->|rocq-of-rust| B
-    B -->|*_executes axioms| C
-    C -->|φ encoding| D
-    D -->|proven theorems| E
-```
+| Step | Layer         | Transformation       |
+|------|---------------|----------------------|
+| 1    | Rust Source   |                      |
+|      |               | rocq-of-rust         |
+| 2    | Translation   |                      |
+|      |               | *_executes axioms    |
+| 3    | Linking Layer |                      |
+|      |               | φ encoding           |
+| 4    | Simulation    |                      |
+|      |               | proven theorems      |
+| 5    | Specification |                      |
 
 **Metrics:** 0 admits | 40 axioms | 26 parameters | 50k QuickChick tests
 
