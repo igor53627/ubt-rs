@@ -87,6 +87,9 @@ jobs:
       - name: Install QuickChick
         run: |
           eval $(opam env --switch=rocq-9)
+          # Ensure repos are available (may be needed after cache restore)
+          opam repo add rocq-released https://rocq-prover.org/opam/released --set-default 2>/dev/null || true
+          opam update --quiet || true
           opam install coq-quickchick -y
 
       - name: Run QuickChick tests
