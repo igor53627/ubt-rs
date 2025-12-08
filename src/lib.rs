@@ -30,45 +30,36 @@
 
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 
+mod code;
+mod compat_tests;
+mod embedding;
 mod error;
+mod geth_compat;
 mod hash;
 mod key;
 mod node;
-mod tree;
-mod embedding;
 mod proof;
-mod code;
-mod compat_tests;
-mod geth_compat;
+mod streaming;
+mod tree;
 
 pub use error::UbtError;
-pub use hash::{Hasher, Blake3Hasher, Sha256Hasher};
-pub use key::{TreeKey, Stem, SubIndex, STEM_LEN, SUBINDEX_BITS};
-pub use node::{Node, InternalNode, StemNode, LeafNode};
+pub use hash::{Blake3Hasher, Hasher, Sha256Hasher};
+pub use key::{Stem, SubIndex, TreeKey, STEM_LEN, SUBINDEX_BITS};
+pub use node::{InternalNode, LeafNode, Node, StemNode};
 
+pub use code::{chunkify_code, CodeChunk};
+pub use embedding::{
+    get_basic_data_key, get_binary_tree_key, get_code_chunk_key, get_code_hash_key,
+    get_storage_slot_key, get_storage_slot_key_u256, AccountStem, BasicDataLeaf,
+    BASIC_DATA_BALANCE_OFFSET, BASIC_DATA_CODE_SIZE_OFFSET, BASIC_DATA_LEAF_KEY,
+    BASIC_DATA_NONCE_OFFSET, CODE_HASH_LEAF_KEY, CODE_OFFSET, HEADER_STORAGE_OFFSET,
+    STEM_SUBTREE_WIDTH,
+};
+pub use proof::{generate_stem_proof, Direction, MultiProof, Proof, ProofNode, Witness};
 #[doc(hidden)]
 pub use std::collections::HashMap;
+pub use streaming::StreamingTreeBuilder;
 pub use tree::UnifiedBinaryTree;
-pub use embedding::{
-    AccountStem, 
-    BASIC_DATA_LEAF_KEY, 
-    CODE_HASH_LEAF_KEY,
-    BASIC_DATA_CODE_SIZE_OFFSET,
-    BASIC_DATA_NONCE_OFFSET,
-    BASIC_DATA_BALANCE_OFFSET,
-    HEADER_STORAGE_OFFSET,
-    CODE_OFFSET,
-    STEM_SUBTREE_WIDTH,
-    BasicDataLeaf,
-    get_binary_tree_key,
-    get_basic_data_key,
-    get_code_hash_key,
-    get_storage_slot_key,
-    get_storage_slot_key_u256,
-    get_code_chunk_key,
-};
-pub use proof::{Proof, ProofNode, Direction, MultiProof, Witness, generate_stem_proof};
-pub use code::{CodeChunk, chunkify_code};
 
 /// Re-export alloy primitives for convenience
 pub use alloy_primitives::{Address, B256, U256};

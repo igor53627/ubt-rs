@@ -343,12 +343,21 @@ Axiom verkle_multi_open_from_singles : forall c openings,
                      (verkle_open c (fst p) (snd p)) = true) openings ->
   verkle_multi_verify c openings (verkle_multi_open c openings) = true.
 
-(** [AXIOM:VERKLE] Unique key index in list *)
-Axiom nth_error_key_unique : forall (keys : list TreeKey) (k : TreeKey) idx1 idx2,
+(** Unique key index in list - derived from NoDup and nth_error properties *)
+Lemma nth_error_key_unique : forall (keys : list TreeKey) (k : TreeKey) idx1 idx2,
   NoDup keys ->
   nth_error keys idx1 = Some k ->
   nth_error keys idx2 = Some k ->
   idx1 = idx2.
+Proof.
+  intros keys k idx1 idx2 Hnodup H1 H2.
+  (* NoDup_nth_error gives: NoDup l <-> (forall i j, i < length l -> nth_error l i = nth_error l j -> i = j) *)
+  destruct (NoDup_nth_error keys) as [Hfwd _].
+  specialize (Hfwd Hnodup idx1 idx2).
+  apply Hfwd.
+  - apply nth_error_Some. rewrite H1. discriminate.
+  - rewrite H1, H2. reflexivity.
+Qed.
 
 (** ** Verkle Proof Aggregation *)
 

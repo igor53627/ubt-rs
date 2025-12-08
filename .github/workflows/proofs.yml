@@ -40,7 +40,7 @@ jobs:
         id: cache-opam
         with:
           path: ~/.opam
-          key: opam-rocq9-${{ runner.os }}-v1-${{ hashFiles('formal/Makefile') }}
+          key: opam-rocq9-${{ runner.os }}-v2-${{ hashFiles('formal/Makefile') }}
           restore-keys: |
             opam-rocq9-${{ runner.os }}-v1-
 
@@ -52,12 +52,14 @@ jobs:
       - name: Create Rocq switch
         if: steps.cache-opam.outputs.cache-hit != 'true'
         run: |
-          # Create switch with OCaml 4.14.2
-          opam switch create rocq-9 ocaml-base-compiler.4.14.2
+          # Create switch with OCaml 4.14.2 (or use existing)
+          opam switch create rocq-9 ocaml-base-compiler.4.14.2 || opam switch rocq-9
           eval $(opam env --switch=rocq-9)
           
           # Add Rocq released repo (contains rocq-prover 9.0.0)
           opam repo add rocq-released https://rocq-prover.org/opam/released --set-default || true
+          # Add Coq released repo (contains coq-quickchick)
+          opam repo add coq-released https://coq.inria.fr/opam/released || true
           opam update
           
           # Debug: show available packages
@@ -83,6 +85,20 @@ jobs:
           make specs
           make simulations
           make proofs-core
+
+      - name: Install QuickChick
+        run: |
+          eval $(opam env --switch=rocq-9)
+          # Add coq-released repo (contains coq-quickchick)
+          opam repo add coq-released https://coq.inria.fr/opam/released --set-default 2>/dev/null || true
+          opam update --quiet || true
+          opam install coq-quickchick -y
+
+      - name: Run QuickChick tests
+        working-directory: formal
+        run: |
+          eval $(opam env --switch=rocq-9)
+          make quickchick
 
       - name: OCaml extraction verification
         working-directory: formal
@@ -161,6 +177,7 @@ jobs:
           echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| Core Proofs | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| QuickChick Tests | ✅ |" >> $GITHUB_STEP_SUMMARY
           echo "| Linking Layer | ⏭️ Skipped (requires RocqOfRust) |" >> $GITHUB_STEP_SUMMARY
           echo "| OCaml Extraction | ✅ |" >> $GITHUB_STEP_SUMMARY
           echo "| Documentation | ✅ |" >> $GITHUB_STEP_SUMMARY

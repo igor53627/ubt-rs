@@ -4,8 +4,10 @@
 COQC := $(shell which rocqc 2>/dev/null || echo coqc)
 COQDEP := $(shell which rocqdep 2>/dev/null || echo coqdep)
 
-# Path to RocqOfRust library (adjust if installed elsewhere)
-ROCQOFRUST_PATH := $(HOME)/pse/paradigm/rocq-of-rust/RocqOfRust
+# Path to RocqOfRust library
+# Can be overridden: make linking ROCQOFRUST_PATH=/custom/path
+# See docs/LINKING_LAYER_SETUP.md for setup instructions
+ROCQOFRUST_PATH ?= $(HOME)/pse/paradigm/rocq-of-rust/RocqOfRust
 
 # Flags for our code (specs, simulations, proofs)
 COQFLAGS := -Q specs UBT.Specs -Q simulations UBT.Sim -Q proofs UBT.Proofs
@@ -31,7 +33,7 @@ LINKING_VO := $(LINKING_FILES:.v=.vo)
 # Flags for linking layer (needs RocqOfRust + simulations + src)
 COQFLAGS_LINKING := -R $(ROCQOFRUST_PATH) RocqOfRust -Q simulations UBT.Sim -Q src src -Q linking UBT.Linking
 
-.PHONY: all clean specs simulations proofs proofs-core translate translation linking extract extract-test extract-clean docs docs-clean check-deps help ci ci-full audit verify-axioms check-admits
+.PHONY: all clean specs simulations proofs proofs-core quickchick translate translation linking extract extract-test extract-clean docs docs-clean check-deps help ci ci-full audit verify-axioms check-admits
 
 all: specs simulations proofs
 
@@ -46,6 +48,10 @@ proofs: simulations $(PROOF_FILES:.v=.vo)
 
 # Build core proofs only (no QuickChick dependency) - for CI
 proofs-core: simulations $(PROOF_CORE_FILES:.v=.vo)
+
+# Run QuickChick property-based tests (requires coq-quickchick)
+quickchick: simulations proofs/quickchick_tests.vo
+	@echo "QuickChick tests completed successfully!"
 
 # Build translated Rust code (requires RocqOfRust library)
 translation: $(TRANS_VO)
@@ -65,22 +71,58 @@ proofs/%.vo: proofs/%.v
 
 # Compile translated .v to .vo
 src/%.vo: src/%.v
-	@if [ -d "$(ROCQOFRUST_PATH)" ]; then \
-		$(COQC) $(COQFLAGS_TRANS) $<; \
-	else \
+	@if [ ! -d "$(ROCQOFRUST_PATH)" ]; then \
 		echo "Error: RocqOfRust not found at $(ROCQOFRUST_PATH)"; \
-		echo "Build it first: cd rocq-of-rust/RocqOfRust && make"; \
+		echo "See docs/LINKING_LAYER_SETUP.md for setup instructions."; \
 		exit 1; \
+	elif [ ! -f "$(ROCQOFRUST_PATH)/M.vo" ]; then \
+		echo "Error: RocqOfRust not compiled. Run: cd $(ROCQOFRUST_PATH) && make"; \
+		exit 1; \
+	else \
+		$(COQC) $(COQFLAGS_TRANS) $<; \
 	fi
 
 # Compile linking .v to .vo
 linking/%.vo: linking/%.v
-	@if [ -d "$(ROCQOFRUST_PATH)" ]; then \
-		$(COQC) $(COQFLAGS_LINKING) $<; \
-	else \
-		echo "Error: RocqOfRust not found at $(ROCQOFRUST_PATH)"; \
-		echo "Build it first: cd rocq-of-rust/RocqOfRust && make"; \
+	@if [ ! -d "$(ROCQOFRUST_PATH)" ]; then \
+		echo ""; \
+		echo "==========================================================="; \
+		echo "ERROR: RocqOfRust library not found"; \
+		echo "==========================================================="; \
+		echo ""; \
+		echo "Expected location: $(ROCQOFRUST_PATH)"; \
+		echo ""; \
+		echo "Setup instructions:"; \
+		echo "  1. git clone https://github.com/formal-land/rocq-of-rust.git ~/pse/paradigm/rocq-of-rust"; \
+		echo "  2. cd ~/pse/paradigm/rocq-of-rust/RocqOfRust"; \
+		echo "  3. eval \$$(opam env --switch=rocq-9)"; \
+		echo "  4. make -j4"; \
+		echo ""; \
+		echo "Or specify custom path:"; \
+		echo "  make linking ROCQOFRUST_PATH=/your/path/RocqOfRust"; \
+		echo ""; \
+		echo "See docs/LINKING_LAYER_SETUP.md for full documentation."; \
+		echo "==========================================================="; \
 		exit 1; \
+	elif [ ! -f "$(ROCQOFRUST_PATH)/M.vo" ]; then \
+		echo ""; \
+		echo "==========================================================="; \
+		echo "ERROR: RocqOfRust library not compiled"; \
+		echo "==========================================================="; \
+		echo ""; \
+		echo "Found directory: $(ROCQOFRUST_PATH)"; \
+		echo "But M.vo is missing (library not built)."; \
+		echo ""; \
+		echo "Run:"; \
+		echo "  cd $(ROCQOFRUST_PATH)"; \
+		echo "  eval \$$(opam env --switch=rocq-9)"; \
+		echo "  make -j4"; \
+		echo ""; \
+		echo "See docs/LINKING_LAYER_SETUP.md for full documentation."; \
+		echo "==========================================================="; \
+		exit 1; \
+	else \
+		$(COQC) $(COQFLAGS_LINKING) $<; \
 	fi
 
 # Explicit dependencies for linking layer

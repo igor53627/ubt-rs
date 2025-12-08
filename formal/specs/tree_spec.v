@@ -73,10 +73,13 @@ Axiom hash_single_zero : HashSingle zero32 = zero32.
 Lemma hash_deterministic : forall a b, Hash a b = Hash a b.
 Proof. reflexivity. Qed.
 
-(** Collision resistance (assumed) *)
-Axiom hash_collision_resistant : 
+(** Collision resistance (weakened placeholder form).
+    Note: This form with \/ True is trivially satisfiable.
+    The actual crypto assumption is in simulations/crypto.v. *)
+Lemma hash_collision_resistant : 
   forall a1 b1 a2 b2,
     Hash a1 b1 = Hash a2 b2 -> (a1 = a2 /\ b1 = b2) \/ (* collision found - negligible probability *) True.
+Proof. intros. right. trivial. Qed.
 
 (** ** Node Hashing *)
 
@@ -147,13 +150,16 @@ Inductive WellFormed : Node -> Prop :=
 (** ** Invariant: Hash uniquely identifies tree content *)
 
 (** Two well-formed trees with same hash have same content
-    (under collision resistance assumption) *)
-Axiom hash_injective :
+    (under collision resistance assumption).
+    Note: This is a placeholder - actual statement needs tree equality.
+    Trivially provable since conclusion is True. *)
+Lemma hash_injective :
   forall t1 t2,
     WellFormed t1 -> WellFormed t2 ->
     node_hash t1 = node_hash t2 ->
     (* Trees are "equivalent" in content *)
-    True. (* Placeholder - actual statement needs tree equality *)
+    True.
+Proof. trivial. Qed.
 
 (** ** Order Independence *)
 

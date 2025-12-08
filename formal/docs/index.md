@@ -85,10 +85,12 @@ make docs
 
 - [README](../README.md) - Project overview
 - [INSTALL](../INSTALL.md) - Setup instructions
+- [Linking Layer Setup](LINKING_LAYER_SETUP.md) - RocqOfRust setup and linking layer docs
 - [Verification Scope](VERIFICATION_SCOPE.md) - What is and isn't formally verified
 - [Verification Status](VERIFICATION_STATUS.md) - What's proven vs. axiomatized
 - [Axiom Audit](axiom_audit.md) - Detailed audit of all 67 axioms
 - [Theorems Reference](THEOREMS.md) - Complete theorem documentation including security proofs
+- [Spec-Rust Linkage](SPEC_RUST_LINKAGE.md) - Type/operation mapping between layers
 - [FFI Integration](FFI_INTEGRATION.md) - OCaml extraction ↔ Rust UBT bridge
 
 ## Module Hierarchy
