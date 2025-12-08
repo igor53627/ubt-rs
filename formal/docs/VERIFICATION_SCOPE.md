@@ -1,6 +1,6 @@
 # Verification Scope
 
-**Status:** ✅ **VERIFICATION COMPLETE** (December 2024)
+**Status:** **VERIFICATION COMPLETE** (December 2024)
 
 This document defines the boundaries of what is formally verified in the UBT implementation, what relies on external assumptions, and what is out of scope.
 
@@ -11,7 +11,7 @@ This document defines the boundaries of what is formally verified in the UBT imp
 | Admitted Proofs | **0** (all closed) |
 | QuickChick Tests | 5 properties, 50,000 total tests |
 | OCaml Extraction | 10/10 tests passing |
-| FFI Bridge | ✅ Created |
+| FFI Bridge | Created |
 
 ---
 
@@ -84,8 +84,8 @@ The following properties are proven in Rocq with machine-checked proofs. These t
 
 | Theorem | Location | Status |
 |---------|----------|--------|
-| `insert_order_independent_stems` | [simulations/tree.v](../simulations/tree.v) | ✅ Fully proven |
-| `insert_order_independent_subindex` | [simulations/tree.v](../simulations/tree.v) | ✅ Fully proven |
+| `insert_order_independent_stems` | [simulations/tree.v](../simulations/tree.v) | Fully proven |
+| `insert_order_independent_subindex` | [simulations/tree.v](../simulations/tree.v) | Fully proven |
 
 ### Security Properties (Game-Based)
 
@@ -173,7 +173,7 @@ Property-based testing using QuickChick provides statistical confidence for prop
 - **Sample size**: 10,000 tests per property (5 properties, 50,000 total tests)
 - **Known limitations**: Tests use simplified tree generators; edge cases may have lower coverage
 - **Relationship to proofs**: All tested properties now have complete formal proofs
-- **Status**: ✅ All 5 properties passing with 10k tests each
+- **Status**: All 5 properties passing with 10k tests each
 
 ### Running Tests
 
@@ -369,13 +369,13 @@ The following aspects are explicitly **not** verified by this project:
 │                                                                         │
 │  ┌───────────────────────────────────────────────────────────────────┐  │
 │  │                    FORMALLY VERIFIED                              │  │
-│  │  • Core operations (get, insert, delete)           ✅ Complete   │  │
-│  │  • Merkle proof soundness/completeness             ✅ Complete   │  │
-│  │  • State diff correctness                          ✅ Complete   │  │
-│  │  • EIP-7864 co-location                            ✅ Complete   │  │
-│  │  • Well-formedness preservation                    ✅ Complete   │  │
-│  │  • Order independence (all cases)                  ✅ Complete   │  │
-│  │  • Game-based security (simulations/security.v)    ✅ Complete   │  │
+│  │  • Core operations (get, insert, delete)           Complete     │  │
+│  │  • Merkle proof soundness/completeness             Complete     │  │
+│  │  • State diff correctness                          Complete     │  │
+│  │  • EIP-7864 co-location                            Complete     │  │
+│  │  • Well-formedness preservation                    Complete     │  │
+│  │  • Order independence (all cases)                  Complete     │  │
+│  │  • Game-based security (simulations/security.v)    Complete     │  │
 │  │    - EUF-MPA, accumulator soundness, advantage bounds            │  │
 │  └───────────────────────────────────────────────────────────────────┘  │
 │                              ↓                                          │
@@ -400,7 +400,7 @@ The following aspects are explicitly **not** verified by this project:
 │  │  • rocq-of-rust correctness                                      │  │
 │  │  • Hash implementation                                           │  │
 │  │  • Rust compiler                                                 │  │
-│  │  • FFI bridge layer (docs/FFI_INTEGRATION.md)      ✅ Created    │  │
+│  │  • FFI bridge layer (docs/FFI_INTEGRATION.md)      Created      │  │
 │  └───────────────────────────────────────────────────────────────────┘  │
 │                                                                         │
 ├─────────────────────────────────────────────────────────────────────────┤

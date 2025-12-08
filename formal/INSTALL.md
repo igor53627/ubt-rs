@@ -20,11 +20,11 @@ make translation
 
 | Layer | Status | Description |
 |-------|--------|-------------|
-| **specs/** | ✅ Complete | Mathematical specifications |
-| **simulations/** | ✅ Complete | Idiomatic Rocq tree operations |
-| **proofs/** | ✅ Complete | Correctness proofs at simulation level |
-| **src/** | ✅ Compiles | rocq-of-rust translation (24,556 lines) |
-| **linking/** | ✅ Complete | Translation-simulation equivalence |
+| **specs/** | Complete | Mathematical specifications |
+| **simulations/** | Complete | Idiomatic Rocq tree operations |
+| **proofs/** | Complete | Correctness proofs at simulation level |
+| **src/** | Compiles | rocq-of-rust translation (24,556 lines) |
+| **linking/** | Complete | Translation-simulation equivalence |
 
 ## Full Installation
 

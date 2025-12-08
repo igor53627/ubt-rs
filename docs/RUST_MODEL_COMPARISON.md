@@ -2,6 +2,24 @@
 
 This document compares the Rust UBT implementation (`src/`) with the formal Rocq model (`formal/`).
 
+> See also: [formal/docs/RUST_MODEL_COMPARISON.md](../formal/docs/RUST_MODEL_COMPARISON.md) for detailed linking strategy.
+
+## Verification Architecture
+
+| Step | Layer         | Transformation       |
+|------|---------------|----------------------|
+| 1    | Rust Source   |                      |
+|      |               | rocq-of-rust         |
+| 2    | Translation   |                      |
+|      |               | *_executes axioms    |
+| 3    | Linking Layer |                      |
+|      |               | φ encoding           |
+| 4    | Simulation    |                      |
+|      |               | proven theorems      |
+| 5    | Specification |                      |
+
+**Metrics:** 0 admits | 40 axioms | 26 parameters | 50k QuickChick tests
+
 ## Type Correspondences
 
 | Rust Type | Rocq Type | File Location |
@@ -165,40 +183,17 @@ These theorems are axiomatized (trusted) rather than proven:
 
 ## Linking Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Rust Source                              │
-│  src/tree.rs, src/node.rs, src/key.rs, src/hash.rs             │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              │ RocqOfRust translation
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                   Translated Rust (M monad)                     │
-│  src.tree.tree.Impl_ubt_tree_UnifiedBinaryTree_H.*             │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              │ tree_refines relation
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                   Type Links (linking/types.v)                  │
-│  SimTreeLink, StemLink, TreeKeyLink, ValueLink, etc.           │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              │ φ encoding
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                 Simulation Model (simulations/)                 │
-│  SimTree, sim_tree_get, sim_tree_insert, sim_tree_delete       │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              │ Proven properties
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│               Verified Properties (tree.v, crypto.v)            │
-│  Correctness theorems, hash properties, proof soundness        │
-└─────────────────────────────────────────────────────────────────┘
-```
+| Layer                | Location                                          | Transformation         |
+|----------------------|---------------------------------------------------|------------------------|
+| Rust Source          | src/tree.rs, node.rs, key.rs, hash.rs             |                        |
+|                      |                                                   | RocqOfRust translation |
+| Translated Rust      | src.tree.tree.Impl_ubt_tree_UnifiedBinaryTree_H.* |                        |
+|                      |                                                   | tree_refines relation  |
+| Type Links           | linking/types.v                                   |                        |
+|                      |                                                   | φ encoding             |
+| Simulation Model     | simulations/tree.v                                |                        |
+|                      |                                                   | proven properties      |
+| Verified Properties  | tree.v, crypto.v                                  |                        |
 
 ## Recommendations for Closing Gaps
 

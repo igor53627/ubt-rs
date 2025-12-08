@@ -100,6 +100,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     /// Useful when you discover more stems will be needed after initial creation.
     pub fn reserve_stems(&mut self, additional: usize) {
         self.stems.reserve(additional);
+        self.stem_hash_cache.reserve(additional);
     }
 
     /// Returns the number of unique stems in the tree.
@@ -196,7 +197,9 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         }
 
         // Sort stem hashes for deterministic tree building
-        let mut stem_hashes: Vec<_> = self.stem_hash_cache.iter()
+        let mut stem_hashes: Vec<_> = self
+            .stem_hash_cache
+            .iter()
             .map(|(s, h)| (*s, *h))
             .collect();
         stem_hashes.sort_by_key(|(s, _)| *s);
@@ -220,7 +223,9 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
             return stem_hashes[0].1;
         }
 
-        debug_assert!(depth < 248, "Tree depth exceeded maximum of 248 bits");
+        if depth >= 248 {
+            panic!("Tree depth exceeded maximum of 248 bits");
+        }
 
         let split_point = stem_hashes.partition_point(|(s, _)| !s.bit_at(depth));
         let (left, right) = stem_hashes.split_at(split_point);
@@ -524,24 +529,36 @@ mod tests {
         assert!(tree.root_dirty, "root should be dirty after first insert");
 
         tree.insert(key2, B256::repeat_byte(0x22));
-        assert!(tree.root_dirty, "root should still be dirty after second insert");
+        assert!(
+            tree.root_dirty,
+            "root should still be dirty after second insert"
+        );
 
         tree.insert(key3, B256::repeat_byte(0x33));
-        assert!(tree.root_dirty, "root should still be dirty after third insert");
+        assert!(
+            tree.root_dirty,
+            "root should still be dirty after third insert"
+        );
 
         let hash1 = tree.root_hash();
         assert!(!tree.root_dirty, "root should be clean after root_hash()");
         assert_ne!(hash1, B256::ZERO, "root hash should be non-zero");
 
         let hash2 = tree.root_hash();
-        assert_eq!(hash1, hash2, "calling root_hash() again should return same value");
+        assert_eq!(
+            hash1, hash2,
+            "calling root_hash() again should return same value"
+        );
 
         let mut tree2: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
         tree2.insert(key1, B256::repeat_byte(0x11));
         tree2.insert(key2, B256::repeat_byte(0x22));
         tree2.insert(key3, B256::repeat_byte(0x33));
         let hash3 = tree2.root_hash();
-        assert_eq!(hash1, hash3, "deferred computation should produce same hash as immediate");
+        assert_eq!(
+            hash1, hash3,
+            "deferred computation should produce same hash as immediate"
+        );
     }
 
     #[test]
@@ -582,7 +599,10 @@ mod tests {
         assert!(!tree.root_dirty, "insert_batch should leave root clean");
 
         let _ = tree.root_hash();
-        assert!(!tree.root_dirty, "root_hash after clean batch should keep root clean");
+        assert!(
+            !tree.root_dirty,
+            "root_hash after clean batch should keep root clean"
+        );
     }
 
     #[test]

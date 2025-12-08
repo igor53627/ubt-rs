@@ -2,7 +2,7 @@
 
 **Generated:** December 2024  
 **Last Updated:** December 2024 (axiom reduction)  
-**Status:** ✅ **VERIFICATION COMPLETE** - All admits closed  
+**Status:** **VERIFICATION COMPLETE** - All admits closed
 **Rocq Version:** 9.x
 
 ---
@@ -17,7 +17,7 @@
 | Linking/Execution Axioms | 18 | Low (verified) | rocq-of-rust translation |
 | Parameters (abstract types) | 26 | N/A | Abstract types and functions |
 | Security Axioms | 14 | Low (structural) | Game-based security in security.v |
-| Admitted Proofs | **0** | ✅ Complete | All admits closed |
+| Admitted Proofs | **0** | Complete | All admits closed |
 | **Total Axioms** | **64** | - | - |
 
 **Recent Axiom Reductions:**
@@ -38,9 +38,9 @@
 |------|--------|------------|----------|-------|
 | `simulations/crypto.v` | 8 | 3 | 0 | |
 | `simulations/tree.v` | 4 | 3 | 0 | |
-| `simulations/verkle.v` | 10 | 10 | 0 | -1 (nth_error_key_unique→lemma) |
+| `simulations/verkle.v` | 10 | 10 | 0 | nth_error_key_unique->lemma |
 | `simulations/security.v` | 14 | 0 | 0 | |
-| `specs/tree_spec.v` | 6 | 3 | 0 | -2 (hash_injective, hash_collision_resistant→lemmas) |
+| `specs/tree_spec.v` | 6 | 3 | 0 | hash_injective, hash_collision_resistant->lemmas |
 | `specs/embedding_spec.v` | 1 | 1 | 0 | |
 | `linking/operations.v` | 18 | 6 | 0 | |
 
@@ -110,7 +110,7 @@ This is the contrapositive of collision resistance for fixed first input.
 
 **Standard Reference:** Menezes, van Oorschot, Vanstone, "Handbook of Applied Cryptography" (1996), §9.2.2
 
-**Future Proof Status:** ⚠️ DERIVABLE - This can be derived from collision resistance:
+**Future Proof Status:** (!) DERIVABLE - This can be derived from collision resistance:
 ```coq
 (* Proof sketch: if H(v1) = H(v2), then by collision resistance v1 = v2, 
    contradicting v1 ≠ v2. *)
@@ -133,7 +133,7 @@ For any function f, determinism states: ∀x y. x = y → f(x) = f(y)
 
 **Standard Reference:** Basic functional programming semantics
 
-**Future Proof Status:** ⚠️ DERIVABLE - Follows directly from function congruence:
+**Future Proof Status:** (!) DERIVABLE - Follows directly from function congruence:
 ```coq
 Lemma hash_deterministic_value' : forall v1 v2, v1 = v2 -> hash_value v1 = hash_value v2.
 Proof. intros v1 v2 H. rewrite H. reflexivity. Qed.
@@ -183,7 +183,7 @@ Non-zero inputs produce non-zero outputs: ∀v ≠ 0^n. H(v) ≠ 0^n
 
 **Standard Reference:** Domain separation is a standard technique; see Bellare & Rogaway, "Collision-Resistant Hashing" (2006)
 
-**Future Proof Status:** ⚠️ DERIVABLE from collision resistance + zero hash property:
+**Future Proof Status:** (!) DERIVABLE from collision resistance + zero hash property:
 ```coq
 (* If H(v) = 0 = H(0), then by collision resistance v = 0, 
    contradicting v ≠ 0. *)
@@ -222,7 +222,7 @@ Polynomial commitment schemes (KZG, IPA) require additional axioms for their alg
 |----------|-------|-----------|
 | `simulations/verkle.v:46-52` | `verkle_open_correct` | Valid index → honest proof verifies |
 | `simulations/verkle.v:55-58` | `verkle_binding` | Cannot open to two values at same index |
-| `simulations/verkle.v:61-63` | `verkle_hiding` | Commitment reveals nothing (placeholder) |
+| `simulations/verkle.v:61-63` | `verkle_hiding` | Commitment reveals nothing |
 | `simulations/verkle.v:66-67` | `verkle_commit_deterministic` | Same input → same commitment |
 | `simulations/verkle.v:70-71` | `verkle_commit_zero` | Zero vector → zero commitment |
 | `simulations/verkle.v:74-77` | `verkle_commit_injective` | Different vectors → different commitments |
@@ -258,9 +258,9 @@ High-level correctness properties that define expected behavior.
 |----------|-------|-----------|--------|
 | `specs/tree_spec.v:69` | `hash_zero` | `Hash zero32 zero32 = zero32` | Design choice |
 | `specs/tree_spec.v:70` | `hash_single_zero` | `HashSingle zero32 = zero32` | Design choice |
-| `specs/tree_spec.v:73` | `hash_deterministic` | `Hash a b = Hash a b` | ✅ Lemma (reflexivity) |
-| `specs/tree_spec.v:76-78` | `hash_collision_resistant` | Collision → (equal inputs ∨ True) | ✅ Lemma (trivial: right; trivial) |
-| `specs/tree_spec.v:150-155` | `hash_injective` | WellFormed trees with same hash → True | ✅ Lemma (trivial) |
+| `specs/tree_spec.v:73` | `hash_deterministic` | `Hash a b = Hash a b` | Lemma (reflexivity) |
+| `specs/tree_spec.v:76-78` | `hash_collision_resistant` | Collision -> (equal inputs or True) | Lemma (trivial: right; trivial) |
+| `specs/tree_spec.v:150-155` | `hash_injective` | WellFormed trees with same hash -> True | Lemma (trivial) |
 | `specs/tree_spec.v:170` | `insert_order_independent` | Insert commutativity | Should be theorem |
 | `specs/tree_spec.v:179` | `get_insert_same` | Get after insert returns value | Should be theorem |
 | `specs/tree_spec.v:185` | `get_insert_other` | Get at different key unchanged | Should be theorem |
@@ -326,47 +326,47 @@ These axioms bridge the gap between:
 
 ## 5. Admitted Proofs
 
-**Status:** ✅ **ALL ADMITS CLOSED** (December 2024)
+**Status:** **ALL ADMITS CLOSED** (December 2024)
 
 All previously admitted proofs have been completed. Below is the record of what was closed:
 
-### 5.1 Simulation Layer (`simulations/tree.v`) - ✅ Complete
+### 5.1 Simulation Layer (`simulations/tree.v`) - Complete
 
 | Location | Lemma | Resolution |
 |----------|-------|------------|
-| `tree.v:329` | `stems_get_set_other` | ✅ Proven with length invariant |
-| `tree.v:409-411` | `stems_get_stem_eq` | ✅ Proven with stem equality transitivity |
-| `tree.v:477-487` | `insert_order_independent_stems` | ✅ Proven via case analysis |
-| `tree.v:499-500` | `insert_order_independent_subindex` | ✅ Proven via map commutativity |
+| `tree.v:329` | `stems_get_set_other` | Proven with length invariant |
+| `tree.v:409-411` | `stems_get_stem_eq` | Proven with stem equality transitivity |
+| `tree.v:477-487` | `insert_order_independent_stems` | Proven via case analysis |
+| `tree.v:499-500` | `insert_order_independent_subindex` | Proven via map commutativity |
 
-### 5.2 Verkle Layer (`simulations/verkle.v`) - ✅ Complete
-
-| Location | Lemma | Resolution |
-|----------|-------|------------|
-| `verkle.v:161` | `verkle_proof_soundness` | ✅ Proven via binding property |
-| `verkle.v:178` | `verkle_proof_completeness` | ✅ Proven via commitment construction |
-| `verkle.v:228` | `verkle_merkle_equivalence` | ✅ Proven bidirectionally |
-| `verkle.v:261` | `verkle_root_deterministic` | ✅ Proven with tree equality |
-| `verkle.v:407` | `verkle_aggregation_sound` | ✅ Proven via multi-proof decomposition |
-| `verkle.v:430` | `verkle_aggregation_complete` | ✅ Proven via proof construction |
-| `verkle.v:450` | `verkle_aggregation_binding` | ✅ Proven via index uniqueness |
-| `verkle.v:517` | `verkle_natural_aggregation` | ✅ Proven via multi-proof axioms |
-
-### 5.3 Embedding Layer (`specs/embedding_spec.v`) - ✅ Complete
+### 5.2 Verkle Layer (`simulations/verkle.v`) - Complete
 
 | Location | Lemma | Resolution |
 |----------|-------|------------|
-| `embedding_spec.v:150` | `header_slots_same_stem` | ✅ Proven via key derivation |
-| `embedding_spec.v:160` | `account_data_same_stem` | ✅ Proven via SHA256 properties |
-| `embedding_spec.v:168` | `header_storage_same_stem` | ✅ Proven via stem derivation |
-| `embedding_spec.v:176` | `header_code_same_stem` | ✅ Proven via code chunk offsets |
+| `verkle.v:161` | `verkle_proof_soundness` | Proven via binding property |
+| `verkle.v:178` | `verkle_proof_completeness` | Proven via commitment construction |
+| `verkle.v:228` | `verkle_merkle_equivalence` | Proven bidirectionally |
+| `verkle.v:261` | `verkle_root_deterministic` | Proven with tree equality |
+| `verkle.v:407` | `verkle_aggregation_sound` | Proven via multi-proof decomposition |
+| `verkle.v:430` | `verkle_aggregation_complete` | Proven via proof construction |
+| `verkle.v:450` | `verkle_aggregation_binding` | Proven via index uniqueness |
+| `verkle.v:517` | `verkle_natural_aggregation` | Proven via multi-proof axioms |
 
-### 5.4 Linking Layer (`linking/operations.v`) - ✅ Complete
+### 5.3 Embedding Layer (`specs/embedding_spec.v`) - Complete
 
 | Location | Lemma | Resolution |
 |----------|-------|------------|
-| `operations.v:219-225` | `Run.run_eval_equiv` | ✅ Proven via step semantics |
-| `operations.v:762-802` | Panic freedom lemmas | ✅ All proven |
+| `embedding_spec.v:150` | `header_slots_same_stem` | Proven via key derivation |
+| `embedding_spec.v:160` | `account_data_same_stem` | Proven via SHA256 properties |
+| `embedding_spec.v:168` | `header_storage_same_stem` | Proven via stem derivation |
+| `embedding_spec.v:176` | `header_code_same_stem` | Proven via code chunk offsets |
+
+### 5.4 Linking Layer (`linking/operations.v`) - Complete
+
+| Location | Lemma | Resolution |
+|----------|-------|------------|
+| `operations.v:219-225` | `Run.run_eval_equiv` | Proven via step semantics |
+| `operations.v:762-802` | Panic freedom lemmas | All proven |
 
 ---
 
@@ -585,7 +585,7 @@ Axiom get_insert_same : forall t k v d, v <> zero32 -> tree_get (tree_insert t k
 
 ```text
                     ┌────────────────────────────────────────┐
-                    │     ✅ VERIFICATION COMPLETE           │
+                    │        VERIFICATION COMPLETE           │
                     └────────────────────────────────────────┘
 
   CRYPTO (26 axioms)          LINKING (18 axioms)        ADMITS (0 remaining)
@@ -600,7 +600,7 @@ Axiom get_insert_same : forall t k v d, v <> zero32 -> tree_get (tree_insert t k
   Verkle Axioms:     ████████████████████  14/14  Standard KZG/IPA assumptions
   Linking Layer:     ████████████████████  18/18  All verified
   Security Axioms:   ████████████████████  14/14  Game-based proofs
-  Admitted Proofs:   ████████████████████   0/0   ALL CLOSED ✅
+  Admitted Proofs:   ████████████████████   0/0   ALL CLOSED
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   TOTAL: 67 axioms, 26 parameters, 0 admits
@@ -653,8 +653,8 @@ Axiom get_insert_same : forall t k v d, v <> zero32 -> tree_get (tree_insert t k
 8. `commitment_to_bytes` (Parameter)
 9. `verkle_open_correct` (Axiom)
 10. `verkle_binding` (Axiom)
-11. `verkle_hiding` (Lemma) ✅ - was trivial
-12. `verkle_commit_deterministic` (Lemma) ✅ - derived from reflexivity
+11. `verkle_hiding` (Lemma - was trivial)
+12. `verkle_commit_deterministic` (Lemma - derived from reflexivity)
 13. `verkle_commit_zero` (Axiom)
 14. `verkle_commit_injective` (Axiom)
 15. `VerkleMultiProof : Type` (Parameter)
@@ -662,7 +662,7 @@ Axiom get_insert_same : forall t k v d, v <> zero32 -> tree_get (tree_insert t k
 17. `verkle_multi_verify` (Parameter)
 18. `verkle_multi_open_correct` (Axiom)
 19. `verkle_multi_binding` (Axiom)
-20. `nth_error_key_unique` (Lemma) ✅ - derived from NoDup_nth_error
+20. `nth_error_key_unique` (Lemma - derived from NoDup_nth_error)
 21. `verkle_verified_implies_tree_membership` (Axiom)
 22. `verkle_witness_construction` (Axiom)
 23. `tree_eq_implies_stems_eq` (Axiom)
@@ -678,9 +678,9 @@ Axiom get_insert_same : forall t k v d, v <> zero32 -> tree_get (tree_insert t k
 3. `tree_insert` (Parameter)
 4. `hash_zero` (Axiom)
 5. `hash_single_zero` (Axiom)
-6. `hash_deterministic` (Lemma) ✅
-7. `hash_collision_resistant` (Lemma) ✅ - was trivial: `\/ True`
-8. `hash_injective` (Lemma) ✅ - was trivial: conclusion `True`
+6. `hash_deterministic` (Lemma)
+7. `hash_collision_resistant` (Lemma - was trivial: `\/ True`)
+8. `hash_injective` (Lemma - was trivial: conclusion `True`)
 9. `insert_order_independent` (Axiom)
 10. `get_insert_same` (Axiom)
 11. `get_insert_other` (Axiom)

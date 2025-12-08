@@ -129,30 +129,30 @@ impl Hasher for MyHasher {
 
 ## Formal Verification
 
-**Status:** ✅ **VERIFICATION COMPLETE** (December 2024)
+**Status:** **VERIFICATION COMPLETE** (December 2024)
 
 This crate includes formal verification using [rocq-of-rust](https://github.com/formal-land/rocq-of-rust) and the Rocq proof assistant. All proofs are complete with **0 admits remaining**.
 
-[![Formal Verification](https://github.com/paradigmxyz/ubt/actions/workflows/formal.yml/badge.svg)](https://github.com/paradigmxyz/ubt/actions/workflows/formal.yml)
+[![Proof Verification](https://github.com/igor53627/ubt-rs/actions/workflows/proofs.yml/badge.svg)](https://github.com/igor53627/ubt-rs/actions/workflows/proofs.yml)
 
 ### Proven Properties
 
 | Theorem | Status |
 |---------|--------|
-| Empty tree has zero hash | ✅ Proven |
-| Hash is deterministic | ✅ Proven |
-| Get from empty returns None | ✅ Proven |
-| Get after insert returns value | ✅ Proven |
-| Insert doesn't affect other keys | ✅ Proven |
-| Delete removes value | ✅ Proven |
-| Keys with same stem share subtree | ✅ Proven |
-| Insert preserves well-formedness | ✅ Proven |
-| Order independence (all cases) | ✅ Proven |
-| Inclusion proof soundness | ✅ Proven |
-| Exclusion proof soundness | ✅ Proven |
-| Batch verification soundness | ✅ Proven |
-| EUF-MPA security | ✅ Proven |
-| Accumulator soundness | ✅ Proven |
+| Empty tree has zero hash | Proven |
+| Hash is deterministic | Proven |
+| Get from empty returns None | Proven |
+| Get after insert returns value | Proven |
+| Insert doesn't affect other keys | Proven |
+| Delete removes value | Proven |
+| Keys with same stem share subtree | Proven |
+| Insert preserves well-formedness | Proven |
+| Order independence (all cases) | Proven |
+| Inclusion proof soundness | Proven |
+| Exclusion proof soundness | Proven |
+| Batch verification soundness | Proven |
+| EUF-MPA security | Proven |
+| Accumulator soundness | Proven |
 
 ### Verification Status
 
@@ -160,10 +160,10 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 |--------|-------|-------|
 | Axioms | **66** | Crypto (26), Verkle (14), Linking (18), Security (8) |
 | Parameters | **26** | Abstract types and functions |
-| Admitted proofs | **0** ✅ | All closed |
+| Admitted proofs | **0** | All closed |
 | QuickChick tests | 50,000 | 5 properties, 10k each |
 | OCaml extraction | 10/10 | All tests passing |
-| FFI bridge | ✅ | Rust ↔ OCaml validated |
+| FFI bridge | Complete | Rust ↔ OCaml validated |
 
 **Axiom categories:**
 - **Cryptographic**: Hash determinism, collision resistance, zero-value properties
@@ -229,6 +229,15 @@ ubt/
 │   └── src/         # Translated Rust
 └── spec/            # EIP-7864 specification
 ```
+
+## Contributing
+
+When contributing to this project, please follow these style guidelines:
+
+- **No emojis**: Use ASCII symbols instead of unicode emojis
+  - Use `[x]` or `(done)` instead of checkmarks
+  - Use `[!]` or `(warn)` instead of warning signs
+  - Use `->` instead of arrows
 
 ## License
 

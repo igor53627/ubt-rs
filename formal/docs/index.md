@@ -1,6 +1,6 @@
 # UBT Formal Verification Documentation
 
-**Status:** ✅ **VERIFICATION COMPLETE** (December 2024)
+**Status:** **VERIFICATION COMPLETE** (December 2024)
 
 This is the formal verification of the Unified Binary Tree (UBT) implementation for Ethereum's EIP-7864.
 
@@ -111,11 +111,11 @@ make docs
 |--------|-------|
 | Total axioms | **67** |
 | Parameters | **26** |
-| Admitted proofs | **0** ✅ (all closed) |
+| Admitted proofs | **0** (all closed) |
 | QuickChick properties | 5 (10k tests each, 50k total, all passing) |
 | OCaml extraction tests | 10/10 passing |
 | Security theorems | 30+ (game-based proofs in security.v) |
-| FFI bridge | ✅ Created (Rust ↔ OCaml) |
+| FFI bridge | Created (Rust <-> OCaml) |
 
 ## Key Theorems
 

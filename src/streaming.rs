@@ -293,11 +293,9 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
             return stem_hashes[0].1;
         }
 
-        debug_assert!(
-            depth < STEM_LEN * 8,
-            "Tree depth exceeded maximum of {} bits",
-            STEM_LEN * 8
-        );
+        if depth >= STEM_LEN * 8 {
+            panic!("Tree depth exceeded maximum of {} bits", STEM_LEN * 8);
+        }
 
         // partition_point finds the first index with bit_at(depth) == 1
         // (i.e. where !bit_at becomes false), so stem_hashes[0..split_point]

@@ -3,7 +3,7 @@
 This document provides spec-level documentation for all major theorems in the UBT formal verification, with cross-references to source files and explanations of what each theorem proves.
 
 **Last Updated:** December 2024  
-**Status:** ✅ **VERIFICATION COMPLETE** - 67 axioms, 26 parameters, 0 admits
+**Status:** **VERIFICATION COMPLETE** - 67 axioms, 26 parameters, 0 admits
 
 ---
 
@@ -65,13 +65,13 @@ The `SimTree` type in [simulations/tree.v:L344-346](file:///Users/user/pse/parad
 - **Theorem:** `insert_order_independent_stems` in [tree.v:L476-499](file:///Users/user/pse/paradigm/ubt/formal/simulations/tree.v#L476-L499)
 - **Statement:** "Insertion order doesn't matter for different stems"
 - **Formal:** `∀ t k₁ v₁ k₂ v₂, stem_eq k₁.stem k₂.stem = false → tree_eq (insert (insert t k₁ v₁) k₂ v₂) (insert (insert t k₂ v₂) k₁ v₁)`
-- **Status:** ✅ **Fully proven** (December 2024)
+- **Status:** **Fully proven** (December 2024)
 - **User implication:** Batch updates can be applied in any order
 
 ### Order Independence (Same Stem)
 - **Theorem:** `insert_order_independent_subindex` in [tree.v:L502-513](file:///Users/user/pse/paradigm/ubt/formal/simulations/tree.v#L502-L513)
 - **Statement:** "Insertion order doesn't matter for same stem, different subindex"
-- **Status:** ✅ **Fully proven** (December 2024)
+- **Status:** **Fully proven** (December 2024)
 - **User implication:** Same as above, for co-located keys
 
 ---
@@ -138,9 +138,9 @@ See [axiom_audit.md](axiom_audit.md) for complete axiom documentation.
 
 ## Verification Status Legend
 
-- ✅ **Fully proven**: No axioms beyond standard crypto assumptions
-- ⚠️ **Admitted**: Contains `Admitted` - proof incomplete
-- 🔒 **Axiomatized**: Relies on crypto assumptions (appropriate)
+- **Fully proven**: No axioms beyond standard crypto assumptions
+- (!) **Admitted**: Contains `Admitted` - proof incomplete
+- [LOCK] **Axiomatized**: Relies on crypto assumptions (appropriate)
 
 For detailed status, see [VERIFICATION_STATUS.md](VERIFICATION_STATUS.md).
 
@@ -234,4 +234,4 @@ The linking layer (`linking/operations.v`) is now fully complete (December 2024)
 - Proof types (`SharedWitness`, `InclusionProof`, `ExclusionProof`) fully defined
 - Soundness theorems (`exclusion_proof_soundness`, `inclusion_proof_soundness`) proven
 
-**Status:** ✅ `make linking` now builds successfully.
+**Status:** `make linking` now builds successfully.

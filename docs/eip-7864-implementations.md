@@ -41,7 +41,7 @@ Status tracking for EIP-7864 (Unified Binary Tree) implementations across Ethere
 
 | Repository | Author | Status | License |
 |------------|--------|--------|---------|
-| [jsign/binary-tree-spec](https://github.com/jsign/binary-tree-spec) | Ignacio Hagopian (EIP author) | ✅ Complete | MIT |
+| [jsign/binary-tree-spec](https://github.com/jsign/binary-tree-spec) | Ignacio Hagopian (EIP author) | Complete | MIT |
 
 **Files:**
 - `tree.py` - BinaryTree class implementation
@@ -61,8 +61,8 @@ python -m unittest discover
 
 | Repository | PR/Branch | Status | Version |
 |------------|-----------|--------|---------|
-| [ethereum/go-ethereum](https://github.com/ethereum/go-ethereum) | PR #32365 | ✅ Merged | v1.16.3+ |
-| [gballet/go-ethereum](https://github.com/gballet/go-ethereum/tree/rebased-binary-trie-m5-full-path) | rebased-binary-trie-m5-full-path | 🔬 Experimental | - |
+| [ethereum/go-ethereum](https://github.com/ethereum/go-ethereum) | PR #32365 | Merged | v1.16.3+ |
+| [gballet/go-ethereum](https://github.com/gballet/go-ethereum/tree/rebased-binary-trie-m5-full-path) | rebased-binary-trie-m5-full-path | Experimental | - |
 
 **Location in Geth:**
 - `trie/bintrie/` - Binary tree implementation
@@ -77,7 +77,7 @@ python -m unittest discover
 
 | Repository | Author | Status | Notes |
 |------------|--------|--------|-------|
-| [varun-doshi/eth-binary-tree](https://github.com/varun-doshi/eth-binary-tree) | varun-doshi | 🔨 In progress | Tree done, embedding pending |
+| [varun-doshi/eth-binary-tree](https://github.com/varun-doshi/eth-binary-tree) | varun-doshi | In progress | Tree done, embedding pending |
 
 **Note:** This is a minimal POC based on the Python spec. Not yet integrated into reth.
 
@@ -89,8 +89,8 @@ python -m unittest discover
 
 | Repository | Status | Notes |
 |------------|--------|-------|
-| [paradigmxyz/reth](https://github.com/paradigmxyz/reth) | ❌ Not implemented | No official EIP-7864 support yet |
-| [alloy-rs/eips](https://github.com/alloy-rs/eips) | ❌ Not implemented | EIP constants/helpers only |
+| [paradigmxyz/reth](https://github.com/paradigmxyz/reth) | Not implemented | No official EIP-7864 support yet |
+| [alloy-rs/eips](https://github.com/alloy-rs/eips) | Not implemented | EIP constants/helpers only |
 
 **Opportunity:** Production-ready Rust implementation needed for reth client
 
@@ -100,8 +100,8 @@ python -m unittest discover
 
 | Repository | Status | Notes |
 |------------|--------|-------|
-| [@ethereumjs/client](https://www.npmjs.com/package/@ethereumjs/client) | ❌ Not implemented | Currently supports MPT and Verkle |
-| [@ethereumjs/trie](https://www.npmjs.com/package/@ethereumjs/trie) | ❌ Not implemented | MPT implementation only |
+| [@ethereumjs/client](https://www.npmjs.com/package/@ethereumjs/client) | Not implemented | Currently supports MPT and Verkle |
+| [@ethereumjs/trie](https://www.npmjs.com/package/@ethereumjs/trie) | Not implemented | MPT implementation only |
 
 **Opportunity:** TypeScript implementation for browser/Node.js environments
 
@@ -111,7 +111,7 @@ python -m unittest discover
 
 | Repository | Status | Notes |
 |------------|--------|-------|
-| [NethermindEth/nethermind](https://github.com/NethermindEth/nethermind) | ❌ Not implemented | No EIP-7864 branch found |
+| [NethermindEth/nethermind](https://github.com/NethermindEth/nethermind) | Not implemented | No EIP-7864 branch found |
 
 ---
 
@@ -119,7 +119,7 @@ python -m unittest discover
 
 | Repository | Status | Notes |
 |------------|--------|-------|
-| [hyperledger/besu](https://github.com/hyperledger/besu) | ❌ Not implemented | No EIP-7864 support yet |
+| [hyperledger/besu](https://github.com/hyperledger/besu) | Not implemented | No EIP-7864 support yet |
 
 ---
 
@@ -127,7 +127,7 @@ python -m unittest discover
 
 | Repository | Status | Notes |
 |------------|--------|-------|
-| [status-im/nimbus-eth1](https://github.com/status-im/nimbus-eth1) | ❌ Not implemented | No EIP-7864 support yet |
+| [status-im/nimbus-eth1](https://github.com/status-im/nimbus-eth1) | Not implemented | No EIP-7864 support yet |
 
 ---
 
