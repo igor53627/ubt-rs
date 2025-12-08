@@ -8,17 +8,17 @@ This document compares the Rust UBT implementation (`src/`) with the formal Rocq
 
 ```
 +-------------------------------------------------------------------------+
-|                     VERIFICATION ARCHITECTURE                           |
+|                       VERIFICATION ARCHITECTURE                         |
 +-------------------------------------------------------------------------+
 |                                                                         |
 |   +-----------------+                                                   |
-|   |  Rust Source    |  src/tree.rs, src/embedding.rs, src/node.rs      |
+|   |   Rust Source   |  src/tree.rs, src/embedding.rs, src/node.rs      |
 |   +--------+--------+                                                   |
 |            |                                                            |
 |            | rocq-of-rust                                               |
 |            v                                                            |
 |   +-----------------+                                                   |
-|   |  Translation    |  formal/src/*.v (monadic Rocq)                   |
+|   |   Translation   |  formal/src/*.v (monadic Rocq)                   |
 |   +--------+--------+                                                   |
 |            |                                                            |
 |            | *_executes axioms                                          |
