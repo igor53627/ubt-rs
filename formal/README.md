@@ -1,6 +1,6 @@
 # Formal Verification of UBT (EIP-7864)
 
-**Status:** ✅ **VERIFICATION COMPLETE** (December 2024)
+**Status:** **VERIFICATION COMPLETE** (December 2024)
 
 This directory contains formal verification artifacts for the Unified Binary Tree implementation.
 
@@ -8,14 +8,14 @@ This directory contains formal verification artifacts for the Unified Binary Tre
 
 | Component | Status | Description |
 |-----------|--------|-------------|
-| Specifications | ✅ Complete | Mathematical specs in Rocq |
-| Simulations | ✅ Complete | Idiomatic Rocq tree operations |
-| Security Proofs | ✅ Complete | Game-based security (EUF-MPA, accumulator) |
-| Proofs | ✅ Complete | Simulation-level proofs |
-| QuickChick Tests | ✅ Passing | 5 properties, 50k total tests |
-| Translation | ✅ Compiles | rocq-of-rust output (24,556 lines, 8 files) |
-| Linking | ✅ Complete | Translation ↔ Simulation equivalence |
-| FFI Bridge | ✅ Created | OCaml extraction ↔ Rust UBT (10/10 tests) |
+| Specifications | Complete | Mathematical specs in Rocq |
+| Simulations | Complete | Idiomatic Rocq tree operations |
+| Security Proofs | Complete | Game-based security (EUF-MPA, accumulator) |
+| Proofs | Complete | Simulation-level proofs |
+| QuickChick Tests | Passing | 5 properties, 50k total tests |
+| Translation | Compiles | rocq-of-rust output (24,556 lines, 8 files) |
+| Linking | Complete | Translation <-> Simulation equivalence |
+| FFI Bridge | Created | OCaml extraction <-> Rust UBT (10/10 tests) |
 
 ### Verification Progress
 
@@ -23,7 +23,7 @@ This directory contains formal verification artifacts for the Unified Binary Tre
 |--------|-------|
 | Total axioms | **67** |
 | Parameters | **26** |
-| Admitted proofs | **0** ✅ (all closed) |
+| Admitted proofs | **0** (all closed) |
 
 ### Proven Properties
 
@@ -43,10 +43,10 @@ The following theorems are proven at the simulation level:
 
 ### All Theorems Complete
 
-- Order independence: ✅ Fully proven (December 2024)
-- Stem equality transitivity: ✅ Fully proven
-- Verkle aggregation: ✅ Fully proven
-- Linking layer: ✅ Fully proven
+- Order independence: Fully proven (December 2024)
+- Stem equality transitivity: Fully proven
+- Verkle aggregation: Fully proven
+- Linking layer: Fully proven
 
 ## Quick Start
 
@@ -100,26 +100,26 @@ We follow the rocq-of-rust recommended workflow:
 
 ```
 ┌─────────────────┐     ┌─────────────────┐
-│   Rust Code     │────▶│   Translation   │ ✅ Compiles
+│   Rust Code     │────▶│   Translation   │ Compiles
 │   (ubt crate)   │     │   (src/*.v)     │
 └─────────────────┘     └────────┬────────┘
-                                 │ ✅ Complete
+                                 │ Complete
                                  ▼
 ┌─────────────────┐     ┌─────────────────┐
-│  Specification  │◀────│   Simulation    │ ✅ Proven
+│  Specification  │◀────│   Simulation    │ Proven
 │  (specs/*.v)    │     │ (simulations/)  │
 └─────────────────┘     └────────┬────────┘
                                  │
                                  ▼
                         ┌─────────────────┐
-                        │     Proofs      │ ✅ Complete
+                        │     Proofs      │ Complete
                         │  (proofs/*.v)   │
                         └─────────────────┘
 ```
 
 1. **Translation**: `cargo +nightly-2024-12-07 rocq-of-rust` generates verbose Rocq
 2. **Simulation**: Hand-written idiomatic Rocq that mirrors Rust semantics
-3. **Linking** ✅: Translation ≈ simulation proven
+3. **Linking**: Translation ~ simulation proven
 4. **Specification**: Define what the code should do
 5. **Proofs**: Prove simulation satisfies specification
 
@@ -184,11 +184,11 @@ The file includes manual test cases that work without QuickChick, and commented 
 
 All verification goals achieved (December 2024):
 
-1. ✅ **Linking proofs** - Translation matches simulation behavior
-2. ✅ **Panic freedom** - Monadic structure analyzed, no-panic proven
-3. ✅ **Order independence** - All cases proven
-4. ✅ **Merkle proof verification** - Witness correctness proven
-5. ✅ **FFI bridge** - OCaml extraction ↔ Rust validated (10/10 tests)
+1. **Linking proofs** - Translation matches simulation behavior
+2. **Panic freedom** - Monadic structure analyzed, no-panic proven
+3. **Order independence** - All cases proven
+4. **Merkle proof verification** - Witness correctness proven
+5. **FFI bridge** - OCaml extraction <-> Rust validated (10/10 tests)
 
 ## Documentation
 

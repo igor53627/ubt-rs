@@ -87,11 +87,11 @@ These theorems were previously incomplete but are now fully proven:
 
 | Theorem | Location | Resolution |
 |---------|----------|------------|
-| `insert_order_independent_stems` | tree.v | ✅ Proven with forallb case analysis |
-| `insert_order_independent_subindex` | tree.v | ✅ Proven via map commutativity |
-| `stems_get_set_other` | tree.v | ✅ Proven with length invariant |
-| `stems_get_stem_eq` | tree.v | ✅ Proven with stem equality transitivity |
-| `inclusion_proof_binding` | tree.v | ✅ Proven via collision resistance axiom |
+| `insert_order_independent_stems` | tree.v | Proven with forallb case analysis |
+| `insert_order_independent_subindex` | tree.v | Proven via map commutativity |
+| `stems_get_set_other` | tree.v | Proven with length invariant |
+| `stems_get_stem_eq` | tree.v | Proven with stem equality transitivity |
+| `inclusion_proof_binding` | tree.v | Proven via collision resistance axiom |
 
 ## Axiomatized Properties
 
@@ -177,24 +177,24 @@ These properties are assumed rather than proven:
 
 | Rust Function | Simulation | Linking |
 |---------------|------------|---------|
-| `UnifiedBinaryTree::new()` | `empty_tree` | ✅ |
-| `UnifiedBinaryTree::get()` | `sim_tree_get` | ✅ |
-| `UnifiedBinaryTree::insert()` | `sim_tree_insert` | ✅ |
-| `UnifiedBinaryTree::delete()` | `sim_tree_delete` | ✅ |
-| `UnifiedBinaryTree::root_hash()` | `sim_root_hash` | ✅ |
+| `UnifiedBinaryTree::new()` | `empty_tree` | Done |
+| `UnifiedBinaryTree::get()` | `sim_tree_get` | Done |
+| `UnifiedBinaryTree::insert()` | `sim_tree_insert` | Done |
+| `UnifiedBinaryTree::delete()` | `sim_tree_delete` | Done |
+| `UnifiedBinaryTree::root_hash()` | `sim_root_hash` | Done |
 
 ### Verified Properties
 
 | Property | Verified |
 |----------|----------|
-| Get from empty returns None | ✅ |
-| Get after insert returns value | ✅ |
-| Get after delete returns None | ✅ |
-| Insert doesn't affect other keys | ✅ |
-| Operations preserve well-formedness | ✅ |
-| Stem co-location | ✅ |
+| Get from empty returns None | Done |
+| Get after insert returns value | Done |
+| Get after delete returns None | Done |
+| Insert doesn't affect other keys | Done |
+| Operations preserve well-formedness | Done |
+| Stem co-location | Done |
 | Order independence | Partial |
-| Merkle proof soundness | ✅ |
+| Merkle proof soundness | Done |
 | Merkle proof completeness | Axiomatized |
 | Panic freedom | Axiomatized |
 

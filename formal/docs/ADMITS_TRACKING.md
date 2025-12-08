@@ -57,8 +57,8 @@ All 4 admits were converted to well-documented axioms:
 
 ## Build Status
 
-- `make all` - ✅ Passes
-- `make linking` - ❌ Fails (missing InclusionProof/ExclusionProof types - pre-existing issue)
+- `make all` - Passes
+- `make linking` - Fails (missing InclusionProof/ExclusionProof types - pre-existing issue)
 
 ## Future Work
 
