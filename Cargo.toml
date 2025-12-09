@@ -36,8 +36,12 @@ proptest = "1.4"
 criterion = "0.5"
 
 [features]
-default = []
+default = ["parallel"]
 serde = ["dep:serde", "alloy-primitives/serde"]
 parallel = ["rayon"]
+
+[[bench]]
+name = "stem_vs_tree"
+harness = false
 
 
