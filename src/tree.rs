@@ -3,6 +3,9 @@
 use alloy_primitives::B256;
 use std::collections::{HashMap, HashSet};
 
+#[cfg(feature = "parallel")]
+use rayon::prelude::*;
+
 use crate::{Blake3Hasher, Hasher, InternalNode, Node, Stem, StemNode, TreeKey};
 
 /// The Unified Binary Tree.
@@ -167,6 +170,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     }
 
     /// Compute the hash for a stem node.
+    #[cfg(not(feature = "parallel"))]
     fn compute_stem_hash(&self, stem: &Stem) -> B256 {
         if let Some(stem_node) = self.stems.get(stem) {
             stem_node.hash(&self.hasher)
@@ -176,13 +180,65 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     }
 
     /// Rebuild the root from all stem nodes.
+    #[cfg(not(feature = "parallel"))]
     fn rebuild_root(&mut self) {
         // Collect dirty stems first to avoid borrow conflict
         let dirty_stems: Vec<_> = self.dirty_stem_hashes.drain().collect();
 
-        // Recompute hashes for dirty stems only
+        // Recompute hashes for dirty stems only (sequential)
         for stem in dirty_stems {
             let hash = self.compute_stem_hash(&stem);
+            if hash.is_zero() {
+                self.stem_hash_cache.remove(&stem);
+            } else {
+                self.stem_hash_cache.insert(stem, hash);
+            }
+        }
+
+        if self.stem_hash_cache.is_empty() {
+            self.root = Node::Empty;
+            self.root_hash_cached = B256::ZERO;
+            return;
+        }
+
+        // Sort stem hashes for deterministic tree building
+        let mut stem_hashes: Vec<_> = self
+            .stem_hash_cache
+            .iter()
+            .map(|(s, h)| (*s, *h))
+            .collect();
+        stem_hashes.sort_by_key(|(s, _)| *s);
+
+        // Compute root hash directly from stem hashes (no double hashing)
+        self.root_hash_cached = self.build_root_hash_from_stem_hashes(&stem_hashes, 0);
+
+        // Also rebuild the Node tree for potential proof generation
+        let stems: Vec<_> = stem_hashes.iter().map(|(s, _)| *s).collect();
+        self.root = self.build_tree_from_sorted_stems(&stems, 0);
+    }
+
+    /// Rebuild the root from all stem nodes (parallel version).
+    #[cfg(feature = "parallel")]
+    fn rebuild_root(&mut self) {
+        // Collect dirty stems first to avoid borrow conflict
+        let dirty_stems: Vec<_> = self.dirty_stem_hashes.drain().collect();
+
+        // Recompute hashes for dirty stems in parallel
+        // compute_stem_hash is pure (only reads from self.stems) so safe to parallelize
+        let stem_updates: Vec<_> = dirty_stems
+            .par_iter()
+            .map(|stem| {
+                let hash = if let Some(stem_node) = self.stems.get(stem) {
+                    stem_node.hash(&self.hasher)
+                } else {
+                    B256::ZERO
+                };
+                (*stem, hash)
+            })
+            .collect();
+
+        // Apply updates to cache (must be sequential)
+        for (stem, hash) in stem_updates {
             if hash.is_zero() {
                 self.stem_hash_cache.remove(&stem);
             } else {
@@ -632,5 +688,38 @@ mod tests {
 
         let hash = tree.root_hash();
         assert_ne!(hash, B256::ZERO);
+    }
+
+    #[cfg(feature = "parallel")]
+    #[test]
+    fn test_parallel_rebuild_many_stems() {
+        let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+
+        // Insert many keys with different stems to test parallel hashing
+        for i in 0u8..=200 {
+            let mut stem_bytes = [0u8; 31];
+            stem_bytes[0] = i;
+            stem_bytes[15] = i.wrapping_add(128);
+            let stem = Stem::new(stem_bytes);
+            let key = TreeKey::new(stem, i % 10);
+            tree.insert(key, B256::repeat_byte(i.max(1)));
+        }
+
+        let root1 = tree.root_hash();
+        assert_ne!(root1, B256::ZERO, "Root hash should be non-zero");
+
+        // Modify some stems and recompute
+        for i in 50u8..100 {
+            let mut stem_bytes = [0u8; 31];
+            stem_bytes[0] = i;
+            stem_bytes[15] = i.wrapping_add(128);
+            let stem = Stem::new(stem_bytes);
+            let key = TreeKey::new(stem, (i % 10) + 1);
+            tree.insert(key, B256::repeat_byte(i.wrapping_mul(2).max(1)));
+        }
+
+        let root2 = tree.root_hash();
+        assert_ne!(root2, B256::ZERO, "Root hash should be non-zero after update");
+        assert_ne!(root1, root2, "Root hash should change after modifications");
     }
 }
