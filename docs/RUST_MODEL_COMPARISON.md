@@ -47,6 +47,11 @@ This document compares the Rust UBT implementation (`src/`) with the formal Rocq
 | `tree.insert(key, value)` | `sim_tree_insert t k v` | tree.v:442-451 |
 | `tree.delete(&key)` | `sim_tree_delete t k` (= insert zero32) | tree.v:454-455 |
 | `tree.root_hash()` | `sim_root_hash t` | tree.v:744-746 |
+| `tree.insert_with_diff(k, v, diff)` | (not modeled) | tree.rs:741-746 |
+| `tree.delete_with_diff(k, diff)` | (not modeled) | tree.rs:748-753 |
+| `tree.revert_diff(diff)` | (not modeled) | tree.rs:755-768 |
+| `tree.enable_incremental_mode()` | (not modeled) | tree.rs |
+| `tree.disable_incremental_mode()` | (not modeled) | tree.rs |
 | `stem.bit_at(pos)` | `stem_bit_at s i` | tree.v:58-64 |
 | `Stem::first_differing_bit` | `first_diff_bit s1 s2` | tree.v:67-81 |
 
@@ -127,6 +132,8 @@ This document compares the Rust UBT implementation (`src/`) with the formal Rocq
 | Batch insert optimization | tree.rs:169-177 | Not separately modeled |
 | Proof generation | proof.rs | Not modeled |
 | Iterator implementation | tree.rs:150-156 | Not modeled |
+| `UbtBlockDiff` reorg support | tree.rs:105-133 | Not modeled (Rust-only feature) |
+| Incremental mode | tree.rs | Not modeled (performance optimization) |
 
 ### 3. Axiomatized Execution Theorems (operations.v:983-998)
 

@@ -213,6 +213,90 @@ Remaining chunks: spread across tree by tree_index
 
 Binary is optimal for proof size.
 
+## Best Practices
+
+### Root Hash Strategy Selection
+
+The tree supports two root hash computation strategies:
+
+| Strategy | Complexity | Use Case |
+|----------|------------|----------|
+| Full rebuild (default) | O(S log S) | Bulk imports, migrations, small trees |
+| Incremental mode | O(D x C) | Block-by-block updates, frequent root queries |
+
+Where: S = number of stems, D = 248 (tree depth), C = changed stems per block.
+
+```rust
+// For bulk imports (default behavior)
+let mut tree = UnifiedBinaryTree::new();
+for (key, value) in millions_of_entries {
+    tree.insert(key, value);
+}
+let root = tree.root_hash();  // Full rebuild, O(S log S)
+
+// For block-by-block processing
+let mut tree = UnifiedBinaryTree::new();
+tree.enable_incremental_mode();
+for block in blocks {
+    for (key, value) in block.writes {
+        tree.insert(key, value);
+    }
+    let root = tree.root_hash();  // Incremental, O(D x C)
+}
+```
+
+### Reorg Support with Block Diffs
+
+Use `UbtBlockDiff` to enable chain reorganization support:
+
+```rust
+use ubt::{UnifiedBinaryTree, UbtBlockDiff, TreeKey, Blake3Hasher};
+
+let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+tree.enable_incremental_mode();
+
+// Process a block with diff tracking
+let mut diff = UbtBlockDiff::new();
+for (key, value) in block.writes {
+    tree.insert_with_diff(key, value, &mut diff);
+}
+for key in block.deletes {
+    tree.delete_with_diff(&key, &mut diff);
+}
+let post_block_root = tree.root_hash();
+
+// Store diff for potential reorg (e.g., in a ring buffer of last N blocks)
+block_diffs.push(diff);
+
+// On reorg: revert blocks in reverse order
+for diff in block_diffs.drain(..).rev() {
+    tree.revert_diff(diff);
+}
+```
+
+**Note:** Only apply a diff to the tree state it was created from. Reverting diffs out of order or to a different state is undefined behavior.
+
+### Capacity Pre-allocation
+
+For large trees, pre-allocate capacity to avoid HashMap resizing:
+
+```rust
+// When you know the approximate number of stems
+let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::with_capacity(1_000_000);
+
+// Or reserve additional capacity later
+tree.reserve_stems(500_000);
+```
+
+### Batch Operations
+
+For multiple inserts without intermediate root hashes, use batch insert:
+
+```rust
+let entries: Vec<(TreeKey, B256)> = /* ... */;
+tree.insert_batch(entries);  // Single root recomputation
+```
+
 ## Implementation Checklist
 
 - [ ] Node types: Empty, Internal, Stem, Leaf
@@ -226,6 +310,8 @@ Binary is optimal for proof size.
 - [ ] Code chunk routing (first 128 vs main)
 - [ ] Merkle proof generation
 - [ ] Merkle proof verification
+- [ ] Incremental mode for block processing
+- [ ] Block diff tracking for reorg support
 
 ## Test Vectors
 
