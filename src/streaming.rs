@@ -1,7 +1,24 @@
 //! Streaming tree builder for memory-efficient root hash computation.
 //!
-//! This module provides a way to compute the UBT root hash by streaming
-//! through sorted entries, without keeping the full tree in memory.
+//! This module provides [`StreamingTreeBuilder`], a way to compute the UBT root hash
+//! by streaming through sorted entries without keeping the full tree in memory.
+//!
+//! # When to Use
+//!
+//! - **Migrations**: When building a tree from scratch (e.g., MPT -> UBT migration)
+//! - **Memory-constrained environments**: When RAM is limited relative to state size
+//! - **One-shot computation**: When you need only the root hash, not the tree structure
+//!
+//! For ongoing state maintenance, use [`crate::UnifiedBinaryTree`] instead.
+//!
+//! # Parallel vs Serial
+//!
+//! Two methods are available:
+//! - [`StreamingTreeBuilder::build_root_hash`]: Serial stem hashing
+//! - [`StreamingTreeBuilder::build_root_hash_parallel`]: Parallel stem hashing (requires `parallel` feature)
+//!
+//! The parallel version groups entries by stem serially (O(n) streaming), then
+//! computes stem hashes concurrently via rayon.
 
 use alloy_primitives::B256;
 use std::collections::HashMap;
@@ -13,10 +30,13 @@ use crate::{Blake3Hasher, Hasher, Stem, SubIndex, TreeKey, STEM_LEN};
 
 /// A streaming tree builder that computes root hash with minimal memory.
 ///
+/// This builder is designed for one-shot root hash computation from sorted entries,
+/// such as during migrations or state verification.
+///
 /// # Usage
 ///
 /// 1. Sort all `(TreeKey, B256)` entries by key (stem, then subindex) in lexicographic order
-/// 2. Call `build_root_hash` with the sorted iterator
+/// 2. Call [`build_root_hash`](Self::build_root_hash) or [`build_root_hash_parallel`](Self::build_root_hash_parallel)
 /// 3. Receive the root hash without keeping the full tree in memory
 ///
 /// # Memory Usage
@@ -32,6 +52,21 @@ use crate::{Blake3Hasher, Hasher, Stem, SubIndex, TreeKey, STEM_LEN};
 /// - Deterministic root hash (sorted stem order ensures canonical tree shape)
 ///
 /// In debug builds, strict ascending order is asserted. Duplicate keys are not allowed.
+///
+/// # Example
+///
+/// ```rust
+/// use ubt::{StreamingTreeBuilder, TreeKey, Blake3Hasher, B256, Stem};
+///
+/// let mut entries: Vec<(TreeKey, B256)> = vec![
+///     (TreeKey::new(Stem::new([0u8; 31]), 0), B256::repeat_byte(0x01)),
+///     (TreeKey::new(Stem::new([0u8; 31]), 1), B256::repeat_byte(0x02)),
+/// ];
+/// entries.sort_by(|a, b| (a.0.stem, a.0.subindex).cmp(&(b.0.stem, b.0.subindex)));
+///
+/// let builder: StreamingTreeBuilder<Blake3Hasher> = StreamingTreeBuilder::new();
+/// let root = builder.build_root_hash(entries);
+/// ```
 pub struct StreamingTreeBuilder<H: Hasher = Blake3Hasher> {
     hasher: H,
 }
@@ -79,16 +114,27 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
         self.build_tree_hash(&stem_hashes, 0)
     }
 
-    /// Build the root hash from a sorted iterator of (TreeKey, B256) entries using parallel
-    /// stem hashing.
+    /// Build the root hash using parallel stem hashing.
     ///
-    /// This method uses rayon to compute stem hashes in parallel for large batches, which can
-    /// significantly speed up rebuilds with many stems.
+    /// This method uses rayon to compute stem hashes in parallel, which can significantly
+    /// speed up computation for large state with many unique stems.
     ///
-    /// The entries MUST be sorted by (stem, subindex) in lexicographic order.
-    /// In debug builds, this is asserted.
+    /// # Algorithm
     ///
-    /// Returns B256::ZERO for empty input.
+    /// 1. **Serial grouping**: Stream through sorted entries, grouping by stem (O(n))
+    /// 2. **Parallel hashing**: Compute stem hashes concurrently via rayon (O(n/p) with p threads)
+    /// 3. **Serial tree build**: Build tree hash from sorted stem hashes (O(S) for S stems)
+    ///
+    /// # Requirements
+    ///
+    /// - Entries MUST be sorted by `(stem, subindex)` in lexicographic order
+    /// - In debug builds, strict ascending order is asserted
+    ///
+    /// Returns `B256::ZERO` for empty input.
+    ///
+    /// # Feature Flag
+    ///
+    /// Requires the `parallel` feature (enabled by default).
     #[cfg(feature = "parallel")]
     pub fn build_root_hash_parallel(
         &self,

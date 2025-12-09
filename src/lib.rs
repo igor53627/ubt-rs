@@ -10,6 +10,8 @@
 //! - **Data co-location**: Related data (nonce, balance, first storage slots, first code chunks)
 //!   are grouped together in 256-value subtrees to reduce branch openings
 //! - **ZK-friendly**: Designed for efficient proving in ZK circuits
+//! - **Parallel hashing**: Uses rayon for concurrent stem hash computation (default feature)
+//! - **Incremental updates**: O(D*C) root updates instead of O(S log S) rebuilds
 //!
 //! ## Tree Structure
 //!
@@ -18,15 +20,61 @@
 //! - Last byte: **subindex** (position within the 256-value subtree)
 //!
 //! Node types:
-//! - `InternalNode`: Has left_hash and right_hash
-//! - `StemNode`: Has stem (31 bytes), left_hash and right_hash for its 256-value subtree
-//! - `LeafNode`: Contains a 32-byte value or empty
+//! - [`InternalNode`]: Has left_hash and right_hash
+//! - [`StemNode`]: Has stem (31 bytes), left_hash and right_hash for its 256-value subtree
+//! - [`LeafNode`]: Contains a 32-byte value or empty
 //! - `EmptyNode`: Represents an empty node/subtree (hash = 0)
+//!
+//! ## Quick Start
+//!
+//! ```rust
+//! use ubt::{UnifiedBinaryTree, TreeKey, Blake3Hasher, B256};
+//!
+//! let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+//! let key = TreeKey::from_bytes(B256::repeat_byte(0x01));
+//! tree.insert(key, B256::repeat_byte(0x42));
+//! let root = tree.root_hash();
+//! ```
+//!
+//! ## Features
+//!
+//! - **`parallel`** (default): Enables parallel stem hashing via rayon. Provides significant
+//!   speedup for trees with many dirty stems per rebuild cycle.
+//! - **`serde`**: Enables serialization support for tree types.
+//!
+//! ## Performance Modes
+//!
+//! ### Parallel Hashing (default)
+//!
+//! When the `parallel` feature is enabled (default), stem hashes are computed concurrently
+//! using rayon's parallel iterators. This is beneficial when many stems are modified
+//! between `root_hash()` calls.
+//!
+//! ### Incremental Updates
+//!
+//! For block-by-block state updates where only a small subset of stems change,
+//! enable incremental mode to cache intermediate node hashes:
+//!
+//! ```rust
+//! use ubt::{UnifiedBinaryTree, Blake3Hasher};
+//!
+//! let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+//! // ... initial inserts ...
+//! tree.root_hash(); // Initial full build
+//!
+//! // Enable incremental mode for subsequent updates
+//! tree.enable_incremental_mode();
+//!
+//! // Future updates only recompute affected paths: O(D*C) vs O(S log S)
+//! // where D=248 (tree depth) and C=changed stems per block
+//! ```
 //!
 //! ## Hash Function
 //!
 //! **Note**: The hash function is not final per EIP-7864. This implementation uses BLAKE3
 //! as a reference. Candidates include Keccak and Poseidon2.
+//!
+//! The [`Hasher`] trait is `Send + Sync` to support parallel hashing contexts.
 
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 

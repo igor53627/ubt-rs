@@ -82,9 +82,9 @@ impl InternalNode {
 /// The subtree contains 256 leaves indexed by the last byte (subindex).
 ///
 /// Per go-ethereum:
-/// 1. Hash each value: data[i] = hash(value[i]) or zero if nil
+/// 1. Hash each value: `data\[i\] = hash(value\[i\])` or zero if nil
 /// 2. Build 8-level binary tree from bottom up
-/// 3. Final hash = hash(stem || 0x00 || subtree_root)
+/// 3. Final hash = `hash(stem || 0x00 || subtree_root)`
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct StemNode {

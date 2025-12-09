@@ -36,8 +36,15 @@ proptest = "1.4"
 criterion = "0.5"
 
 [features]
+## Enables parallel stem hashing via rayon. Provides significant speedup for
+## trees with many dirty stems per rebuild cycle.
 default = ["parallel"]
+
+## Enables serialization support for tree types (Stem, TreeKey, StemNode).
 serde = ["dep:serde", "alloy-primitives/serde"]
+
+## Enables parallel stem hashing using rayon's parallel iterators.
+## When enabled, stem hashes are computed concurrently during root_hash() calls.
 parallel = ["rayon"]
 
 [[bench]]

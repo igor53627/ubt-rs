@@ -10,6 +10,8 @@ This crate provides a binary tree structure intended to replace Ethereum's hexar
 - **Code chunking**: Contract bytecode is chunked and stored in the tree
 - **Data co-location**: Related data (nonce, balance, first storage slots, first code chunks) are grouped together in 256-value subtrees to reduce branch openings
 - **ZK-friendly**: Designed for efficient proving in ZK circuits
+- **Parallel hashing**: Uses rayon for concurrent stem hash computation (enabled by default)
+- **Incremental updates**: O(D*C) root updates instead of O(S log S) full rebuilds
 - **Formally verified**: Core operations proven correct using the Rocq proof assistant
 
 ## Tree Structure
@@ -92,6 +94,27 @@ let root = builder.build_root_hash(entries);
 
 The streaming builder computes the root hash without keeping the full tree in memory.
 
+### Incremental Mode
+
+For block-by-block state updates where only a small subset of stems change:
+
+```rust
+use ubt::{UnifiedBinaryTree, Blake3Hasher, TreeKey, B256};
+
+let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+// ... initial inserts ...
+tree.root_hash(); // Full rebuild
+
+// Enable incremental mode for subsequent updates
+tree.enable_incremental_mode();
+tree.root_hash(); // Populates intermediate node cache
+
+// Future updates only recompute affected paths: O(D*C) vs O(S log S)
+// where D=248 (tree depth) and C=changed stems per block
+tree.insert(TreeKey::from_bytes(B256::repeat_byte(0x02)), B256::repeat_byte(0x43));
+tree.root_hash(); // Only recomputes paths to changed stems
+```
+
 ### Working with Accounts
 
 ```rust
@@ -109,6 +132,20 @@ let storage_key = account.storage_key(U256::from(0));
 // Chunkify contract code
 let bytecode = vec![0x60, 0x80, 0x60, 0x40, 0x52];
 let chunks = chunkify_code(&bytecode);
+```
+
+## Features
+
+| Feature | Default | Description |
+|---------|---------|-------------|
+| `parallel` | Yes | Parallel stem hashing via rayon |
+| `serde` | No | Serialization support for tree types |
+
+To disable default features:
+
+```toml
+[dependencies]
+ubt = { version = "0.1", default-features = false }
 ```
 
 ## Hash Function
