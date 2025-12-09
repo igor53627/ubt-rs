@@ -690,12 +690,26 @@ mod tests {
         assert_ne!(hash, B256::ZERO);
     }
 
+    /// Tests parallel stem hashing with a large number of stems (201).
+    ///
+    /// This test exercises the parallel hashing code path by creating enough stems
+    /// to trigger rayon's parallel iteration (typically > 100 stems).
+    ///
+    /// # Correctness Validation
+    ///
+    /// 1. **Non-empty output**: Root hash must be non-zero, confirming hashing ran.
+    /// 2. **Determinism**: Modifying stems and recomputing produces a different hash,
+    ///    confirming the hash reflects actual data (not a constant).
+    /// 3. **Insertion-order independence**: See `test_root_hash_deterministic` which
+    ///    validates that different insertion orders produce the same hash.
+    /// 4. **Parallel vs serial equivalence**: See `test_parallel_matches_non_parallel`
+    ///    which validates that parallel mode produces the same hash as serial mode.
     #[cfg(feature = "parallel")]
     #[test]
     fn test_parallel_rebuild_many_stems() {
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
 
-        // Insert many keys with different stems to test parallel hashing
+        // Insert many keys with different stems to exercise parallel hashing
         for i in 0u8..=200 {
             let mut stem_bytes = [0u8; 31];
             stem_bytes[0] = i;
@@ -721,5 +735,51 @@ mod tests {
         let root2 = tree.root_hash();
         assert_ne!(root2, B256::ZERO, "Root hash should be non-zero after update");
         assert_ne!(root1, root2, "Root hash should change after modifications");
+    }
+
+    /// Validates that parallel stem hashing produces identical results to serial hashing.
+    ///
+    /// This test compares `UnifiedBinaryTree` (which uses parallel hashing when enabled)
+    /// against `StreamingTreeBuilder` in serial mode. Both must produce the exact same
+    /// root hash for identical input data.
+    ///
+    /// # Correctness Criteria
+    ///
+    /// Given identical input data, parallel and serial computation must produce the
+    /// exact same root hash. This validates that:
+    /// - Parallel aggregation order doesn't affect the final hash
+    /// - Thread scheduling variations don't cause non-determinism
+    /// - The parallel implementation is a drop-in replacement for serial
+    #[cfg(feature = "parallel")]
+    #[test]
+    fn test_parallel_matches_non_parallel() {
+        use crate::StreamingTreeBuilder;
+
+        let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        let mut entries: Vec<(TreeKey, B256)> = Vec::new();
+
+        for i in 0u8..100 {
+            let mut stem_bytes = [0u8; 31];
+            stem_bytes[0] = i;
+            stem_bytes[10] = i.wrapping_mul(7);
+            let stem = Stem::new(stem_bytes);
+            let key = TreeKey::new(stem, i % 10);
+            let value = B256::repeat_byte(i.max(1));
+            tree.insert(key, value);
+            entries.push((key, value));
+        }
+
+        entries.sort_by(|a, b| (a.0.stem, a.0.subindex).cmp(&(b.0.stem, b.0.subindex)));
+
+        let tree_root = tree.root_hash();
+
+        // StreamingTreeBuilder serial mode
+        let builder: StreamingTreeBuilder<Blake3Hasher> = StreamingTreeBuilder::new();
+        let streaming_serial_root = builder.build_root_hash(entries);
+
+        assert_eq!(
+            tree_root, streaming_serial_root,
+            "UnifiedBinaryTree (parallel enabled) must match StreamingTreeBuilder serial mode"
+        );
     }
 }
