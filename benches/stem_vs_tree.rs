@@ -34,6 +34,42 @@ fn generate_test_data(num_stems: usize, values_per_stem: usize) -> Vec<(TreeKey,
     entries
 }
 
+/// Groups `(TreeKey, B256)` entries by stem.
+///
+/// Precondition: `entries` must be sorted by `TreeKey.stem`, so that all
+/// entries for a given stem are contiguous.
+fn group_entries_by_stem(entries: &[(TreeKey, B256)]) -> Vec<(Stem, HashMap<u8, B256>)> {
+    let mut stem_groups: Vec<(Stem, HashMap<u8, B256>)> = Vec::new();
+    let mut current_stem: Option<Stem> = None;
+    let mut current_values: HashMap<u8, B256> = HashMap::new();
+    
+    for (key, value) in entries {
+        match current_stem {
+            Some(stem) if stem == key.stem => {
+                current_values.insert(key.subindex, *value);
+            }
+            Some(stem) => {
+                if !current_values.is_empty() {
+                    stem_groups.push((stem, std::mem::take(&mut current_values)));
+                }
+                current_stem = Some(key.stem);
+                current_values.insert(key.subindex, *value);
+            }
+            None => {
+                current_stem = Some(key.stem);
+                current_values.insert(key.subindex, *value);
+            }
+        }
+    }
+    if let Some(stem) = current_stem {
+        if !current_values.is_empty() {
+            stem_groups.push((stem, current_values));
+        }
+    }
+    
+    stem_groups
+}
+
 fn compute_stem_hash(hasher: &Blake3Hasher, values: &HashMap<u8, B256>) -> B256 {
     let mut data = [B256::ZERO; 256];
     for (&idx, &value) in values {
@@ -93,34 +129,7 @@ fn bench_stem_hashing(c: &mut Criterion) {
     
     for num_stems in [1_000, 10_000, 100_000] {
         let entries = generate_test_data(num_stems, 5);
-        
-        let mut stem_groups: Vec<(Stem, HashMap<u8, B256>)> = Vec::new();
-        let mut current_stem: Option<Stem> = None;
-        let mut current_values: HashMap<u8, B256> = HashMap::new();
-        
-        for (key, value) in &entries {
-            match current_stem {
-                Some(stem) if stem == key.stem => {
-                    current_values.insert(key.subindex, *value);
-                }
-                Some(stem) => {
-                    if !current_values.is_empty() {
-                        stem_groups.push((stem, std::mem::take(&mut current_values)));
-                    }
-                    current_stem = Some(key.stem);
-                    current_values.insert(key.subindex, *value);
-                }
-                None => {
-                    current_stem = Some(key.stem);
-                    current_values.insert(key.subindex, *value);
-                }
-            }
-        }
-        if let Some(stem) = current_stem {
-            if !current_values.is_empty() {
-                stem_groups.push((stem, current_values));
-            }
-        }
+        let stem_groups = group_entries_by_stem(&entries);
         
         group.throughput(Throughput::Elements(num_stems as u64));
         group.bench_with_input(
@@ -188,33 +197,7 @@ fn bench_full_rebuild(c: &mut Criterion) {
             &entries,
             |b, entries| {
                 b.iter(|| {
-                    let mut stem_groups: Vec<(Stem, HashMap<u8, B256>)> = Vec::new();
-                    let mut current_stem: Option<Stem> = None;
-                    let mut current_values: HashMap<u8, B256> = HashMap::new();
-                    
-                    for (key, value) in entries {
-                        match current_stem {
-                            Some(stem) if stem == key.stem => {
-                                current_values.insert(key.subindex, *value);
-                            }
-                            Some(stem) => {
-                                if !current_values.is_empty() {
-                                    stem_groups.push((stem, std::mem::take(&mut current_values)));
-                                }
-                                current_stem = Some(key.stem);
-                                current_values.insert(key.subindex, *value);
-                            }
-                            None => {
-                                current_stem = Some(key.stem);
-                                current_values.insert(key.subindex, *value);
-                            }
-                        }
-                    }
-                    if let Some(stem) = current_stem {
-                        if !current_values.is_empty() {
-                            stem_groups.push((stem, current_values));
-                        }
-                    }
+                    let stem_groups = group_entries_by_stem(entries);
                     
                     let mut stem_hashes = Vec::with_capacity(stem_groups.len());
                     for (stem, values) in &stem_groups {
