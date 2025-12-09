@@ -49,6 +49,34 @@ fn set_bit_at(mut value: B256, pos: usize) -> B256 {
 /// hashes in `node_hash_cache`. This reduces update complexity from O(S log S)
 /// to O(D * C) where D=248 (tree depth) and C=changed stems per block.
 /// This is the recommended approach for block-by-block state updates.
+///
+/// ## Root hash strategies
+///
+/// The tree supports two strategies for computing root hashes:
+///
+/// ### Full rebuild (default)
+///
+/// Complexity: **O(S log S)** per rebuild where S is the number of stems.
+///
+/// Each call to `root_hash()` sorts all stems and recomputes the entire tree.
+/// Use this when:
+/// - Performing bulk imports (loading millions of keys at once)
+/// - Working with small trees where rebuild cost is negligible
+/// - Simplicity is preferred over incremental optimization
+///
+/// ### Incremental mode
+///
+/// Complexity: **O(D × C)** where D=248 (tree depth) and C=changed stems.
+///
+/// Caches intermediate node hashes and only recomputes paths from changed
+/// stems to the root. Use this when:
+/// - Processing block-by-block state updates (typical blockchain workload)
+/// - Calling `root_hash()` frequently with small batches of changes
+/// - Memory overhead of the cache (~2×stems entries) is acceptable
+///
+/// Enable with `enable_incremental_mode()` before your update loop.
+/// The first `root_hash()` call after enabling will do a full rebuild to
+/// populate the cache; subsequent calls will be incremental.
 #[derive(Clone, Debug)]
 pub struct UnifiedBinaryTree<H: Hasher = Blake3Hasher> {
     /// Root node of the tree (kept for potential proof generation)
@@ -72,6 +100,36 @@ pub struct UnifiedBinaryTree<H: Hasher = Blake3Hasher> {
     node_hash_cache: HashMap<NodeCacheKey, B256>,
     /// Whether incremental mode is active (cache is populated and valid)
     incremental_enabled: bool,
+}
+
+/// A reversible diff capturing the effect of a block on a UBT.
+/// Records previous values for each key modified during a block.
+#[derive(Clone, Debug, Default)]
+pub struct UbtBlockDiff {
+    ops: Vec<UbtOp>,
+}
+
+#[derive(Clone, Debug)]
+struct UbtOp {
+    key: TreeKey,
+    prev: Option<B256>,
+}
+
+impl UbtBlockDiff {
+    /// Create a new empty block diff.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Check if the diff is empty.
+    pub fn is_empty(&self) -> bool {
+        self.ops.is_empty()
+    }
+
+    /// Get the number of operations recorded.
+    pub fn len(&self) -> usize {
+        self.ops.len()
+    }
 }
 
 impl<H: Hasher> Default for UnifiedBinaryTree<H> {
@@ -534,6 +592,9 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     /// where D is tree depth (248) and C is the number of changed stems, instead of
     /// O(S log S) for full rebuilds.
     ///
+    /// **Recommended for**: Workloads with many small batches of updates followed
+    /// by frequent `root_hash()` calls (e.g., block-by-block state updates).
+    ///
     /// Note: The cache is populated lazily on the first `root_hash()` call after
     /// enabling. To pre-allocate memory, use `with_capacity()` when creating the tree.
     pub fn enable_incremental_mode(&mut self) {
@@ -550,6 +611,10 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     }
 
     /// Disable incremental root updates and clear the cache.
+    ///
+    /// **Use when**: Performing bulk rebuilds where the O(D × C) incremental cost
+    /// exceeds full rebuild cost, or when reclaiming memory used by the node cache.
+    /// After a bulk import, call this to free cache memory, then re-enable if needed.
     pub fn disable_incremental_mode(&mut self) {
         self.incremental_enabled = false;
         self.node_hash_cache.clear();
@@ -670,6 +735,30 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         }
         self.rebuild_root();
         self.root_dirty = false;
+    }
+
+    /// Insert a value at the given key, recording the previous value in the diff.
+    pub fn insert_with_diff(&mut self, key: TreeKey, value: B256, diff: &mut UbtBlockDiff) {
+        let prev = self.get(&key);
+        diff.ops.push(UbtOp { key, prev });
+        self.insert(key, value);
+    }
+
+    /// Delete a value at the given key, recording the previous value in the diff.
+    pub fn delete_with_diff(&mut self, key: &TreeKey, diff: &mut UbtBlockDiff) {
+        let prev = self.get(key);
+        diff.ops.push(UbtOp { key: *key, prev });
+        self.delete(key);
+    }
+
+    /// Revert the tree to its previous state by replaying operations in reverse.
+    pub fn revert_diff(&mut self, diff: UbtBlockDiff) {
+        for op in diff.ops.into_iter().rev() {
+            match op.prev {
+                Some(value) => self.insert(op.key, value),
+                None => self.delete(&op.key),
+            }
+        }
     }
 }
 
@@ -1236,5 +1325,70 @@ mod tests {
 
         tree.delete(&key);
         assert_eq!(tree.root_hash(), B256::ZERO);
+    }
+
+    #[test]
+    fn test_block_diff_revert_restores_root() {
+        let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        let key1 = TreeKey::from_bytes(B256::repeat_byte(0x01));
+        let key2 = TreeKey::from_bytes(B256::repeat_byte(0x02));
+
+        tree.insert(key1, B256::repeat_byte(0x11));
+        tree.insert(key2, B256::repeat_byte(0x22));
+        let original_root = tree.root_hash();
+
+        let mut diff = UbtBlockDiff::new();
+        tree.insert_with_diff(key1, B256::repeat_byte(0xAA), &mut diff);
+        tree.insert_with_diff(
+            TreeKey::from_bytes(B256::repeat_byte(0x03)),
+            B256::repeat_byte(0x33),
+            &mut diff,
+        );
+        tree.delete_with_diff(&key2, &mut diff);
+
+        let modified_root = tree.root_hash();
+        assert_ne!(original_root, modified_root);
+        assert_eq!(diff.len(), 3);
+
+        tree.revert_diff(diff);
+        let reverted_root = tree.root_hash();
+        assert_eq!(original_root, reverted_root);
+    }
+
+    #[test]
+    fn test_block_diff_handles_multiple_updates_same_key() {
+        let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        let key = TreeKey::from_bytes(B256::repeat_byte(0x01));
+
+        tree.insert(key, B256::repeat_byte(0x11));
+        let original_root = tree.root_hash();
+
+        let mut diff = UbtBlockDiff::new();
+        tree.insert_with_diff(key, B256::repeat_byte(0x22), &mut diff);
+        tree.insert_with_diff(key, B256::repeat_byte(0x33), &mut diff);
+        tree.insert_with_diff(key, B256::repeat_byte(0x44), &mut diff);
+
+        assert_eq!(diff.len(), 3);
+        assert_eq!(tree.get(&key), Some(B256::repeat_byte(0x44)));
+
+        tree.revert_diff(diff);
+        assert_eq!(tree.root_hash(), original_root);
+        assert_eq!(tree.get(&key), Some(B256::repeat_byte(0x11)));
+    }
+
+    #[test]
+    fn test_block_diff_empty() {
+        let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        let key = TreeKey::from_bytes(B256::repeat_byte(0x01));
+
+        tree.insert(key, B256::repeat_byte(0x11));
+        let original_root = tree.root_hash();
+
+        let diff = UbtBlockDiff::new();
+        assert!(diff.is_empty());
+        assert_eq!(diff.len(), 0);
+
+        tree.revert_diff(diff);
+        assert_eq!(tree.root_hash(), original_root);
     }
 }
