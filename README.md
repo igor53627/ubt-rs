@@ -1,5 +1,7 @@
 # Unified Binary Tree (UBT)
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/igor53627/ubt-rs)
+
 A Rust implementation of [EIP-7864: Ethereum state using a unified binary tree](https://eips.ethereum.org/EIPS/eip-7864).
 
 ## Overview
