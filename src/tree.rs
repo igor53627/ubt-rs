@@ -3,6 +3,9 @@
 use alloy_primitives::B256;
 use std::collections::{HashMap, HashSet};
 
+#[cfg(feature = "parallel")]
+use rayon::prelude::*;
+
 use crate::{Blake3Hasher, Hasher, InternalNode, Node, Stem, StemNode, TreeKey};
 
 /// The Unified Binary Tree.
@@ -167,6 +170,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     }
 
     /// Compute the hash for a stem node.
+    #[cfg(not(feature = "parallel"))]
     fn compute_stem_hash(&self, stem: &Stem) -> B256 {
         if let Some(stem_node) = self.stems.get(stem) {
             stem_node.hash(&self.hasher)
@@ -176,13 +180,65 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     }
 
     /// Rebuild the root from all stem nodes.
+    #[cfg(not(feature = "parallel"))]
     fn rebuild_root(&mut self) {
         // Collect dirty stems first to avoid borrow conflict
         let dirty_stems: Vec<_> = self.dirty_stem_hashes.drain().collect();
 
-        // Recompute hashes for dirty stems only
+        // Recompute hashes for dirty stems only (sequential)
         for stem in dirty_stems {
             let hash = self.compute_stem_hash(&stem);
+            if hash.is_zero() {
+                self.stem_hash_cache.remove(&stem);
+            } else {
+                self.stem_hash_cache.insert(stem, hash);
+            }
+        }
+
+        if self.stem_hash_cache.is_empty() {
+            self.root = Node::Empty;
+            self.root_hash_cached = B256::ZERO;
+            return;
+        }
+
+        // Sort stem hashes for deterministic tree building
+        let mut stem_hashes: Vec<_> = self
+            .stem_hash_cache
+            .iter()
+            .map(|(s, h)| (*s, *h))
+            .collect();
+        stem_hashes.sort_by_key(|(s, _)| *s);
+
+        // Compute root hash directly from stem hashes (no double hashing)
+        self.root_hash_cached = self.build_root_hash_from_stem_hashes(&stem_hashes, 0);
+
+        // Also rebuild the Node tree for potential proof generation
+        let stems: Vec<_> = stem_hashes.iter().map(|(s, _)| *s).collect();
+        self.root = self.build_tree_from_sorted_stems(&stems, 0);
+    }
+
+    /// Rebuild the root from all stem nodes (parallel version).
+    #[cfg(feature = "parallel")]
+    fn rebuild_root(&mut self) {
+        // Collect dirty stems first to avoid borrow conflict
+        let dirty_stems: Vec<_> = self.dirty_stem_hashes.drain().collect();
+
+        // Recompute hashes for dirty stems in parallel
+        // compute_stem_hash is pure (only reads from self.stems) so safe to parallelize
+        let stem_updates: Vec<_> = dirty_stems
+            .par_iter()
+            .map(|stem| {
+                let hash = if let Some(stem_node) = self.stems.get(stem) {
+                    stem_node.hash(&self.hasher)
+                } else {
+                    B256::ZERO
+                };
+                (*stem, hash)
+            })
+            .collect();
+
+        // Apply updates to cache (must be sequential)
+        for (stem, hash) in stem_updates {
             if hash.is_zero() {
                 self.stem_hash_cache.remove(&stem);
             } else {
@@ -632,5 +688,98 @@ mod tests {
 
         let hash = tree.root_hash();
         assert_ne!(hash, B256::ZERO);
+    }
+
+    /// Tests parallel stem hashing with a large number of stems (201).
+    ///
+    /// This test exercises the parallel hashing code path by creating enough stems
+    /// to trigger rayon's parallel iteration (typically > 100 stems).
+    ///
+    /// # Correctness Validation
+    ///
+    /// 1. **Non-empty output**: Root hash must be non-zero, confirming hashing ran.
+    /// 2. **Determinism**: Modifying stems and recomputing produces a different hash,
+    ///    confirming the hash reflects actual data (not a constant).
+    /// 3. **Insertion-order independence**: See `test_root_hash_deterministic` which
+    ///    validates that different insertion orders produce the same hash.
+    /// 4. **Parallel vs serial equivalence**: See `test_parallel_matches_non_parallel`
+    ///    which validates that parallel mode produces the same hash as serial mode.
+    #[cfg(feature = "parallel")]
+    #[test]
+    fn test_parallel_rebuild_many_stems() {
+        let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+
+        // Insert many keys with different stems to exercise parallel hashing
+        for i in 0u8..=200 {
+            let mut stem_bytes = [0u8; 31];
+            stem_bytes[0] = i;
+            stem_bytes[15] = i.wrapping_add(128);
+            let stem = Stem::new(stem_bytes);
+            let key = TreeKey::new(stem, i % 10);
+            tree.insert(key, B256::repeat_byte(i.max(1)));
+        }
+
+        let root1 = tree.root_hash();
+        assert_ne!(root1, B256::ZERO, "Root hash should be non-zero");
+
+        // Modify some stems and recompute
+        for i in 50u8..100 {
+            let mut stem_bytes = [0u8; 31];
+            stem_bytes[0] = i;
+            stem_bytes[15] = i.wrapping_add(128);
+            let stem = Stem::new(stem_bytes);
+            let key = TreeKey::new(stem, (i % 10) + 1);
+            tree.insert(key, B256::repeat_byte(i.wrapping_mul(2).max(1)));
+        }
+
+        let root2 = tree.root_hash();
+        assert_ne!(root2, B256::ZERO, "Root hash should be non-zero after update");
+        assert_ne!(root1, root2, "Root hash should change after modifications");
+    }
+
+    /// Validates that parallel stem hashing produces identical results to serial hashing.
+    ///
+    /// This test compares `UnifiedBinaryTree` (which uses parallel hashing when enabled)
+    /// against `StreamingTreeBuilder` in serial mode. Both must produce the exact same
+    /// root hash for identical input data.
+    ///
+    /// # Correctness Criteria
+    ///
+    /// Given identical input data, parallel and serial computation must produce the
+    /// exact same root hash. This validates that:
+    /// - Parallel aggregation order doesn't affect the final hash
+    /// - Thread scheduling variations don't cause non-determinism
+    /// - The parallel implementation is a drop-in replacement for serial
+    #[cfg(feature = "parallel")]
+    #[test]
+    fn test_parallel_matches_non_parallel() {
+        use crate::StreamingTreeBuilder;
+
+        let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        let mut entries: Vec<(TreeKey, B256)> = Vec::new();
+
+        for i in 0u8..100 {
+            let mut stem_bytes = [0u8; 31];
+            stem_bytes[0] = i;
+            stem_bytes[10] = i.wrapping_mul(7);
+            let stem = Stem::new(stem_bytes);
+            let key = TreeKey::new(stem, i % 10);
+            let value = B256::repeat_byte(i.max(1));
+            tree.insert(key, value);
+            entries.push((key, value));
+        }
+
+        entries.sort_by(|a, b| (a.0.stem, a.0.subindex).cmp(&(b.0.stem, b.0.subindex)));
+
+        let tree_root = tree.root_hash();
+
+        // StreamingTreeBuilder serial mode
+        let builder: StreamingTreeBuilder<Blake3Hasher> = StreamingTreeBuilder::new();
+        let streaming_serial_root = builder.build_root_hash(entries);
+
+        assert_eq!(
+            tree_root, streaming_serial_root,
+            "UnifiedBinaryTree (parallel enabled) must match StreamingTreeBuilder serial mode"
+        );
     }
 }

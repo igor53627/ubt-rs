@@ -12,6 +12,12 @@ use alloy_primitives::B256;
 /// Per EIP-7864, the hash function has special rules:
 /// - `hash([0x00] * 64) = [0x00] * 32` (empty input produces zero hash)
 /// - For all other inputs, use the underlying hash function
+///
+/// # Thread Safety
+///
+/// This trait is always `Send + Sync` so that hashers can be used safely in
+/// parallel contexts (e.g. stem hashing via the `"parallel"` feature with rayon).
+/// Custom hasher implementations must be thread-safe.
 pub trait Hasher: Clone + Default + Send + Sync {
     /// Hash a 32-byte value (for leaf nodes)
     fn hash_32(&self, value: &B256) -> B256;
