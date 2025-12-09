@@ -70,7 +70,7 @@ fn group_entries_by_stem(entries: &[(TreeKey, B256)]) -> Vec<(Stem, HashMap<u8, 
     stem_groups
 }
 
-fn compute_stem_hash(hasher: &Blake3Hasher, values: &HashMap<u8, B256>) -> B256 {
+fn compute_stem_hash(hasher: &Blake3Hasher, stem: &Stem, values: &HashMap<u8, B256>) -> B256 {
     let mut data = [B256::ZERO; 256];
     for (&idx, &value) in values {
         data[idx as usize] = hasher.hash_32(&value);
@@ -86,11 +86,8 @@ fn compute_stem_hash(hasher: &Blake3Hasher, values: &HashMap<u8, B256>) -> B256 
     }
 
     let subtree_root = data[0];
-    
-    let mut input = [0u8; 64];
-    input[31] = 0x00;
-    input[32..].copy_from_slice(subtree_root.as_slice());
-    hasher.hash_raw(&input)
+
+    hasher.hash_stem_node(stem.as_bytes(), &subtree_root)
 }
 
 fn build_tree_hash(hasher: &Blake3Hasher, stem_hashes: &[(Stem, B256)], depth: usize) -> B256 {
@@ -139,7 +136,7 @@ fn bench_stem_hashing(c: &mut Criterion) {
                 b.iter(|| {
                     let mut stem_hashes = Vec::with_capacity(groups.len());
                     for (stem, values) in groups {
-                        let hash = compute_stem_hash(&hasher, values);
+                        let hash = compute_stem_hash(&hasher, stem, values);
                         stem_hashes.push((*stem, hash));
                     }
                     black_box(stem_hashes)
@@ -201,7 +198,7 @@ fn bench_full_rebuild(c: &mut Criterion) {
                     
                     let mut stem_hashes = Vec::with_capacity(stem_groups.len());
                     for (stem, values) in &stem_groups {
-                        let hash = compute_stem_hash(&hasher, values);
+                        let hash = compute_stem_hash(&hasher, stem, values);
                         stem_hashes.push((*stem, hash));
                     }
                     stem_hashes.sort_by(|a, b| a.0.cmp(&b.0));
