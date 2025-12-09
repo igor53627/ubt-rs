@@ -102,8 +102,48 @@ pub struct UnifiedBinaryTree<H: Hasher = Blake3Hasher> {
     incremental_enabled: bool,
 }
 
-/// A reversible diff capturing the effect of a block on a UBT.
-/// Records previous values for each key modified during a block.
+/// A reversible diff capturing the effect of operations on a UBT.
+///
+/// Records previous values for each key modified, enabling reversion to a
+/// prior state. This is intentionally blockchain-agnostic: it captures tree
+/// changes without embedding block metadata (number, hash, etc.).
+///
+/// # Usage for Blockchain Reorgs
+///
+/// Callers are responsible for associating diffs with block metadata and
+/// managing diff history. A simple pattern:
+///
+/// ```ignore
+/// use std::collections::VecDeque;
+///
+/// struct BlockDiff {
+///     block_number: u64,
+///     block_hash: [u8; 32],
+///     diff: UbtBlockDiff,
+/// }
+///
+/// let mut history: VecDeque<BlockDiff> = VecDeque::new();
+///
+/// // Apply block and record diff
+/// let mut diff = UbtBlockDiff::new();
+/// for (key, value) in block_writes {
+///     tree.insert_with_diff(key, value, &mut diff);
+/// }
+/// history.push_back(BlockDiff { block_number, block_hash, diff });
+///
+/// // On reorg: revert N blocks in reverse order
+/// for _ in 0..reorg_depth {
+///     if let Some(block_diff) = history.pop_back() {
+///         tree.revert_diff(block_diff.diff);
+///     }
+/// }
+/// ```
+///
+/// # Invariants
+///
+/// - Diffs must be reverted in reverse order of creation
+/// - A diff should only be reverted on the same tree state that produced it
+/// - Reverting the same diff twice is undefined behavior
 #[derive(Clone, Debug, Default)]
 pub struct UbtBlockDiff {
     ops: Vec<UbtOp>,
@@ -1390,5 +1430,47 @@ mod tests {
 
         tree.revert_diff(diff);
         assert_eq!(tree.root_hash(), original_root);
+    }
+
+    #[test]
+    fn test_multi_block_reorg() {
+        let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        let key1 = TreeKey::from_bytes(B256::repeat_byte(0x01));
+        let key2 = TreeKey::from_bytes(B256::repeat_byte(0x02));
+        let key3 = TreeKey::from_bytes(B256::repeat_byte(0x03));
+
+        tree.insert(key1, B256::repeat_byte(0x11));
+        let root_after_genesis = tree.root_hash();
+
+        let mut diff_history: Vec<UbtBlockDiff> = Vec::new();
+
+        let mut diff1 = UbtBlockDiff::new();
+        tree.insert_with_diff(key2, B256::repeat_byte(0x22), &mut diff1);
+        let root_after_block1 = tree.root_hash();
+        diff_history.push(diff1);
+
+        let mut diff2 = UbtBlockDiff::new();
+        tree.insert_with_diff(key3, B256::repeat_byte(0x33), &mut diff2);
+        tree.insert_with_diff(key1, B256::repeat_byte(0xAA), &mut diff2);
+        let _root_after_block2 = tree.root_hash();
+        diff_history.push(diff2);
+
+        let mut diff3 = UbtBlockDiff::new();
+        tree.delete_with_diff(&key2, &mut diff3);
+        let _root_after_block3 = tree.root_hash();
+        diff_history.push(diff3);
+
+        for diff in diff_history.into_iter().rev() {
+            tree.revert_diff(diff);
+        }
+
+        assert_eq!(tree.root_hash(), root_after_genesis);
+        assert_eq!(tree.get(&key1), Some(B256::repeat_byte(0x11)));
+        assert_eq!(tree.get(&key2), None);
+        assert_eq!(tree.get(&key3), None);
+
+        let mut diff1_again = UbtBlockDiff::new();
+        tree.insert_with_diff(key2, B256::repeat_byte(0x22), &mut diff1_again);
+        assert_eq!(tree.root_hash(), root_after_block1);
     }
 }
