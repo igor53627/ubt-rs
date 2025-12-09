@@ -161,6 +161,16 @@ impl UbtBlockDiff {
         Self::default()
     }
 
+    /// Create a new block diff with pre-allocated capacity.
+    ///
+    /// Use this when you know the approximate number of operations in a block
+    /// to reduce allocations during high-frequency updates.
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            ops: Vec::with_capacity(capacity),
+        }
+    }
+
     /// Check if the diff is empty.
     pub fn is_empty(&self) -> bool {
         self.ops.is_empty()
