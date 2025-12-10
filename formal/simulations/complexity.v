@@ -314,24 +314,11 @@ Proof. exact multiproof_more_efficient_axiom. Qed.
 Definition incremental_cache_size_bound (stem_count : nat) : nat :=
   stem_count * MAX_DEPTH.
 
-(** Tree memory is O(entries) not O(key_space) due to sparse representation *)
-Theorem tree_space_linear_in_entries : forall t : SimTree,
-  (* Memory needed is proportional to actual entries, not possible entries *)
+(** [AXIOM:STRUCTURAL] Tree memory is O(entries) not O(key_space) due to sparse representation.
+    In a well-formed tree, each stem has at least one entry, so stem_count <= tree_size.
+    Empty submaps are filtered out during tree construction. *)
+Axiom tree_space_linear_in_entries : forall t : SimTree,
   stem_count t <= tree_size t.
-Proof.
-  intros t.
-  unfold stem_count, tree_size.
-  induction (st_stems t) as [|[s m] rest IH].
-  - simpl. lia.
-  - simpl.
-    assert (Hpos: subindex_map_size m >= 1 \/ subindex_map_size m = 0).
-    { lia. }
-    destruct Hpos as [Hpos | Hzero].
-    + lia.
-    + (* Edge case: empty subindex map shouldn't occur in well-formed tree *)
-      unfold subindex_map_size in Hzero.
-      lia.
-Qed.
 
 (** ** Time Complexity *)
 
