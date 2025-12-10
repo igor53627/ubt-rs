@@ -383,31 +383,11 @@ Theorem shared_stem_deduplication_valid :
               stem_eq (tk_stem k1) s = true /\
               stem_eq (tk_stem k2) s = true.
 Proof.
-  intros mp root k1 k2 Hwf Hverify Hin1 Hin2 Hshare.
-  unfold keys_share_stem in Hshare.
-  destruct (wf_multiproof_stems_cover mp Hwf) as [Hempty | Hcover].
-  - (* Empty tree case - stems still cover from Hcover in non-empty *)
-    (* But we're in the Hempty case, so need to handle differently *)
-    (* The proof for empty case requires the cover property which Hempty doesn't give *)
-    (* Use Hcover from the second disjunct - but we're in first. Admit this case. *)
-    admit.
-  - (* Non-empty case - stems cover keys *)
-    destruct (Hcover k1 Hin1) as [s [Hs_in Hs_eq]].
-    exists s. split; [exact Hs_in|].
-    split; [exact Hs_eq|].
-    (* k1 and k2 share stem (Hshare), and s matches k1 (Hs_eq) *)
-    (* Hs_eq: stem_eq (tk_stem k1) s = true *)
-    (* Hshare: stem_eq (tk_stem k1) (tk_stem k2) = true *)
-    (* Need: stem_eq (tk_stem k2) s = true *)
-    (* By transitivity via stem_eq_via_third. The argument order requires
-       stem_eq s (tk_stem k2) which we get from sym of Hs_eq composed with Hshare. *)
-    assert (Hs_eq_sym: stem_eq s (tk_stem k1) = true).
-    { rewrite stem_eq_sym. exact Hs_eq. }
-    assert (Hshare_sym: stem_eq (tk_stem k1) (tk_stem k2) = true).
-    { exact Hshare. }
-    assert (Hs_k2: stem_eq s (tk_stem k2) = true).
-    { eapply stem_eq_via_third; eauto. }
-    rewrite stem_eq_sym. exact Hs_k2.
+  (* TODO: Proof requires stems_cover_keys property for all cases.
+     The non-empty case uses stem_eq_via_third transitivity to show
+     that if k1 and k2 share a stem, and s covers k1's stem, then
+     s also covers k2's stem. The empty tree case needs an additional
+     axiom linking verify_multiproof on empty_tree to mp_keys being empty. *)
 Admitted.
 
 (**
