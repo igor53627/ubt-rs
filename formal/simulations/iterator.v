@@ -171,7 +171,7 @@ Proof.
     + discriminate.
     + simpl in Hfind2. destruct (Z.eqb i (tk_subindex k)) eqn:E.
       * injection Hfind2 as H1 H2. subst.
-        apply Z.eqb_eq in E. exact E.
+        apply Z.eqb_eq in E. symmetry. exact E.
       * apply IH. exact Hfind2.
   - destruct k as [stem idx']. simpl.
     (* stem = s from stem_eq *)
