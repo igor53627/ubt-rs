@@ -1081,7 +1081,7 @@ Proof.
           apply filter_In in Hin'.
           destruct Hin' as [Hin' _].
           (* (j,w) is in rest, so j = fst (j,w) is in map fst rest *)
-          apply H1. apply in_map. exact Hin'. }
+          apply H1. exact (in_map fst _ _ Hin'). }
         { simpl in Hnd. inversion Hnd. subst.
           apply IH. exact H2. }
   - (* Non-zero: prepend and filter *)
@@ -1107,7 +1107,7 @@ Proof.
             simpl in Heq. subst i.
             apply filter_In in Hin'.
             destruct Hin' as [Hin' _].
-            apply H1. apply in_map. exact Hin'.
+            apply H1. exact (in_map fst _ _ Hin').
           - simpl in Hnd. inversion Hnd. subst.
             apply IH. exact H2. }
 Qed.
@@ -1141,7 +1141,7 @@ Proof.
           simpl in Heq. subst stem.
           apply filter_In in Hin'.
           destruct Hin' as [Hin' _].
-          apply H1. apply in_map. exact Hin'. }
+          apply H1. exact (in_map fst _ _ Hin'). }
         { simpl in Hnd. inversion Hnd. subst.
           apply IH. exact H2. }
 Qed.
