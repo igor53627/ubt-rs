@@ -1,10 +1,10 @@
 [package]
 name = "ubt"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Unified Binary Tree implementation based on EIP-7864"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/paradigmxyz/reth"
+repository = "https://github.com/igor53627/ubt-rs"
 keywords = ["ethereum", "eip-7864", "binary-tree", "state-tree"]
 categories = ["cryptography", "data-structures"]
 
