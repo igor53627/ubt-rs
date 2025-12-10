@@ -1080,10 +1080,8 @@ Proof.
           simpl in Heq. subst i.
           apply filter_In in Hin'.
           destruct Hin' as [Hin' _].
-          apply In_map_iff in Hin'.
-          destruct Hin' as [[j' w'] [Hin'' Heq']].
-          simpl in Heq'. subst j.
-          apply H1. apply in_map. exact Hin''. }
+          (* (j,w) is in rest, so j = fst (j,w) is in map fst rest *)
+          apply H1. apply in_map. exact Hin'. }
         { simpl in Hnd. inversion Hnd. subst.
           apply IH. exact H2. }
   - (* Non-zero: prepend and filter *)
@@ -1109,10 +1107,7 @@ Proof.
             simpl in Heq. subst i.
             apply filter_In in Hin'.
             destruct Hin' as [Hin' _].
-            apply In_map_iff in Hin'.
-            destruct Hin' as [[j' w'] [Hin'' Heq']].
-            simpl in Heq'. subst j.
-            apply H1. apply in_map. exact Hin''.
+            apply H1. apply in_map. exact Hin'.
           - simpl in Hnd. inversion Hnd. subst.
             apply IH. exact H2. }
 Qed.
@@ -1146,10 +1141,7 @@ Proof.
           simpl in Heq. subst stem.
           apply filter_In in Hin'.
           destruct Hin' as [Hin' _].
-          apply In_map_iff in Hin'.
-          destruct Hin' as [[stem'' submap''] [Hin'' Heq']].
-          simpl in Heq'. subst stem'.
-          apply H1. apply in_map. exact Hin''. }
+          apply H1. apply in_map. exact Hin'. }
         { simpl in Hnd. inversion Hnd. subst.
           apply IH. exact H2. }
 Qed.
