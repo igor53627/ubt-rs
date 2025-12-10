@@ -262,10 +262,8 @@ Proof.
     + simpl in Hstems. inversion Hstems. subst.
       constructor.
       * intro Hin. apply H1.
-        apply In_map_iff in Hin.
-        destruct Hin as [[s' m'] [Heq Hin']].
-        simpl in Heq. subst s.
-        apply in_map. exact Hin'.
+        (* Hin: In (s,m) rest, need: In s (map fst rest) *)
+        exact (in_map fst _ _ Hin).
       * apply IH. exact H2.
   - (* Each stem's keys are unique *)
     intros [stem submap] Hin. simpl.
