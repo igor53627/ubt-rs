@@ -26,7 +26,7 @@ REMOTE_HOST=user@server REMOTE_PATH=~/mypath ./scripts/remote-build.sh build
 
 ## Project Structure
 
-- `src/` - Rust implementation of Unified Binary Trie
+- `src/` - Rust implementation of Unified Binary Tree
 - `formal/` - Rocq/Coq formal verification
   - `formal/simulations/` - Simulation layer proofs
   - `formal/linking/` - Rust-to-Rocq linking layer

@@ -28,9 +28,10 @@ The `UnifiedBinaryTree` supports two modes for computing root hashes:
 
 - **Insert**: O(1) - marks stem dirty
 - **root_hash()** (first call after enable): O(S log S) - populates cache
-- **root_hash()** (subsequent): O(D * C) where D = 248 (tree depth), C = changed stems
-  - Only walks paths from changed stems to root
-  - Uses cached sibling hashes
+- **root_hash()** (subsequent): O(S log S) for sorting + O(D * C) for path updates
+  - Sorting all stems dominates for large S
+  - Path traversal benefits from cached sibling hashes
+  - Main benefit: skips recomputing unchanged subtree hashes
 
 ## Usage
 
@@ -66,10 +67,10 @@ tree.disable_incremental_mode(); // Clears cache, saves memory
 Incremental mode maintains a cache of intermediate node hashes:
 
 - **Cache size**: Approximately 2 * S entries (upper bound)
-- **Entry size**: `(usize, B256)` key + `B256` value = ~96 bytes per entry
-- **Total overhead**: ~192 * S bytes
+- **Entry size**: `(usize, B256)` key + `B256` value = ~72 bytes per entry
+- **Total overhead**: ~144 * S bytes
 
-For 100,000 stems: ~19 MB cache overhead
+For 100,000 stems: ~14.4 MB cache overhead
 
 Pre-allocate if you know the tree size:
 
