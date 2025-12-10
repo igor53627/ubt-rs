@@ -1044,7 +1044,7 @@ Proof.
   - intros Hin. induction l as [|x xs IH].
     + inversion Hin.
     + simpl in Hin. destruct Hin as [Heq|Hin].
-      * exists x. split. left. reflexivity. exact Heq.
+      * exists x. split. left. reflexivity. symmetry. exact Heq.
       * destruct (IH Hin) as [a [Ha Hb]].
         exists a. split. right. exact Ha. exact Hb.
   - intros [a [Ha Hb]]. subst. apply in_map. exact Ha.
