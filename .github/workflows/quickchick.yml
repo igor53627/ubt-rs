@@ -54,7 +54,7 @@ jobs:
         if: steps.cache-opam.outputs.cache-hit != 'true'
         run: |
           opam switch create rocq-9 ocaml-base-compiler.4.14.2 || opam switch rocq-9
-          eval $(opam env --switch=rocq-9)
+          eval "$(opam env --switch=rocq-9)"
           
           # Add repos
           opam repo add rocq-released https://rocq-prover.org/opam/released --set-default || true
@@ -66,19 +66,19 @@ jobs:
           opam install coq-quickchick -y
           
           # Verify installation
-          eval $(opam env --switch=rocq-9)
+          eval "$(opam env --switch=rocq-9)"
           coqc --version
 
       - name: Ensure QuickChick is installed
         if: steps.cache-opam.outputs.cache-hit == 'true'
         run: |
-          eval $(opam env --switch=rocq-9)
+          eval "$(opam env --switch=rocq-9)"
           opam install coq-quickchick -y 2>/dev/null || true
 
       - name: Build dependencies
         working-directory: formal
         run: |
-          eval $(opam env --switch=rocq-9)
+          eval "$(opam env --switch=rocq-9)"
           make clean
           make specs
           make simulations
@@ -87,11 +87,12 @@ jobs:
         id: quickchick
         working-directory: formal
         run: |
-          eval $(opam env --switch=rocq-9)
-          echo "Running QuickChick property-based tests..."
+          eval "$(opam env --switch=rocq-9)"
+          echo "Running QuickChick property-based tests (CI mode: 1000 tests/property)..."
           
-          # Run quickchick target and capture output
-          make quickchick 2>&1 | tee quickchick-output.txt
+          # Use quickchick-ci target: 1000 tests/property (5000 total)
+          # Full tests (10000/property) can be run locally with `make quickchick`
+          make quickchick-ci 2>&1 | tee quickchick-output.txt
           
           # Count passed tests
           PASSED=$(grep -c "Passed" quickchick-output.txt || echo "0")

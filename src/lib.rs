@@ -107,7 +107,7 @@ pub use proof::{generate_stem_proof, Direction, MultiProof, Proof, ProofNode, Wi
 #[doc(hidden)]
 pub use std::collections::HashMap;
 pub use streaming::StreamingTreeBuilder;
-pub use tree::{UbtBlockDiff, UnifiedBinaryTree};
+pub use tree::UnifiedBinaryTree;
 
 /// Re-export alloy primitives for convenience
 pub use alloy_primitives::{Address, B256, U256};

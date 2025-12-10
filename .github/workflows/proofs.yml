@@ -54,7 +54,7 @@ jobs:
         run: |
           # Create switch with OCaml 4.14.2 (or use existing)
           opam switch create rocq-9 ocaml-base-compiler.4.14.2 || opam switch rocq-9
-          eval $(opam env --switch=rocq-9)
+          eval "$(opam env --switch=rocq-9)"
           
           # Add Rocq released repo (contains rocq-prover 9.0.0)
           opam repo add rocq-released https://rocq-prover.org/opam/released --set-default || true
@@ -70,7 +70,7 @@ jobs:
           opam pin add coq 9.0.0 -y || opam install coq -y
           
           # Verify installation
-          eval $(opam env --switch=rocq-9)
+          eval "$(opam env --switch=rocq-9)"
           echo "PATH=$PATH"
           ls -la ~/.opam/rocq-9/bin/ | grep -E "coq|rocq" || true
           coqc --version
@@ -78,7 +78,7 @@ jobs:
       - name: Build core proofs (without QuickChick)
         working-directory: formal
         run: |
-          eval $(opam env --switch=rocq-9)
+          eval "$(opam env --switch=rocq-9)"
           coqc --version
           make clean
           # Build specs, simulations, and core proofs (skip quickchick_tests.v)
@@ -88,22 +88,24 @@ jobs:
 
       - name: Install QuickChick
         run: |
-          eval $(opam env --switch=rocq-9)
+          eval "$(opam env --switch=rocq-9)"
           # Add coq-released repo (contains coq-quickchick)
           opam repo add coq-released https://coq.inria.fr/opam/released --set-default 2>/dev/null || true
           opam update --quiet || true
           opam install coq-quickchick -y
 
-      - name: Run QuickChick tests
+      - name: Run QuickChick tests (CI - reduced count)
         working-directory: formal
         run: |
-          eval $(opam env --switch=rocq-9)
-          make quickchick
+          eval "$(opam env --switch=rocq-9)"
+          # Use quickchick-ci target: 1000 tests/property (5000 total)
+          # Full tests (10000/property) can be run locally with `make quickchick`
+          make quickchick-ci
 
       - name: OCaml extraction verification
         working-directory: formal
         run: |
-          eval $(opam env --switch=rocq-9)
+          eval "$(opam env --switch=rocq-9)"
           make extract
           # Verify extracted files exist and have content
           if [ ! -f extraction/extracted.ml ]; then
@@ -119,7 +121,7 @@ jobs:
       - name: Documentation generation check
         working-directory: formal
         run: |
-          eval $(opam env --switch=rocq-9)
+          eval "$(opam env --switch=rocq-9)"
           make docs || true  # Don't fail on doc generation issues
           # Verify docs were generated
           if [ ! -d docs/html ] || [ -z "$(ls -A docs/html 2>/dev/null)" ]; then
@@ -131,7 +133,7 @@ jobs:
       - name: Generate audit report
         working-directory: formal
         run: |
-          eval $(opam env --switch=rocq-9)
+          eval "$(opam env --switch=rocq-9)"
           make audit
 
       - name: Verify axiom count

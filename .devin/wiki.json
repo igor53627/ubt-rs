@@ -1,0 +1,76 @@
+{
+  "repo_notes": [
+    {
+      "content": "This is a Unified Binary Tree (UBT) implementation for Ethereum's EIP-7864 state tree. The project has two main components: a Rust implementation in src/ and formal verification proofs in Rocq/Coq in formal/. The Rust code provides a production-ready tree structure with Blake3 hashing, while the formal verification proves correctness properties.",
+      "author": "maintainer"
+    },
+    {
+      "content": "Key architectural layers: 1) Rust implementation (src/tree.rs, src/hasher.rs) - the actual tree with stems, leaves, and incremental updates. 2) Simulation layer (formal/simulations/) - abstract Coq model of tree operations. 3) Specification layer (formal/specs/) - EIP-7864 formal spec. 4) Linking layer (formal/linking/) - connects Rust translation to Coq proofs via RocqOfRust.",
+      "author": "maintainer"
+    },
+    {
+      "content": "The tree uses a 248-bit key space with stems (31 bytes) and subindices (1 byte). Each stem can hold up to 256 values. The implementation supports both full rebuild mode (O(S log S)) and incremental mode for block execution. Verkle polynomial commitments are planned but cryptographic primitives are currently axiomatized.",
+      "author": "maintainer"
+    }
+  ],
+  "pages": [
+    {
+      "title": "Overview",
+      "purpose": "High-level introduction to UBT-RS: what it is, why it exists (EIP-7864), and how the Rust implementation relates to the formal verification"
+    },
+    {
+      "title": "Rust Implementation",
+      "purpose": "Document the core Rust code in src/: UnifiedBinaryTree struct, StemNode, TreeKey, insert/get/delete operations, and the hasher trait",
+      "parent": "Overview"
+    },
+    {
+      "title": "Tree Operations",
+      "purpose": "Explain insert, get, delete, and root_hash operations. Cover both full rebuild and incremental update modes with complexity analysis",
+      "parent": "Rust Implementation"
+    },
+    {
+      "title": "Incremental Mode",
+      "purpose": "Document enable_incremental_mode(), the node hash cache, dirty stem tracking, and when to use incremental vs full rebuild. Reference docs/incremental-updates.md",
+      "parent": "Rust Implementation"
+    },
+    {
+      "title": "Formal Verification",
+      "purpose": "Overview of the Rocq/Coq formal verification in formal/. Explain the proof architecture: specs, simulations, proofs, and linking layers",
+      "parent": "Overview"
+    },
+    {
+      "title": "Simulation Layer",
+      "purpose": "Document formal/simulations/: tree.v (abstract tree model), crypto.v (hash axioms), and the simulation proofs",
+      "parent": "Formal Verification"
+    },
+    {
+      "title": "Specification Layer",
+      "purpose": "Document formal/specs/: tree_spec.v and embedding_spec.v that formalize EIP-7864 requirements",
+      "parent": "Formal Verification"
+    },
+    {
+      "title": "Linking Layer",
+      "purpose": "Explain formal/linking/: how RocqOfRust translates Rust to Coq and how behavioral equivalence is established via *_executes axioms",
+      "parent": "Formal Verification"
+    },
+    {
+      "title": "Axiom Audit",
+      "purpose": "Summarize the axiom count (currently 78), categorization (crypto, verkle, linking, spec), and trust assumptions. Reference formal/docs/axiom_audit.md",
+      "parent": "Formal Verification"
+    },
+    {
+      "title": "QuickChick Testing",
+      "purpose": "Document the property-based testing in formal/proofs/quickchick_tests.v: the 5 properties tested, generators, and CI integration",
+      "parent": "Formal Verification"
+    },
+    {
+      "title": "Build and CI",
+      "purpose": "Document how to build the project: cargo commands for Rust, make targets for formal proofs, and the CI workflows in .github/workflows/",
+      "parent": "Overview"
+    },
+    {
+      "title": "Architecture Diagram",
+      "purpose": "Visual diagram showing the relationship between Rust code, RocqOfRust translation, linking layer, simulation layer, and specifications"
+    }
+  ]
+}

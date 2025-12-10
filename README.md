@@ -117,6 +117,8 @@ tree.insert(TreeKey::from_bytes(B256::repeat_byte(0x02)), B256::repeat_byte(0x43
 tree.root_hash(); // Only recomputes paths to changed stems
 ```
 
+See [docs/incremental-updates.md](docs/incremental-updates.md) for benchmarks and when to use each mode.
+
 ### Working with Accounts
 
 ```rust
