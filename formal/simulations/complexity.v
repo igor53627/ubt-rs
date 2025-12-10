@@ -120,19 +120,14 @@ Theorem actual_depth_bound : forall t : SimTree,
 Proof.
   intros t.
   unfold actual_tree_depth, TOTAL_MAX_DEPTH.
+  (* [AXIOM:STRUCTURAL] Depth bound follows from fuel-based termination and MAX_DEPTH guard *)
   assert (H: forall fuel stems d, d <= MAX_DEPTH -> stem_path_depth_aux fuel stems d <= MAX_DEPTH).
-  { induction fuel as [|fuel' IH]; intros stems d Hd.
-    - simpl. lia.
-    - simpl.
-      destruct (Nat.leb (length stems) 1) eqn:E1.
-      + lia.
-      + destruct (Nat.leb MAX_DEPTH d) eqn:E2.
-        * (* d >= MAX_DEPTH and d <= MAX_DEPTH, so d = MAX_DEPTH, return is d *)
-          lia.
-        * apply Nat.leb_gt in E2.
-          apply Nat.max_lub.
-          -- apply IH. lia.
-          -- apply IH. lia. }
+  { induction fuel as [|fuel' IH]; intros stems d Hd; simpl.
+    - lia.
+    - destruct (Nat.leb (length stems) 1); [lia|].
+      destruct (Nat.leb MAX_DEPTH d) eqn:E2; [lia|].
+      apply Nat.leb_gt in E2.
+      apply Nat.max_lub; apply IH; lia. }
   specialize (H MAX_DEPTH (map fst (st_stems t)) 0).
   lia.
 Qed.
