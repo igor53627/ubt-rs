@@ -495,8 +495,9 @@ Qed.
 Definition option_value_eqb (ov1 ov2 : option Value) : bool :=
   match ov1, ov2 with
   | None, None => true
-  | Some v1, Some v2 => forallb (fun p => Z.eqb (fst p) (snd p)) (combine v1 v2)
-                        && Nat.eqb (length v1) (length v2)
+  | Some v1, Some v2 =>
+      Nat.eqb (length v1) (length v2) &&
+      forallb (fun p => Z.eqb (fst p) (snd p)) (combine v1 v2)
   | _, _ => false
   end.
 
