@@ -903,10 +903,12 @@ Proof.
   unfold sim_tree_get, sim_tree_insert. simpl.
   (* Use stem_eq_true to get propositional equality *)
   assert (Hstem_eq: tk_stem k1 = tk_stem k2) by (apply stem_eq_true; exact Hstem).
+  assert (Hstem_rev: stem_eq (tk_stem k2) (tk_stem k1) = true).
+  { rewrite stem_eq_sym. exact Hstem. }
   destruct (stem_eq (tk_stem k) (tk_stem k2)) eqn:Ek.
   - (* k matches k2's stem (and k1's stem via transitivity) *)
     assert (Ek1: stem_eq (tk_stem k) (tk_stem k1) = true).
-    { rewrite <- Hstem_eq. exact Ek. }
+    { eapply stem_eq_via_third; eauto. }
     (* For LHS: query k on (insert (insert t k1 v1) k2 v2)
        Outer set is at k2, which matches k *)
     rewrite (stems_get_stem_eq _ (tk_stem k) (tk_stem k2) Ek).
