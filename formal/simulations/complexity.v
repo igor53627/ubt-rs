@@ -22,7 +22,7 @@ Require Import Stdlib.micromega.Lia.
 Require Import Stdlib.Bool.Bool.
 Import ListNotations.
 
-Require Import tree.
+Require Import UBT.Sim.tree.
 
 Open Scope nat_scope.
 
