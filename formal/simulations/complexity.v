@@ -351,5 +351,4 @@ Proof.
   - apply depth_bound.
   - apply insert_preserves_depth_bound.
   - apply proof_size_logarithmic.
-  - reflexivity.
 Qed.
