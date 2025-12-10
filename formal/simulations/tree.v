@@ -1473,8 +1473,8 @@ Parameter verify_multiproof : MultiProof -> Bytes32 -> Prop.
 Definition sim_verify_multi_proof (mp : MultiProof) (root : Bytes32) : bool :=
   (* Check well-formedness: keys and values same length *)
   Nat.eqb (length (mp_keys mp)) (length (mp_values mp)) &&
-  (* Check stems list is non-empty when keys exist *)
-  (Bool.implb (negb (Nat.eqb (length (mp_keys mp)) 0)) (negb (Nat.eqb (length (mp_stems mp)) 0))).
+  (* Check stems list is non-empty when keys exist: implb a b = negb a || b *)
+  (negb (negb (Nat.eqb (length (mp_keys mp)) 0)) || negb (Nat.eqb (length (mp_stems mp)) 0)).
 
 (** sim_verify_multi_proof returning true implies well-formedness *)
 Lemma sim_verify_implies_wf : forall mp root,
@@ -1495,7 +1495,7 @@ Lemma sim_generate_multi_proof_wf : forall t keys,
 Proof.
   intros t keys.
   unfold wf_multiproof, sim_generate_multi_proof. simpl.
-  rewrite map_length. reflexivity.
+  rewrite length_map. reflexivity.
 Qed.
 
 (** Generated multiproof has correct keys *)
