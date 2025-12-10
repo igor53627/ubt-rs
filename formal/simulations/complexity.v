@@ -127,7 +127,8 @@ Proof.
       destruct (Nat.leb (length stems) 1) eqn:E1.
       + lia.
       + destruct (Nat.leb MAX_DEPTH d) eqn:E2.
-        * apply Nat.leb_le in E2. lia.
+        * (* d >= MAX_DEPTH and d <= MAX_DEPTH, so d = MAX_DEPTH, return is d *)
+          lia.
         * apply Nat.leb_gt in E2.
           apply Nat.max_lub.
           -- apply IH. lia.
