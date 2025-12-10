@@ -139,6 +139,9 @@ proofs/spec_linking.vo: simulations/tree.vo
 proofs/multiproof.vo: simulations/tree.vo
 proofs/correctness.vo: simulations/tree.vo
 
+# Explicit dependencies for specs layer (tree_spec imports simulations)
+specs/tree_spec.vo: simulations/tree.vo
+
 # Explicit dependencies for simulations layer
 simulations/tree.vo: simulations/crypto.vo
 simulations/verkle.vo: simulations/tree.vo
@@ -146,6 +149,8 @@ simulations/security.vo: simulations/crypto.vo simulations/tree.vo
 simulations/iterator.vo: simulations/tree.vo
 simulations/serialization.vo: simulations/tree.vo
 simulations/complexity.vo: simulations/tree.vo
+simulations/streaming.vo: simulations/tree.vo
+simulations/verkle_linking.vo: simulations/tree.vo
 
 # Generate dependencies
 depend:

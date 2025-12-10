@@ -429,7 +429,7 @@ Module BoolLink.
   
   Global Instance IsLink : Link bool := {
     Φ := Rust_ty;
-    φ b := if b then Value.Bool true else Value.Bool false;
+    φ b := Value.Bool b;
   }.
   
   Definition of_ty : OfTy.t Rust_ty.

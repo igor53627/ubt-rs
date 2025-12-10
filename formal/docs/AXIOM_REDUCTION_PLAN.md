@@ -1,7 +1,10 @@
 # Axiom Reduction Plan
 
-This document catalogs all 67 axioms in the UBT formal verification codebase,
+This document catalogs all axioms in the UBT formal verification codebase,
 categorizes them by reducibility, and provides a prioritized plan for conversion.
+
+**Note**: The original codebase had 67 axioms. With the addition of new modules
+(serialization.v, interpreter.v), the total grew to 122 axioms as shown below.
 
 ## Summary
 
@@ -14,7 +17,7 @@ categorizes them by reducibility, and provides a prioritized plan for conversion
 | CONVERTED   | 16    | Admitted proofs converted to tagged axioms     |
 | INTERFACE   | 31    | External contract specs (serialization, encoding) |
 | DESIGN      | 3     | Security design requirements                   |
-| **Total**   | **122**|                                               |
+| **Total**   | **122**| (67 original + 40 new + 15 converted)         |
 
 ### New Axioms Added (40 total)
 - **serialization.v**: 22 axioms (28 INTERFACE, 3 DESIGN)

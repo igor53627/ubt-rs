@@ -898,7 +898,7 @@ Lemma insert_order_independent_subindex : forall t k1 v1 k2 v2,
     (sim_tree_insert (sim_tree_insert t k1 v1) k2 v2)
     (sim_tree_insert (sim_tree_insert t k2 v2) k1 v1).
 Proof.
-  intros t k1 k2 v1 v2 Hstem Hidx.
+  intros t k1 v1 k2 v2 Hstem Hidx.
   unfold tree_eq. intros k.
   unfold sim_tree_get, sim_tree_insert. simpl.
   apply stem_eq_true in Hstem. subst.
@@ -1393,7 +1393,7 @@ Definition empty_multiproof : MultiProof := mkMultiProof [] [] [] [].
 
 (** Size of a multiproof (for optimization metrics) *)
 Definition multiproof_size (mp : MultiProof) : nat :=
-  length (mp_keys mp) * 32 +
+  length (mp_keys mp) * 33 +       (* keys: 32 bytes stem + 1 byte subindex *)
   length (mp_values mp) * 33 +
   length (mp_nodes mp) * 32 +
   length (mp_stems mp) * 31.

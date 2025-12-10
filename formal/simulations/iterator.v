@@ -417,14 +417,10 @@ Proof.
   - simpl. rewrite IH. reflexivity.
 Qed.
 
-(** Fold is independent of order for commutative operations *)
-Lemma fold_comm_order_independent : forall {A : Type} (f : A -> TreeKey -> Value -> A) (init : A) (t : SimTree),
-  (forall a k1 v1 k2 v2, f (f a k1 v1) k2 v2 = f (f a k2 v2) k1 v1) ->
-  (* The result is the same regardless of iteration order *)
-  True.  (* Placeholder - full proof would require permutation reasoning *)
-Proof.
-  trivial.
-Qed.
+(** TODO: Prove fold is independent of order for commutative operations.
+    This requires permutation reasoning (e.g., via Permutation from Stdlib).
+    Statement: For commutative f, folding over any permutation of entries
+    yields the same result. Currently not proven. *)
 
 (** ** Count Operations *)
 
