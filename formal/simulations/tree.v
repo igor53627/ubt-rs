@@ -1035,6 +1035,21 @@ Inductive wf_tree : SimTree -> Prop :=
 
 (** ** Preservation Lemmas for Strong Well-Formedness *)
 
+(** Helper: In for map *)
+Lemma In_map_iff : forall {A B : Type} (f : A -> B) (l : list A) (b : B),
+  In b (map f l) <-> exists a, In a l /\ b = f a.
+Proof.
+  intros A B f l b.
+  split.
+  - intros Hin. induction l as [|x xs IH].
+    + inversion Hin.
+    + simpl in Hin. destruct Hin as [Heq|Hin].
+      * exists x. split. left. reflexivity. exact Heq.
+      * destruct (IH Hin) as [a [Ha Hb]].
+        exists a. split. right. exact Ha. exact Hb.
+  - intros [a [Ha Hb]]. subst. apply in_map. exact Ha.
+Qed.
+
 (** Empty tree is strongly well-formed *)
 Lemma wf_tree_strong_empty : wf_tree_strong empty_tree.
 Proof.

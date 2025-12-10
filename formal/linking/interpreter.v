@@ -332,7 +332,6 @@ Module FuelExec.
     apply Fuel.sufficient_implies_eval with (n := fuel).
     unfold Fuel.sufficient_fuel.
     (* TODO: Need to convert between state types - requires step function implementation *)
-    admit.
   Admitted.
 
 End FuelExec.
@@ -654,7 +653,6 @@ Module OpExec.
        4. If exists, use subindexmap_get_steps for value lookup
        5. Combine fuel bounds *)
     (* TODO: Requires HashMap stepping infrastructure and SubIndexMap linking *)
-    admit.
   Admitted.
 
   (** insert_executes proof strategy:
@@ -683,7 +681,6 @@ Module OpExec.
        4. Tree structure update
        5. Prove refinement preserved *)
     (* TODO: Requires Entry pattern stepping and mutation handling *)
-    admit.
   Admitted.
 
   (** delete_executes follows from insert with zero32 *)
@@ -702,7 +699,6 @@ Module OpExec.
     (* Reduces to insert_executes_sketch with v = zero32 *)
     unfold DeleteLink.rust_delete.
     (* TODO: Apply insert_executes_sketch result with v = zero32 *)
-    admit.
   Admitted.
 
 End OpExec.
@@ -732,7 +728,6 @@ Module StepProps.
     (* Follows from step definition once implemented *)
     unfold Step.step.
     (* TODO: Complete when Step.step is fully defined *)
-    admit.
   Admitted.
 
   (** Steps preserve some invariant (to be specialized) *)
@@ -776,20 +771,12 @@ Module Example.
     M.let_ (M.pure (Value.Integer IntegerKind.U64 42))
            (fun v => M.pure v).
 
-  (** Evaluating let binding with sufficient fuel *)
-  (* TODO: Enable when Step.step is fully implemented
-     Lemma let_example_eval :
-       forall s,
-         exists fuel,
-           FuelExec.run_with_fuel fuel (Step.mkConfig let_example s) =
-           (Outcome.Success (Value.Integer IntegerKind.U64 42), s).
-     Proof.
-       intros s.
-       exists 3.
-       unfold let_example.
-       simpl.
-       admit.
-     Admitted.
+  (** Evaluating let binding with sufficient fuel
+      TODO: Enable when Step.step is fully implemented
+      
+      Lemma let_example_eval states that evaluating let_example
+      with 3 fuel steps should return (Success 42, s).
+      This requires the step function to handle Pure and let_ correctly.
   *)
 
 End Example.
