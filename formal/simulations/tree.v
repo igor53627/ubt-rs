@@ -1682,8 +1682,7 @@ Axiom multiproof_dedup_sound :
 (** Multiproof size is bounded by sum of individual proof sizes *)
 Lemma multiproof_size_efficient :
   forall (mp : MultiProof),
-    multiproof_size mp <= 
-    (length (mp_keys mp) * (32 + 33 + 32 * 8 + 31 * 8))%nat.
+    (multiproof_size mp <= length (mp_keys mp) * (32 + 33 + 32 * 8 + 31 * 8))%nat.
 Proof.
   intros mp.
   unfold multiproof_size.
