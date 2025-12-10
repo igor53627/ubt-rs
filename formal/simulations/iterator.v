@@ -236,7 +236,7 @@ Proof.
     + apply Hnodup_f. left. reflexivity.
     + apply IH.
       * intros a Hin. apply Hnodup_f. right. exact Hin.
-      * intros a1 a2 b Hin1 Hin2 Hneq. apply Hdisj; right; auto.
+      * intros a1 a2 b Hin1 Hin2 Hneq. apply Hdisj; [right; exact Hin1 | right; exact Hin2 | exact Hneq].
     + intros b Hin1 Hin2.
       apply In_flat_map in Hin2.
       destruct Hin2 as [a [Hin_a Hin_b]].
