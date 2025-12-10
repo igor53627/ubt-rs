@@ -51,4 +51,8 @@ parallel = ["rayon"]
 name = "stem_vs_tree"
 harness = false
 
+[[bench]]
+name = "incremental_vs_rebuild"
+harness = false
+
 

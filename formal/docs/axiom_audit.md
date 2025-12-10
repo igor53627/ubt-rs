@@ -11,19 +11,24 @@
 
 | Category | Count | Risk Level | Notes |
 |----------|-------|------------|-------|
-| Crypto Assumptions (hash) | 12 | Low (standard) | Rogaway-Shrimpton definitions |
+| Crypto Assumptions (hash) | 6 | Low (standard) | Rogaway-Shrimpton definitions |
 | Verkle Crypto Axioms | 15 | Low (standard) | Kate-Zaverucha-Goldberg / IPA |
 | Specification Axioms | 9 | Low (well-formed) | Functional correctness properties |
-| Simulation Axioms | 68 | Low (verified) | Tree, crypto, streaming, security |
+| Simulation Axioms | 62 | Low (verified) | Tree, crypto, streaming, security |
 | Multiproof Axioms | 7 | Low (structural) | Proof layer properties |
 | Parameters (abstract types) | 26 | N/A | Abstract types and functions |
 | Admitted Proofs | **0** | Complete | All admits closed |
-| **Total Axioms** | **84** | - | - |
+| **Total Axioms** | **78** | - | - |
 
-**Recent Axiom Reductions:**
-- `nth_error_key_unique` (verkle.v) → Proven from NoDup_nth_error
-- `hash_injective` (tree_spec.v) → Trivially provable (conclusion was True)
-- `hash_collision_resistant` (tree_spec.v) → Trivially provable (disjunct was True)
+**Recent Axiom Reductions (December 2024):**
+- `hash_deterministic_value` (crypto.v) --> Lemma via reflexivity
+- `hash_deterministic_pair` (crypto.v) --> Lemma via reflexivity  
+- `hash_deterministic_stem` (crypto.v) --> Lemma via hash_stem_respects_stem_eq
+- `hash_value_second_preimage` (crypto.v) --> Lemma from collision resistance (contrapositive)
+- `hash_value_nonzero` (crypto.v) --> Lemma from collision resistance + zero hash property
+- `nth_error_key_unique` (verkle.v) --> Proven from NoDup_nth_error
+- `hash_injective` (tree_spec.v) --> Trivially provable (conclusion was True)
+- `hash_collision_resistant` (tree_spec.v) --> Trivially provable (disjunct was True)
 
 **Verification Complete (December 2024):**
 - All 11 previously admitted proofs have been closed
@@ -117,13 +122,16 @@ This is the contrapositive of collision resistance for fixed first input.
 
 **Standard Reference:** Menezes, van Oorschot, Vanstone, "Handbook of Applied Cryptography" (1996), §9.2.2
 
-**Future Proof Status:** (!) DERIVABLE - This can be derived from collision resistance:
+**Status:** [DONE] Converted to lemma in crypto.v (December 2024).
 ```coq
-(* Proof sketch: if H(v1) = H(v2), then by collision resistance v1 = v2, 
-   contradicting v1 ≠ v2. *)
+Lemma hash_value_second_preimage : forall v1 v2,
+  v1 <> v2 -> hash_value v1 <> hash_value v2.
+Proof.
+  intros v1 v2 Hneq Heq.
+  apply hash_value_collision_resistant in Heq.
+  contradiction.
+Qed.
 ```
-
-**Priority:** LOW - Harmless redundancy, but could be converted to a lemma.
 
 ---
 
@@ -140,13 +148,22 @@ For any function f, determinism states: ∀x y. x = y → f(x) = f(y)
 
 **Standard Reference:** Basic functional programming semantics
 
-**Future Proof Status:** (!) DERIVABLE - Follows directly from function congruence:
+**Status:** [DONE] All converted to lemmas in crypto.v (December 2024):
 ```coq
-Lemma hash_deterministic_value' : forall v1 v2, v1 = v2 -> hash_value v1 = hash_value v2.
+Lemma hash_deterministic_value : forall v1 v2, 
+  v1 = v2 -> hash_value v1 = hash_value v2.
 Proof. intros v1 v2 H. rewrite H. reflexivity. Qed.
+
+Lemma hash_deterministic_pair : forall a1 b1 a2 b2, 
+  a1 = a2 -> b1 = b2 -> hash_pair a1 b1 = hash_pair a2 b2.
+Proof. intros a1 b1 a2 b2 H1 H2. rewrite H1, H2. reflexivity. Qed.
+
+Lemma hash_deterministic_stem : forall s1 h1 s2 h2,
+  stem_eq s1 s2 = true -> h1 = h2 -> hash_stem s1 h1 = hash_stem s2 h2.
+Proof. intros. rewrite H0. apply hash_stem_respects_stem_eq. exact H. Qed.
 ```
 
-**Priority:** LOW - Could be derived from `f_equal`, but explicitly stating aids proof automation.
+Note: `hash_stem_respects_stem_eq` remains an axiom (design choice for stem equality semantics).
 
 ---
 
@@ -190,13 +207,18 @@ Non-zero inputs produce non-zero outputs: ∀v ≠ 0^n. H(v) ≠ 0^n
 
 **Standard Reference:** Domain separation is a standard technique; see Bellare & Rogaway, "Collision-Resistant Hashing" (2006)
 
-**Future Proof Status:** (!) DERIVABLE from collision resistance + zero hash property:
+**Status:** [DONE] Converted to lemma in crypto.v (December 2024):
 ```coq
-(* If H(v) = 0 = H(0), then by collision resistance v = 0, 
-   contradicting v ≠ 0. *)
+Lemma hash_value_nonzero : forall v,
+  (forallb (fun b => Z.eqb b 0) v = false) -> 
+  hash_value v <> zero32.
+Proof.
+  intros v Hnonzero Heq.
+  rewrite <- hash_zero_value in Heq.
+  apply hash_value_collision_resistant in Heq.
+  subst v. unfold zero32 in Hnonzero. simpl in Hnonzero. discriminate.
+Qed.
 ```
-
-**Priority:** MEDIUM - Should be proven as a derived lemma.
 
 **Dependent Theorems:**
 - `hash_nonzero_of_value_nonzero` (crypto.v:180-186)
@@ -513,8 +535,10 @@ All previously admitted proofs have been completed. Below is the record of what 
 | Axiom | Risk | Mitigation |
 |-------|------|------------|
 | `hash_zero_*` | Design choice, not crypto | Matches EIP-7864 spec |
-| `hash_deterministic_*` | Derivable from reflexivity | Convenience axioms |
+| `hash_stem_respects_stem_eq` | Design choice for stem equality | Semantic equivalence axiom |
 | Type parameters | Cannot prove about abstract types | Correct by design |
+
+Note: `hash_deterministic_*`, `hash_value_second_preimage`, and `hash_value_nonzero` were previously in this category but have been converted to lemmas.
 
 ---
 
@@ -526,11 +550,11 @@ All previously admitted proofs have been completed. Below is the record of what 
 - [ ] Verify collision resistance axioms match EIP-7864 spec exactly
 - [ ] Review Verkle axioms against KZG/IPA security proofs
 
-### Short-term (Derivable Axioms)
+### Short-term (Derivable Axioms) - COMPLETED
 
-- [ ] Prove `hash_value_nonzero` from collision resistance + zero property
-- [ ] Prove `hash_value_second_preimage` from collision resistance
-- [ ] Convert `hash_deterministic_*` to lemmas (use `f_equal`)
+- [x] Prove `hash_value_nonzero` from collision resistance + zero property
+- [x] Prove `hash_value_second_preimage` from collision resistance
+- [x] Convert `hash_deterministic_*` to lemmas (use `f_equal`)
 
 ### Medium-term (Admitted Proofs)
 
@@ -618,10 +642,10 @@ Axiom get_insert_same : forall t k v d, v <> zero32 -> tree_get (tree_insert t k
   Admitted Proofs:   ████████████████████   0/0   ALL CLOSED
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  TOTAL: 84 axioms, 26 parameters, 0 admits
-  - Simulations:     68 axioms  (81%) - Tree, crypto, streaming, security
-  - Specs:            9 axioms  (11%) - Specification properties
-  - Proofs:           7 axioms   (8%) - Multiproof soundness/completeness
+  TOTAL: 78 axioms, 26 parameters, 0 admits
+  - Simulations:     62 axioms  (79%) - Tree, crypto, streaming, security
+  - Specs:            9 axioms  (12%) - Specification properties
+  - Proofs:           7 axioms   (9%) - Multiproof soundness/completeness
   
   ADDITIONAL VALIDATION:
   - QuickChick: 5 properties, 50,000 total tests (all passing)
@@ -637,16 +661,17 @@ Axiom get_insert_same : forall t k v d, v <> zero32 -> tree_get (tree_insert t k
 1. `hash_value : Bytes32 -> Bytes32` (Parameter)
 2. `hash_pair : Bytes32 -> Bytes32 -> Bytes32` (Parameter)
 3. `hash_stem : Stem -> Bytes32 -> Bytes32` (Parameter)
-4. `hash_deterministic_value` (Axiom)
-5. `hash_deterministic_pair` (Axiom)
-6. `hash_deterministic_stem` (Axiom)
-7. `hash_zero_value` (Axiom)
-8. `hash_zero_pair` (Axiom)
-9. `hash_value_collision_resistant` (Axiom)
-10. `hash_pair_collision_resistant` (Axiom)
-11. `hash_stem_collision_resistant` (Axiom)
-12. `hash_value_second_preimage` (Axiom)
-13. `hash_value_nonzero` (Axiom)
+4. `hash_deterministic_value` (Lemma - via reflexivity)
+5. `hash_deterministic_pair` (Lemma - via reflexivity)
+6. `hash_deterministic_stem` (Lemma - via hash_stem_respects_stem_eq)
+7. `hash_stem_respects_stem_eq` (Axiom - design choice for stem equality)
+8. `hash_zero_value` (Axiom)
+9. `hash_zero_pair` (Axiom)
+10. `hash_value_collision_resistant` (Axiom)
+11. `hash_pair_collision_resistant` (Axiom)
+12. `hash_stem_collision_resistant` (Axiom)
+13. `hash_value_second_preimage` (Lemma - from collision resistance)
+14. `hash_value_nonzero` (Lemma - from collision resistance + zero hash)
 
 ### simulations/tree.v
 1. `hash_value : Value -> Bytes32` (Parameter)

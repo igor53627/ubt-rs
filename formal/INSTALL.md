@@ -26,6 +26,8 @@ make translation
 | **src/** | Compiles | rocq-of-rust translation (24,556 lines) |
 | **linking/** | Complete | Translation-simulation equivalence |
 
+**Note:** The linking layer requires the RocqOfRust library. See [linking/README.md](linking/README.md) for setup.
+
 ## Full Installation
 
 ### Prerequisites
@@ -118,7 +120,9 @@ make translation # translated Rust code
 | `make clean` | Remove all generated files |
 | `make check-deps` | Verify installation |
 
-For linking layer setup details, see [docs/LINKING_LAYER_SETUP.md](docs/LINKING_LAYER_SETUP.md).
+For linking layer setup details, see:
+- [linking/README.md](linking/README.md) - Quick reference for linking layer
+- [docs/LINKING_LAYER_SETUP.md](docs/LINKING_LAYER_SETUP.md) - Detailed setup guide
 
 ## Verifying Installation
 

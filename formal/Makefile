@@ -12,6 +12,10 @@ ROCQOFRUST_PATH ?= $(HOME)/pse/paradigm/rocq-of-rust/RocqOfRust
 # Flags for our code (specs, simulations, proofs)
 COQFLAGS := -Q specs UBT.Specs -Q simulations UBT.Sim -Q proofs UBT.Proofs
 
+# QuickChick library path (auto-detected via opam)
+QUICKCHICK_PATH := $(shell opam var coq-quickchick:lib 2>/dev/null)
+COQFLAGS_QC := $(COQFLAGS) $(if $(QUICKCHICK_PATH),-Q $(QUICKCHICK_PATH) QuickChick,)
+
 # Flags for translated code (needs RocqOfRust)
 # Note: Uses -Q src src to match the auto-generated "Require Export src.xxx" paths
 COQFLAGS_TRANS := -R $(ROCQOFRUST_PATH) RocqOfRust -Q src src
@@ -33,7 +37,7 @@ LINKING_VO := $(LINKING_FILES:.v=.vo)
 # Flags for linking layer (needs RocqOfRust + simulations + src)
 COQFLAGS_LINKING := -R $(ROCQOFRUST_PATH) RocqOfRust -Q simulations UBT.Sim -Q src src -Q linking UBT.Linking
 
-.PHONY: all clean specs simulations proofs proofs-core quickchick test translate translation linking extract extract-test extract-clean docs docs-clean check-deps help ci ci-full audit verify-axioms check-admits
+.PHONY: all clean specs simulations proofs proofs-core quickchick quickchick-ci test translate translation linking extract extract-test extract-clean docs docs-clean check-deps help ci ci-full audit verify-axioms check-admits
 
 all: specs simulations proofs
 
@@ -54,8 +58,14 @@ proofs: simulations $(PROOF_FILES:.v=.vo)
 proofs-core: simulations $(PROOF_CORE_FILES:.v=.vo)
 
 # Run QuickChick property-based tests (requires coq-quickchick)
+# Full tests: 10,000 per property (50,000 total)
 quickchick: simulations proofs/quickchick_tests.vo
 	@echo "QuickChick tests completed successfully!"
+
+# Run QuickChick CI tests (reduced count for faster CI builds)
+# CI tests: 1,000 per property (5,000 total)
+quickchick-ci: simulations proofs/quickchick_tests_ci.vo
+	@echo "QuickChick CI tests completed successfully!"
 
 # Build translated Rust code (requires RocqOfRust library)
 translation: $(TRANS_VO)
@@ -71,7 +81,7 @@ simulations/%.vo: simulations/%.v
 	$(COQC) $(COQFLAGS) $<
 
 proofs/%.vo: proofs/%.v
-	$(COQC) $(COQFLAGS) $<
+	$(COQC) $(COQFLAGS_QC) $<
 
 # Compile translated .v to .vo
 src/%.vo: src/%.v
@@ -150,7 +160,7 @@ simulations/iterator.vo: simulations/tree.vo
 simulations/serialization.vo: simulations/tree.vo
 simulations/complexity.vo: simulations/tree.vo
 simulations/streaming.vo: simulations/tree.vo
-simulations/verkle_linking.vo: simulations/tree.vo
+simulations/verkle_linking.vo: simulations/verkle.vo
 
 # Generate dependencies
 depend:
@@ -293,7 +303,8 @@ help:
 	@echo "  simulations - Build simulation files"
 	@echo "  proofs      - Build proof files (requires QuickChick)"
 	@echo "  proofs-core - Build core proofs (no QuickChick needed)"
-	@echo "  quickchick  - Run QuickChick property-based tests"
+	@echo "  quickchick  - Run QuickChick tests (full: 10k/property)"
+	@echo "  quickchick-ci - Run QuickChick tests (CI: 1k/property)"
 	@echo "  test        - Run all tests (proofs-core + quickchick)"
 	@echo "  translation - Build translated Rust code (requires RocqOfRust)"
 	@echo "  translate   - Re-translate Rust to Rocq (requires rocq-of-rust)"
