@@ -269,7 +269,7 @@ Proof.
     intros [stem submap] Hin. simpl.
     apply NoDup_map_injective.
     + intros idx1 idx2 Hin1 Hin2 Heq.
-      injection Heq as Hidx. exact Hidx.
+      apply (f_equal tk_subindex) in Heq. simpl in Heq. exact Heq.
     + unfold all_submaps_nodup in Hsubmaps.
       rewrite Forall_forall in Hsubmaps.
       apply Hsubmaps in Hin. simpl in Hin.
