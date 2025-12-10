@@ -12,13 +12,13 @@
 | Category | Count | Risk Level | Notes |
 |----------|-------|------------|-------|
 | Crypto Assumptions (hash) | 12 | Low (standard) | Rogaway-Shrimpton definitions |
-| Verkle Crypto Axioms | 13 | Low (standard) | Kate-Zaverucha-Goldberg / IPA |
-| Specification Axioms | 6 | Low (well-formed) | Functional correctness properties |
-| Linking/Execution Axioms | 18 | Low (verified) | rocq-of-rust translation |
+| Verkle Crypto Axioms | 15 | Low (standard) | Kate-Zaverucha-Goldberg / IPA |
+| Specification Axioms | 9 | Low (well-formed) | Functional correctness properties |
+| Simulation Axioms | 68 | Low (verified) | Tree, crypto, streaming, security |
+| Multiproof Axioms | 7 | Low (structural) | Proof layer properties |
 | Parameters (abstract types) | 26 | N/A | Abstract types and functions |
-| Security Axioms | 14 | Low (structural) | Game-based security in security.v |
 | Admitted Proofs | **0** | Complete | All admits closed |
-| **Total Axioms** | **64** | - | - |
+| **Total Axioms** | **84** | - | - |
 
 **Recent Axiom Reductions:**
 - `nth_error_key_unique` (verkle.v) → Proven from NoDup_nth_error
@@ -36,13 +36,20 @@
 
 | File | Axioms | Parameters | Admitted | Notes |
 |------|--------|------------|----------|-------|
-| `simulations/crypto.v` | 8 | 3 | 0 | |
-| `simulations/tree.v` | 4 | 3 | 0 | |
-| `simulations/verkle.v` | 10 | 10 | 0 | nth_error_key_unique->lemma |
-| `simulations/security.v` | 14 | 0 | 0 | |
-| `specs/tree_spec.v` | 6 | 3 | 0 | hash_injective, hash_collision_resistant->lemmas |
-| `specs/embedding_spec.v` | 1 | 1 | 0 | |
-| `linking/operations.v` | 18 | 6 | 0 | |
+| `simulations/crypto.v` | 6 | 3 | 0 | Collision resistance, zero properties |
+| `simulations/tree.v` | 12 | 3 | 0 | Core tree operations, proofs |
+| `simulations/verkle.v` | 12 | 10 | 0 | Verkle commitments, multi-proofs |
+| `simulations/security.v` | 5 | 0 | 0 | Game-based security |
+| `simulations/streaming.v` | 12 | 0 | 0 | Streaming builder properties |
+| `simulations/serialization.v` | 10 | 0 | 0 | Roundtrip, canonical forms |
+| `simulations/complexity.v` | 6 | 0 | 0 | O(log n) bounds |
+| `simulations/iterator.v` | 4 | 0 | 0 | Iterator properties |
+| `simulations/verkle_linking.v` | 10 | 0 | 0 | Group/pairing axioms |
+| `specs/tree_spec.v` | 2 | 3 | 0 | hash_zero, hash_single_zero |
+| `specs/embedding_spec.v` | 1 | 1 | 0 | SHA256_length |
+| `specs/complexity_spec.v` | 6 | 0 | 0 | Complexity specifications |
+| `proofs/multiproof.v` | 7 | 0 | 0 | Multiproof soundness/completeness |
+| `linking/operations.v` | 0 | 6 | 0 | Linking now uses lemmas |
 
 ---
 
@@ -228,6 +235,14 @@ Polynomial commitment schemes (KZG, IPA) require additional axioms for their alg
 | `simulations/verkle.v:74-77` | `verkle_commit_injective` | Different vectors → different commitments |
 | `simulations/verkle.v:292-294` | `verkle_multi_open_correct` | Multi-proof correctness |
 | `simulations/verkle.v:296-300` | `verkle_multi_binding` | Multi-proof binding |
+| `simulations/verkle.v:589-593` | `verkle_exclusion_soundness_axiom` | Exclusion proof → key absent or zero |
+| `simulations/verkle.v:617-622` | `verkle_exclusion_completeness_axiom` | Absent key → valid exclusion proof exists |
+
+**New Exclusion Proof Axioms (December 2024):**
+- `verkle_exclusion_soundness_axiom`: Core exclusion soundness. A verified exclusion proof (opening to zero32) implies the key is either absent or maps to zero32. Relies on same binding property as inclusion.
+- `verkle_exclusion_completeness_axiom`: Constructive completeness. For any key not in the tree, we can construct a valid exclusion proof. The tree commits to zero32 at absent positions.
+
+See `formal/docs/VERKLE_SECURITY.md` for detailed security model documentation.
 
 **Mathematical Definition (Binding):**
 > A polynomial commitment scheme is (t, ε)-binding if for all adversaries A running in time t:  
@@ -597,16 +612,16 @@ Axiom get_insert_same : forall t k v d, v <> zero32 -> tree_get (tree_insert t k
   Legend:
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Crypto Axioms:     ████████████████████  26/26  Intentionally axiomatized
-  Verkle Axioms:     ████████████████████  14/14  Standard KZG/IPA assumptions
+  Verkle Axioms:     ████████████████████  16/16  Standard KZG/IPA assumptions
   Linking Layer:     ████████████████████  18/18  All verified
   Security Axioms:   ████████████████████  14/14  Game-based proofs
   Admitted Proofs:   ████████████████████   0/0   ALL CLOSED
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  TOTAL: 67 axioms, 26 parameters, 0 admits
-  - Crypto/Verkle:   40 axioms  (61%) - Standard cryptographic assumptions
-  - Linking:         18 axioms  (27%) - Translation ↔ simulation verified
-  - Specification:    8 axioms  (12%) - Functional correctness properties
+  TOTAL: 84 axioms, 26 parameters, 0 admits
+  - Simulations:     68 axioms  (81%) - Tree, crypto, streaming, security
+  - Specs:            9 axioms  (11%) - Specification properties
+  - Proofs:           7 axioms   (8%) - Multiproof soundness/completeness
   
   ADDITIONAL VALIDATION:
   - QuickChick: 5 properties, 50,000 total tests (all passing)

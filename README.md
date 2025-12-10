@@ -197,7 +197,7 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 
 | Metric | Count | Notes |
 |--------|-------|-------|
-| Axioms | **66** | Crypto (26), Verkle (14), Linking (18), Security (8) |
+| Axioms | **84** | Simulations (68), Specs (9), Proofs (7) |
 | Parameters | **26** | Abstract types and functions |
 | Admitted proofs | **0** | All closed |
 | QuickChick tests | 50,000 | 5 properties, 10k each |

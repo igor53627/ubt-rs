@@ -89,7 +89,9 @@ make docs
 - [Verification Scope](VERIFICATION_SCOPE.md) - What is and isn't formally verified
 - [Verification Status](VERIFICATION_STATUS.md) - What's proven vs. axiomatized
 - [Axiom Audit](axiom_audit.md) - Detailed audit of all 67 axioms
+- [Verkle Security](VERKLE_SECURITY.md) - Verkle security model and KZG/IPA assumptions
 - [Theorems Reference](THEOREMS.md) - Complete theorem documentation including security proofs
+- [Complexity Analysis](COMPLEXITY_ANALYSIS.md) - Time/space complexity bounds and proofs
 - [Spec-Rust Linkage](SPEC_RUST_LINKAGE.md) - Type/operation mapping between layers
 - [FFI Integration](FFI_INTEGRATION.md) - OCaml extraction ↔ Rust UBT bridge
 

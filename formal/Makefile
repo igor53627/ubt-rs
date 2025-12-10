@@ -33,9 +33,13 @@ LINKING_VO := $(LINKING_FILES:.v=.vo)
 # Flags for linking layer (needs RocqOfRust + simulations + src)
 COQFLAGS_LINKING := -R $(ROCQOFRUST_PATH) RocqOfRust -Q simulations UBT.Sim -Q src src -Q linking UBT.Linking
 
-.PHONY: all clean specs simulations proofs proofs-core quickchick translate translation linking extract extract-test extract-clean docs docs-clean check-deps help ci ci-full audit verify-axioms check-admits
+.PHONY: all clean specs simulations proofs proofs-core quickchick test translate translation linking extract extract-test extract-clean docs docs-clean check-deps help ci ci-full audit verify-axioms check-admits
 
 all: specs simulations proofs
+
+# Combined test target: builds proofs and runs QuickChick
+test: proofs-core quickchick
+	@echo "All tests passed!"
 
 # Build specifications
 specs: $(SPEC_FILES:.v=.vo)
@@ -127,11 +131,26 @@ linking/%.vo: linking/%.v
 
 # Explicit dependencies for linking layer
 linking/operations.vo: linking/types.vo
+linking/monad.vo: linking/types.vo linking/operations.vo
+linking/interpreter.vo: linking/monad.vo linking/operations.vo linking/types.vo
+
+# Explicit dependencies for proofs layer
+proofs/spec_linking.vo: simulations/tree.vo
+proofs/multiproof.vo: simulations/tree.vo
+proofs/correctness.vo: simulations/tree.vo
+
+# Explicit dependencies for specs layer (tree_spec imports simulations)
+specs/tree_spec.vo: simulations/tree.vo
 
 # Explicit dependencies for simulations layer
 simulations/tree.vo: simulations/crypto.vo
 simulations/verkle.vo: simulations/tree.vo
 simulations/security.vo: simulations/crypto.vo simulations/tree.vo
+simulations/iterator.vo: simulations/tree.vo
+simulations/serialization.vo: simulations/tree.vo
+simulations/complexity.vo: simulations/tree.vo
+simulations/streaming.vo: simulations/tree.vo
+simulations/verkle_linking.vo: simulations/tree.vo
 
 # Generate dependencies
 depend:
@@ -272,7 +291,10 @@ help:
 	@echo "  all         - Build specs, simulations, and proofs (default)"
 	@echo "  specs       - Build specification files"
 	@echo "  simulations - Build simulation files"
-	@echo "  proofs      - Build proof files"
+	@echo "  proofs      - Build proof files (requires QuickChick)"
+	@echo "  proofs-core - Build core proofs (no QuickChick needed)"
+	@echo "  quickchick  - Run QuickChick property-based tests"
+	@echo "  test        - Run all tests (proofs-core + quickchick)"
 	@echo "  translation - Build translated Rust code (requires RocqOfRust)"
 	@echo "  translate   - Re-translate Rust to Rocq (requires rocq-of-rust)"
 	@echo "  linking     - Build linking layer (requires RocqOfRust)"

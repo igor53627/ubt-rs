@@ -21,7 +21,7 @@ This directory contains formal verification artifacts for the Unified Binary Tre
 
 | Metric | Count |
 |--------|-------|
-| Total axioms | **67** |
+| Total axioms | **84** |
 | Parameters | **26** |
 | Admitted proofs | **0** (all closed) |
 
@@ -75,13 +75,14 @@ formal/
 │   ├── tree.v          # Tree operations (550 lines)
 │   ├── crypto.v        # Hash function axioms
 │   ├── verkle.v        # Verkle commitment support
+│   ├── iterator.v      # Iterator modeling (low priority)
 │   └── security.v      # Game-based security proofs (1000+ lines)
 ├── proofs/             # Formal proofs
 │   ├── correctness.v   # Main theorems (230 lines)
 │   └── quickchick_tests.v # Property-based tests (5 properties)
 ├── docs/               # Documentation
 │   ├── THEOREMS.md     # Theorem reference
-│   ├── axiom_audit.md  # Axiom audit (53 total)
+│   ├── axiom_audit.md  # Axiom audit (84 total)
 │   └── FFI_INTEGRATION.md # FFI bridge docs
 └── src/                # Auto-generated translation
     ├── tree.v          # ~4,000 lines
@@ -194,7 +195,7 @@ All verification goals achieved (December 2024):
 
 - [Verification Scope](docs/VERIFICATION_SCOPE.md) - What is and isn't formally verified
 - [Verification Status](docs/VERIFICATION_STATUS.md) - Current proof status
-- [Axiom Audit](docs/axiom_audit.md) - Detailed audit of all 67 axioms
+- [Axiom Audit](docs/axiom_audit.md) - Detailed audit of all 84 axioms
 - [Theorems Reference](docs/THEOREMS.md) - Complete theorem documentation including security proofs
 - [Linking Layer Setup](docs/LINKING_LAYER_SETUP.md) - RocqOfRust setup and linking layer
 - [Spec-Rust Linkage](docs/SPEC_RUST_LINKAGE.md) - Type/operation mapping

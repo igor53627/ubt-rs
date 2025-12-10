@@ -7,11 +7,11 @@
     Output: extraction/extracted.ml, extraction/extracted.mli
 *)
 
-Require Import Stdlib.Lists.List.
-Require Import Stdlib.ZArith.ZArith.
-Require Import Stdlib.extraction.Extraction.
-Require Import Stdlib.extraction.ExtrOcamlBasic.
-Require Import Stdlib.extraction.ExtrOcamlZInt.
+Require Import Coq.Lists.List.
+Require Import Coq.ZArith.ZArith.
+Require Import Coq.extraction.Extraction.
+Require Import Coq.extraction.ExtrOcamlBasic.
+Require Import Coq.extraction.ExtrOcamlZInt.
 Import ListNotations.
 
 (** Import UBT simulation modules *)

@@ -1,0 +1,142 @@
+name: QuickChick Property Tests
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'formal/proofs/quickchick_tests.v'
+      - 'formal/simulations/**'
+      - '.github/workflows/quickchick.yml'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'formal/proofs/quickchick_tests.v'
+      - 'formal/simulations/**'
+      - '.github/workflows/quickchick.yml'
+  workflow_dispatch:
+  schedule:
+    # Run nightly to catch any QuickChick regressions
+    - cron: '0 3 * * *'
+
+jobs:
+  quickchick-tests:
+    runs-on: ubuntu-latest
+    
+    env:
+      OPAMYES: 1
+      OPAMJOBS: 2
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install opam
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y opam
+
+      - name: Cache opam
+        uses: actions/cache@v4
+        id: cache-opam
+        with:
+          path: ~/.opam
+          key: opam-quickchick-${{ runner.os }}-v1-${{ hashFiles('formal/proofs/quickchick_tests.v') }}
+          restore-keys: |
+            opam-quickchick-${{ runner.os }}-v1-
+            opam-rocq9-${{ runner.os }}-
+
+      - name: Initialize opam
+        if: steps.cache-opam.outputs.cache-hit != 'true'
+        run: |
+          opam init --bare --disable-sandboxing
+
+      - name: Create Rocq switch with QuickChick
+        if: steps.cache-opam.outputs.cache-hit != 'true'
+        run: |
+          opam switch create rocq-9 ocaml-base-compiler.4.14.2 || opam switch rocq-9
+          eval $(opam env --switch=rocq-9)
+          
+          # Add repos
+          opam repo add rocq-released https://rocq-prover.org/opam/released --set-default || true
+          opam repo add coq-released https://coq.inria.fr/opam/released || true
+          opam update
+          
+          # Install Coq 9.0 and QuickChick
+          opam pin add coq 9.0.0 -y || opam install coq -y
+          opam install coq-quickchick -y
+          
+          # Verify installation
+          eval $(opam env --switch=rocq-9)
+          coqc --version
+
+      - name: Ensure QuickChick is installed
+        if: steps.cache-opam.outputs.cache-hit == 'true'
+        run: |
+          eval $(opam env --switch=rocq-9)
+          opam install coq-quickchick -y 2>/dev/null || true
+
+      - name: Build dependencies
+        working-directory: formal
+        run: |
+          eval $(opam env --switch=rocq-9)
+          make clean
+          make specs
+          make simulations
+
+      - name: Run QuickChick property tests
+        id: quickchick
+        working-directory: formal
+        run: |
+          eval $(opam env --switch=rocq-9)
+          echo "Running QuickChick property-based tests..."
+          
+          # Run quickchick target and capture output
+          make quickchick 2>&1 | tee quickchick-output.txt
+          
+          # Count passed tests
+          PASSED=$(grep -c "Passed" quickchick-output.txt || echo "0")
+          echo "passed_count=$PASSED" >> $GITHUB_OUTPUT
+          
+          # Check for failures
+          if grep -q "+++ Failed" quickchick-output.txt; then
+            echo "::error::QuickChick found failing test cases"
+            echo "has_failures=true" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "has_failures=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload QuickChick output
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quickchick-results
+          path: formal/quickchick-output.txt
+          retention-days: 30
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## QuickChick Property Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.quickchick.outputs.has_failures }}" = "true" ]; then
+            echo "### ❌ Tests Failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "QuickChick found counterexamples. Check the logs for details." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ✅ All Properties Passed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Tests passed:** ${{ steps.quickchick.outputs.passed_count }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Properties Tested" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Description |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------------|" >> $GITHUB_STEP_SUMMARY
+          echo "| \`prop_get_insert_same\` | \`get (insert t k v) k = Some v\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| \`prop_get_insert_other\` | \`get (insert t k1 v) k2 = get t k2\` (k1≠k2) |" >> $GITHUB_STEP_SUMMARY
+          echo "| \`prop_insert_delete\` | \`get (delete (insert t k v) k) k = None\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| \`prop_insert_idempotent\` | Insert same key/value is idempotent |" >> $GITHUB_STEP_SUMMARY
+          echo "| \`prop_empty_get\` | \`get empty_tree k = None\` |" >> $GITHUB_STEP_SUMMARY

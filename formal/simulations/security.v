@@ -17,9 +17,9 @@
     - Rogaway & Shrimpton, "Cryptographic Hash-Function Basics" (2004)
 *)
 
-Require Import Stdlib.Lists.List.
-Require Import Stdlib.ZArith.ZArith.
-Require Import Stdlib.micromega.Lia.
+Require Import Coq.Lists.List.
+Require Import Coq.ZArith.ZArith.
+Require Import Coq.micromega.Lia.
 Import ListNotations.
 
 (** Import crypto first for hash definitions *)
