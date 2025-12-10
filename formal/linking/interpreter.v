@@ -331,7 +331,7 @@ Module FuelExec.
     apply Run.run_eval_sound.
     apply Fuel.sufficient_implies_eval with (n := fuel).
     unfold Fuel.sufficient_fuel.
-    (* Need to convert between state types *)
+    (* TODO: Need to convert between state types - requires step function implementation *)
     admit.
   Admitted.
 
@@ -653,6 +653,7 @@ Module OpExec.
        3. Case analysis on whether stem exists
        4. If exists, use subindexmap_get_steps for value lookup
        5. Combine fuel bounds *)
+    (* TODO: Requires HashMap stepping infrastructure and SubIndexMap linking *)
     admit.
   Admitted.
 
@@ -681,6 +682,7 @@ Module OpExec.
        3. SubIndexMap update
        4. Tree structure update
        5. Prove refinement preserved *)
+    (* TODO: Requires Entry pattern stepping and mutation handling *)
     admit.
   Admitted.
 
@@ -699,7 +701,7 @@ Module OpExec.
     intros H sim_t k rust_tree s Href Hwf Hstem.
     (* Reduces to insert_executes_sketch with v = zero32 *)
     unfold DeleteLink.rust_delete.
-    (* Apply insert result *)
+    (* TODO: Apply insert_executes_sketch result with v = zero32 *)
     admit.
   Admitted.
 
@@ -729,7 +731,7 @@ Module StepProps.
     intros v s.
     (* Follows from step definition once implemented *)
     unfold Step.step.
-    (* TODO: Complete when step is defined *)
+    (* TODO: Complete when Step.step is fully defined *)
     admit.
   Admitted.
 
@@ -775,7 +777,7 @@ Module Example.
            (fun v => M.pure v).
 
   (** Evaluating let binding with sufficient fuel *)
-  (*
+  (* TODO: Enable when Step.step is fully implemented
      Lemma let_example_eval :
        forall s,
          exists fuel,
@@ -786,7 +788,6 @@ Module Example.
        exists 3.
        unfold let_example.
        simpl.
-       (* Would need step implementation *)
        admit.
      Admitted.
   *)

@@ -909,24 +909,19 @@ Proof.
   - (* k matches k2's stem (and k1's stem via transitivity) *)
     assert (Ek1: stem_eq (tk_stem k) (tk_stem k1) = true).
     { eapply stem_eq_via_third; eauto. }
-    (* For LHS: query k on (insert (insert t k1 v1) k2 v2)
-       Outer set is at k2, which matches k *)
+    (* Since stems are equal, we can work entirely in terms of k1's stem *)
+    (* LHS: stems_get from (set at k2 of (set at k1))
+       RHS: stems_get from (set at k1 of (set at k2)) *)
+    (* Use stems_get_stem_eq to rewrite query stem to match the set stem *)
     rewrite (stems_get_stem_eq _ (tk_stem k) (tk_stem k2) Ek).
-    rewrite stems_get_set_same.
-    (* For RHS: query k on (insert (insert t k2 v2) k1 v1)  
-       Outer set is at k1, which matches k *)
-    rewrite <- Hstem_eq.
     rewrite (stems_get_stem_eq _ (tk_stem k) (tk_stem k1) Ek1).
-    rewrite stems_get_set_same.
-    (* Now both sides have sim_set applied to the inner stems_get result.
-       The inner stems_get looks up the INNER insert's stem in the updated map.
-       Since k1 and k2 have the same stem, stems_get_set_same applies. *)
+    (* Now rewrite k2 to k1 everywhere using propositional equality *)
     rewrite <- Hstem_eq.
-    rewrite stems_get_set_same.
-    rewrite Hstem_eq.
-    rewrite stems_get_set_same.
-    (* Now both sides are sim_set applied to same base, use sim_set_comm *)
-    destruct (stems_get (st_stems t) (tk_stem k2)) as [base_map|] eqn:Hbase.
+    (* Both sides now use tk_stem k1 consistently *)
+    rewrite !stems_get_set_same.
+    (* Now both sides are sim_set applied to the base after inner stems_get_set_same *)
+    (* The inner stems_get also hits the set, so apply again *)
+    destruct (stems_get (st_stems t) (tk_stem k1)) as [base_map|] eqn:Hbase.
     + apply sim_set_comm. exact Hidx.
     + apply sim_set_comm. exact Hidx.
   - (* k doesn't match k2's stem *)
