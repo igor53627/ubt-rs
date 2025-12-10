@@ -363,6 +363,16 @@ Axiom wf_multiproof_stems_cover :
     stems_cover_keys mp.
 
 (**
+   [AXIOM:EMPTY_TREE] If a multiproof verifies against an empty tree's root,
+   then mp_keys must be empty (no keys can exist in an empty tree).
+*)
+Axiom empty_tree_multiproof_no_keys :
+  forall (mp : MultiProof),
+    wf_multiproof mp ->
+    verify_multiproof mp (sim_root_hash empty_tree) ->
+    mp_keys mp = [].
+
+(**
    Theorem: shared_stem_deduplication_valid
    
    Deduplicating shared nodes doesn't affect proof validity.
@@ -383,12 +393,26 @@ Theorem shared_stem_deduplication_valid :
               stem_eq (tk_stem k1) s = true /\
               stem_eq (tk_stem k2) s = true.
 Proof.
-  (* TODO: Proof requires stems_cover_keys property for all cases.
-     The non-empty case uses stem_eq_via_third transitivity to show
-     that if k1 and k2 share a stem, and s covers k1's stem, then
-     s also covers k2's stem. The empty tree case needs an additional
-     axiom linking verify_multiproof on empty_tree to mp_keys being empty. *)
-Admitted.
+  intros mp root k1 k2 Hwf Hverify Hk1 Hk2 Hshare.
+  destruct (wf_multiproof_stems_cover mp Hwf) as [Hempty | Hcover].
+  - (* Empty tree case: mp_keys must be empty, so In k1 is contradictory *)
+    apply empty_tree_multiproof_no_keys in Hempty; [| exact Hwf].
+    rewrite Hempty in Hk1.
+    inversion Hk1.
+  - (* Non-empty case: use stems_cover_keys for k1 *)
+    unfold stems_cover_keys in Hcover.
+    destruct (Hcover k1 Hk1) as [s [Hin Heq1]].
+    exists s. split; [exact Hin |].
+    split; [exact Heq1 |].
+    (* k1 and k2 share a stem, and s matches k1's stem, so s matches k2's stem *)
+    unfold keys_share_stem in Hshare.
+    (* Use transitivity: stem_eq s (tk_stem k1) + stem_eq (tk_stem k1) (tk_stem k2) 
+       => stem_eq s (tk_stem k2) => by symmetry stem_eq (tk_stem k2) s *)
+    rewrite stem_eq_sym.
+    apply (stem_eq_via_third (tk_stem k1) (tk_stem k2) s).
+    + rewrite stem_eq_sym. exact Heq1.
+    + exact Hshare.
+Qed.
 
 (**
    Full deduplication theorem.
