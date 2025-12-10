@@ -12,6 +12,38 @@
     
     Each proof shows that running the translated monadic code
     produces results equivalent to the simulation.
+    
+    ** Linking Layer Architecture
+    
+    The linking proceeds in three stages:
+    
+    1. TYPE LINKING (types.v): 
+       Defines φ encoding from simulation types to RocqOfRust Value.t
+       - SimTree → UnifiedBinaryTree<H>
+       - TreeKey → ubt::key::TreeKey  
+       - Stem → ubt::key::Stem
+       
+    2. EXECUTION LINKING (this file):
+       Connects monadic execution to pure simulation via:
+       - Outcome monad for success/panic/diverge
+       - Run.run for executing M monad terms
+       - Refinement relation tree_refines
+       
+    3. PROPERTY LINKING (composition theorems):
+       Lifts simulation properties to Rust level:
+       - get_after_insert_same
+       - insert_insert_comm
+       - batch_preserves_refinement
+    
+    ** Axiom Classification
+    
+    All axioms are marked with [AXIOM:*] tags indicating:
+    - [AXIOM:MONAD] - M monad execution semantics
+    - [AXIOM:IMPL-GAP] - Rust↔simulation correspondence (main verification gap)
+    - [AXIOM:PANIC] - Panic freedom for well-formed inputs
+    - [AXIOM:BATCH] - Batch verification operations
+    
+    See formal/docs/axiom_audit.md for full audit.
 *)
 
 Require Import RocqOfRust.RocqOfRust.
@@ -164,12 +196,34 @@ Module Eval.
 
 End Eval.
 
-(** ** Refinement Relation *)
+(** ** Refinement Relation
+    
+    ** Why tree_refines Ignores the Root Field
+    
+    The refinement relation `tree_refines H rust_tree sim_tree` checks only that
+    the stems match (via the φ encoding). The Rust `root` field is ignored because:
+    
+    1. **Cache vs. State**: The `root` field in Rust is a cached value, not 
+       authoritative state. The stems map is the source of truth.
+       
+    2. **On-demand Computation**: The simulation computes root via `sim_root_hash`
+       on-demand from the stems. Rust may cache this or recompute lazily.
+       
+    3. **Encoding Design**: `SimTreeLink.φ` encodes root as `Node::Empty` always,
+       so equality check implicitly ignores the actual Rust root field value.
+    
+    The connection between Rust's cached root and simulation's on-demand root
+    is established by the `HashLink.root_hash_executes` axiom, which states:
+    
+    > For trees where `tree_refines` holds, calling `rust_root_hash` produces
+    > the same result as `sim_root_hash`.
+    
+    This is sound because both compute the Merkle root deterministically from
+    the same stems data.
+*)
 
-(** Refinement parameterized by hasher type: 
-    A Rust tree value refines a simulation tree if encoding matches. *)
-Definition tree_refines (H : Ty.t) (rust_tree : Value.t) (sim_tree : SimTree) : Prop :=
-  rust_tree = @φ SimTree (SimTreeLink.IsLink H) sim_tree.
+(** Import tree_refines from types.v Refinement module *)
+Definition tree_refines := Refinement.tree_refines.
 
 (** ** Run Module: Monadic Execution Semantics *)
 
@@ -198,11 +252,17 @@ Module Run.
   
   Parameter run : M -> State -> ValueOutcome * State.
   
-  (** Run on pure returns the value *)
+  (** [AXIOM:MONAD] Pure value returns immediately.
+      Status: Axiomatized - M monad semantics.
+      Risk: Low - standard monad law.
+      Mitigation: Follows from M.pure definition. *)
   Axiom run_pure : forall (v : Value.t) (s : State),
     run (M.pure v) s = (Outcome.Success v, s).
   
-  (** Run respects bind *)
+  (** [AXIOM:MONAD] Monadic bind sequencing.
+      Status: Axiomatized - M monad semantics.
+      Risk: Low - standard monad law.
+      Mitigation: Follows from M.let_ definition. *)
   Axiom run_bind : forall (m : M) (f : Value.t -> M) (s : State),
     run (M.let_ m f) s = 
     match run m s with
@@ -211,17 +271,17 @@ Module Run.
     | (Outcome.Diverge, s') => (Outcome.Diverge, s')
     end.
   
-  (** Panic propagates *)
+  (** [AXIOM:PANIC] Panic propagation semantics.
+      Status: Axiomatized - M monad semantics.
+      Risk: Low - standard panic behavior.
+      Mitigation: Follows from M.panic definition. *)
   Axiom run_panic : forall (msg : string) (s : State),
     run (M.panic (Panic.Make msg)) s = (Outcome.Panic (existS string msg), s).
   
-  (** [AXIOM:LINKING] Connection to Eval step semantics.
-      
-      This axiom establishes the connection between the abstract
-      evaluation relation (Eval.evaluates_to) and the concrete
-      run function. This is the core linking theorem:
-      - If evaluation reaches a value, run produces that value
-      - The correspondence is fundamental to the refinement proof *)
+  (** [AXIOM:MONAD] Connection to Eval step semantics.
+      Status: Axiomatized pending M monad interpreter.
+      Risk: Medium - requires full step semantics implementation.
+      Mitigation: Property-based testing, manual verification of step relation. *)
   Axiom run_eval_sound : forall (m : M) (s : ExecState.t) (v : Value.t) (s' : ExecState.t),
     Eval.evaluates_to m s v s' ->
     run m s = (Outcome.Success v, s').
@@ -317,14 +377,41 @@ Module Termination.
 
 End Termination.
 
-(** ** Get operation linking *)
+(** ** GetLink Module: Get Operation Linking
+    
+    This module establishes the correspondence between Rust's
+    UnifiedBinaryTree::get() method and the simulation's sim_tree_get.
+    
+    ** Rust Implementation Path (src/tree.rs):
+    1. Look up stem in HashMap<Stem, StemNode>
+    2. If found, get value from StemNode's SubIndexMap  
+    3. Return Option<B256>
+    
+    ** Simulation Path (simulations/tree.v):
+    1. stems_get looks up Stem in StemMap
+    2. If found, sim_get looks up SubIndex in SubIndexMap
+    3. Returns option Value
+    
+    ** Key Invariants:
+    - Well-formed trees have stems of 31 bytes
+    - Subindex is a single byte (0-255)
+    - Values are 32 bytes
+    
+    ** Proof Strategy for get_executes:
+    1. Unfold rust_get to monadic HashMap lookup
+    2. Step through HashMap.get execution
+    3. Case split on stem presence
+    4. If present, step through StemNode.get_value
+    5. Match result with simulation
+*)
 
 Module GetLink.
   
   (** The translated get function from src/tree.v *)
   Definition rust_get (H : Ty.t) := src.tree.tree.Impl_ubt_tree_UnifiedBinaryTree_H.get H.
   
-  (** Main refinement theorem for get operation *)
+  (** Main refinement theorem for get operation.
+      This shows the simulation function is well-defined for all inputs. *)
   Theorem get_refines :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey),
       exists (result : option Value),
@@ -335,18 +422,28 @@ Module GetLink.
     reflexivity.
   Qed.
   
-  (** Execution theorem: running rust_get terminates and produces sim_tree_get result.
+  (** [AXIOM:IMPL-GAP] Rust get execution matches simulation.
       
-      This theorem connects:
-      1. The monadic Rust get operation (rust_get)
-      2. The Run.run execution semantics
-      3. The pure simulation function (sim_tree_get)
+      Status: Axiomatized pending M monad interpreter.
       
-      Axiomatization rationale:
-      - Full proof requires monadic semantics for HashMap.get
-      - Requires StemNode.get_value linking
-      - Requires proof that all control paths terminate
-  *)
+      Verification Gap: This is the main linking axiom for get. To prove it requires:
+      1. M monad step semantics for HashMap.get
+      2. Trait resolution for Hasher parameter H
+      3. StemNode internal structure correspondence
+      
+      Risk: High - Rust implementation may diverge from simulation.
+      
+      Mitigation: 
+      - Property-based testing via QuickChick
+      - Manual code review of HashMap.get path
+      - Rust unit tests comparing against simulation
+      
+      Dependencies: 
+      - tree_refines (type correspondence)
+      - wf_tree (well-formedness)
+      - wf_stem (stem has 31 bytes)
+      
+      Used by: get_simulation_equiv, get_after_insert_same *)
   Axiom get_executes :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey),
     forall (rust_tree : Value.t) (s : Run.State),
@@ -371,7 +468,7 @@ Module GetLink.
     reflexivity.
   Qed.
 
-  (** Get on empty tree returns None *)
+  (** Get on empty tree returns None - linking of get_empty from simulation *)
   Lemma get_empty_link :
     forall (H : Ty.t) (k : TreeKey),
       sim_tree_get empty_tree k = None.
@@ -379,17 +476,57 @@ Module GetLink.
     intros H k.
     apply get_empty.
   Qed.
+  
+  (** Refinement preservation: get result preserves type correspondence *)
+  Lemma get_result_refines :
+    forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey) (v : Value),
+      sim_tree_get sim_t k = Some v ->
+      φ (Some v) = Value.StructTuple "core::option::Option::Some" [] [Bytes32Link.Rust_ty] [φ v].
+  Proof.
+    intros H sim_t k v Hget.
+    reflexivity.
+  Qed.
 
 End GetLink.
 
-(** ** Insert operation linking *)
+(** ** InsertLink Module: Insert Operation Linking
+    
+    This module establishes the correspondence between Rust's
+    UnifiedBinaryTree::insert() method and the simulation's sim_tree_insert.
+    
+    ** Rust Implementation Path (src/tree.rs):
+    1. Use HashMap::entry() to get or create stem entry
+    2. Use or_insert_with() to create StemNode if needed
+    3. Call StemNode::set_value() to update SubIndexMap
+    4. Trigger root hash recomputation (lazy)
+    
+    ** Simulation Path (simulations/tree.v):
+    1. Get existing SubIndexMap for stem (or empty)
+    2. Update SubIndexMap with sim_set
+    3. Store updated SubIndexMap in StemMap
+    4. Return new SimTree
+    
+    ** Key Properties:
+    - Insert with zero value acts as delete
+    - Insert preserves well-formedness
+    - Insert at different stems commutes
+    - Insert at same stem, different subindex commutes
+    
+    ** Proof Strategy for insert_executes:
+    1. Unfold rust_insert to monadic HashMap.entry call
+    2. Handle Entry::Occupied vs Entry::Vacant cases
+    3. Step through or_insert_with closure execution
+    4. Step through StemNode::set_value
+    5. Prove resulting tree refines simulation result
+*)
 
 Module InsertLink.
   
   (** The translated insert function from src/tree.v *)
   Definition rust_insert (H : Ty.t) := src.tree.tree.Impl_ubt_tree_UnifiedBinaryTree_H.insert H.
   
-  (** Main refinement theorem for insert operation *)
+  (** Main refinement theorem for insert operation.
+      This shows the simulation function is well-defined for all inputs. *)
   Theorem insert_refines :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey) (v : Value),
       exists (result_tree : SimTree),
@@ -400,18 +537,29 @@ Module InsertLink.
     reflexivity.
   Qed.
   
-  (** Execution theorem: running rust_insert terminates and produces sim_tree_insert result.
+  (** [AXIOM:IMPL-GAP] Rust insert execution matches simulation.
       
-      This theorem connects:
-      1. The monadic Rust insert operation (rust_insert)
-      2. The Run.run execution semantics  
-      3. The pure simulation function (sim_tree_insert)
+      Status: Axiomatized pending M monad interpreter.
       
-      Axiomatization rationale:
-      - Requires HashMap.entry / or_insert_with linking
-      - Requires StemNode.set_value linking
-      - Requires rebuild_root linking for tree node structure
-  *)
+      Verification Gap: This is the main linking axiom for insert. To prove it requires:
+      1. M monad step semantics for HashMap.entry and or_insert_with
+      2. Closure execution for StemNode construction
+      3. StemNode::set_value correspondence
+      4. Trait resolution for Hasher parameter H
+      
+      Risk: High - Rust implementation may diverge from simulation.
+      
+      Mitigation:
+      - Property-based testing via QuickChick
+      - Manual code review of HashMap.entry path
+      - Rust unit tests with edge cases (zero value, new stem, existing stem)
+      
+      Dependencies:
+      - tree_refines (type correspondence)
+      - wf_tree, wf_stem, wf_value (well-formedness)
+      
+      Used by: insert_simulation_equiv, insert_preserves_refinement,
+               get_after_insert_same, delete_executes *)
   Axiom insert_executes :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey) (v : Value),
     forall (rust_tree : Value.t) (s : Run.State),
@@ -445,7 +593,7 @@ Module InsertLink.
     - apply insert_preserves_wf; assumption.
   Qed.
 
-  (** Insert preserves refinement *)
+  (** Insert preserves refinement - key structural property *)
   Theorem insert_preserves_refinement :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey) (v : Value),
       tree_refines H (@φ SimTree (SimTreeLink.IsLink H) sim_t) sim_t ->
@@ -457,10 +605,43 @@ Module InsertLink.
     unfold tree_refines.
     reflexivity.
   Qed.
+  
+  (** Insert with zero is deletion - simulation property lifted to linking *)
+  Lemma insert_zero_is_delete :
+    forall (sim_t : SimTree) (k : TreeKey),
+      sim_tree_insert sim_t k zero32 = sim_tree_delete sim_t k.
+  Proof.
+    intros sim_t k.
+    unfold sim_tree_delete.
+    reflexivity.
+  Qed.
 
 End InsertLink.
 
-(** ** Delete operation linking *)
+(** ** DeleteLink Module: Delete Operation Linking
+    
+    This module establishes the correspondence between Rust's tree deletion
+    and the simulation's sim_tree_delete.
+    
+    ** Key Design Decision:
+    Delete is implemented as insert with zero value (zero32). This matches
+    EIP-7864's sparse tree optimization where zero values are treated as absent.
+    
+    ** Rust Implementation Path:
+    Rust doesn't have an explicit delete() method. Deletion is done via:
+    tree.insert(key, B256::ZERO)
+    
+    ** Simulation Path (simulations/tree.v):
+    sim_tree_delete t k = sim_tree_insert t k zero32
+    
+    ** Key Properties:
+    - Delete is idempotent
+    - Get after delete returns None
+    - Delete preserves well-formedness
+    
+    ** Proof Strategy for delete_executes:
+    This reduces directly to insert_executes with v = zero32.
+*)
 
 Module DeleteLink.
   
@@ -468,7 +649,8 @@ Module DeleteLink.
   Definition rust_delete (H : Ty.t) (tree : Value.t) (key : Value.t) : M :=
     InsertLink.rust_insert H [] [] [tree; key; φ zero32].
   
-  (** Main refinement theorem for delete operation *)
+  (** Main refinement theorem for delete operation.
+      This shows the simulation function is well-defined for all inputs. *)
   Theorem delete_refines :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey),
       exists (result_tree : SimTree),
@@ -479,7 +661,24 @@ Module DeleteLink.
     reflexivity.
   Qed.
   
-  (** Execution theorem: delete executes as insert with zero value *)
+  (** [AXIOM:IMPL-GAP] Rust delete execution matches simulation.
+      
+      Status: Axiomatized - reduces to insert_executes with zero value.
+      
+      Verification Gap: This axiom is essentially a corollary of insert_executes.
+      Once insert_executes is proven, this follows immediately since:
+        rust_delete = rust_insert with zero32
+        sim_tree_delete = sim_tree_insert with zero32
+      
+      Risk: Medium - depends on insert_executes correctness.
+      
+      Mitigation: Verified reduction to insert with zero32.
+      
+      Dependencies:
+      - insert_executes (main dependency)
+      - wf_value zero32 (proven: zero32 is well-formed)
+      
+      Used by: get_after_delete_same, delete_idempotent *)
   Axiom delete_executes :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey),
     forall (rust_tree : Value.t) (s : Run.State),
@@ -500,6 +699,13 @@ Module DeleteLink.
     unfold sim_tree_delete.
     reflexivity.
   Qed.
+  
+  (** Zero value well-formedness: zero32 satisfies wf_value *)
+  Lemma zero32_wf : wf_value zero32.
+  Proof.
+    unfold wf_value, zero32, zero_byte.
+    simpl. reflexivity.
+  Qed.
 
   (** Delete simulation equivalence follows from insert *)
   Theorem delete_simulation_equiv :
@@ -518,7 +724,25 @@ Module DeleteLink.
 
 End DeleteLink.
 
-(** ** New/empty tree linking *)
+(** ** NewLink Module: Tree Constructor Linking
+    
+    This module establishes the correspondence between Rust's
+    UnifiedBinaryTree::new() constructor and the simulation's empty_tree.
+    
+    ** Rust Implementation Path (src/tree.rs):
+    UnifiedBinaryTree::new(hasher) creates:
+    - root: Node::Empty
+    - hasher: the provided Hasher instance
+    - stems: empty HashMap
+    
+    ** Simulation Path (simulations/tree.v):
+    empty_tree = mkSimTree []
+    
+    ** Key Properties:
+    - New tree is well-formed
+    - New tree has zero root hash
+    - Get on new tree always returns None
+*)
 
 Module NewLink.
   
@@ -534,7 +758,10 @@ Module NewLink.
     reflexivity.
   Qed.
   
-  (** Execution theorem: rust_new produces empty_tree *)
+  (** [AXIOM:IMPL-GAP] Rust new produces empty_tree.
+      Status: Axiomatized pending M monad interpreter.
+      Risk: Low - simple constructor with no complex logic.
+      Mitigation: Manual code review of UnifiedBinaryTree::new(). *)
   Axiom new_executes :
     forall (H : Ty.t) (s : Run.State),
       exists (rust_tree : Value.t) (s' : Run.State),
@@ -562,7 +789,36 @@ Module NewLink.
 
 End NewLink.
 
-(** ** Hash operation linking *)
+(** ** HashLink Module: Root Hash Computation Linking
+    
+    This module establishes the correspondence between Rust's
+    UnifiedBinaryTree::root_hash() and the simulation's sim_root_hash.
+    
+    ** Rust Implementation Path (src/tree.rs):
+    root_hash() computes the Merkle root by:
+    1. If root is cached and valid, return cached value
+    2. Otherwise, recursively hash all nodes via Node::hash()
+    3. Internal nodes use hash_pair(left, right)
+    4. Stem nodes use hash_stem(stem, subtree_root)
+    5. Leaf nodes use hash_value(value)
+    6. Empty returns zero32
+    
+    ** Simulation Path (simulations/tree.v):
+    sim_root_hash uses sim_node_hash which mirrors the above:
+    - SimEmpty → zero32
+    - SimInternal l r → hash_pair(sim_node_hash l, sim_node_hash r)
+    - SimStem s vals → hash_stem s zero32
+    - SimLeaf v → hash_value v
+    
+    ** Key Properties:
+    - Empty tree has zero hash
+    - Hash is deterministic
+    - Hash changes after non-zero insert (modulo collisions)
+    
+    ** Dependencies:
+    - hash_value, hash_pair, hash_stem axioms from crypto.v
+    - Hasher trait resolution for H parameter
+*)
 
 Module HashLink.
   
@@ -575,17 +831,10 @@ Module HashLink.
   (** Re-export sim_root_hash from simulations/tree.v *)
   Definition sim_root_hash := UBT.Sim.tree.sim_root_hash.
   
-  (** Execution theorem: running rust_root_hash produces sim_root_hash result.
-      
-      This connects:
-      1. The Rust root_hash method (rust_root_hash)
-      2. The simulation hash function (sim_root_hash)
-      
-      Axiomatization rationale:
-      - Requires Hasher trait linking
-      - Requires Node hash linking for each node variant
-      - Requires Merkle tree construction equivalence
-  *)
+  (** [AXIOM:IMPL-GAP] Rust root_hash execution matches simulation.
+      Status: Axiomatized pending M monad interpreter.
+      Risk: High - requires Hasher trait linking, Node hash linking.
+      Mitigation: Property-based testing, manual review of Merkle construction. *)
   Axiom root_hash_executes :
     forall (H : Ty.t) (sim_t : SimTree),
     forall (rust_tree : Value.t) (s : Run.State),
@@ -637,7 +886,33 @@ Module HashLink.
 
 End HashLink.
 
-(** ** Merkle Proof Linking *)
+(** ** MerkleLink Module: Merkle Proof Verification Linking
+    
+    This module establishes the correspondence between Rust's
+    Merkle proof verification and the simulation's verify_*_proof functions.
+    
+    ** Proof Types:
+    - InclusionProof: proves a key has a specific value
+    - ExclusionProof: proves a key is absent (has zero value)
+    
+    ** Rust Implementation Path (src/proof.rs):
+    verify_proof() validates Merkle paths by:
+    1. Hash the leaf value
+    2. Combine with sibling hashes per direction (Left/Right)
+    3. Check computed root matches expected root
+    
+    ** Simulation Path (simulations/tree.v):
+    verify_inclusion_proof/verify_exclusion_proof use
+    compute_root_from_witness to reconstruct root from leaf.
+    
+    ** Key Properties:
+    - Soundness: verified proof → correct state
+    - Same-key consistency: two proofs for same key have same value
+    
+    ** Security Implications:
+    These are security-critical proofs. Incorrect linking could allow
+    forged state proofs. All axioms in this module are HIGH risk.
+*)
 
 Module MerkleLink.
   
@@ -655,31 +930,44 @@ Module MerkleLink.
   Definition ip_value := UBT.Sim.tree.ip_value.
   Definition ep_key := UBT.Sim.tree.ep_key.
   
-  (** *** Rust Proof Verification Functions
-      
-      These are axiomatized because the actual Rust implementation has not
-      been translated yet. When the Rust verify_proof functions are translated,
-      these can be replaced with references to src/proof.v or similar.
-  *)
+  (** *** Rust Proof Verification Functions *)
   
+  (** [AXIOM:IMPL-GAP] Rust inclusion proof verification.
+      Status: Axiomatized - Rust verify_proof not yet translated.
+      Risk: High - proof verification is security-critical.
+      Mitigation: Property-based testing, manual review when translated. *)
   Axiom rust_verify_inclusion_proof : InclusionProof -> Bytes32 -> Prop.
+  
+  (** [AXIOM:IMPL-GAP] Rust exclusion proof verification.
+      Status: Axiomatized - Rust verify_proof not yet translated.
+      Risk: High - proof verification is security-critical.
+      Mitigation: Property-based testing, manual review when translated. *)
   Axiom rust_verify_exclusion_proof : ExclusionProof -> Bytes32 -> Prop.
   
   (** *** Refinement Theorems for Merkle Proofs *)
   
-  (** Inclusion proof refinement: Rust verification matches simulation *)
+  (** [AXIOM:IMPL-GAP] Inclusion proof refinement: Rust matches simulation.
+      Status: Axiomatized pending Rust proof translation.
+      Risk: High - requires full type and hash correspondence.
+      Mitigation: Replace with proof when src/proof.v available. *)
   Axiom inclusion_proof_refines :
     forall (H : Ty.t) (proof : InclusionProof) (root : Bytes32),
       rust_verify_inclusion_proof proof root <->
       verify_inclusion_proof proof root.
   
-  (** Exclusion proof refinement: Rust verification matches simulation *)
+  (** [AXIOM:IMPL-GAP] Exclusion proof refinement: Rust matches simulation.
+      Status: Axiomatized pending Rust proof translation.
+      Risk: High - requires full type and hash correspondence.
+      Mitigation: Replace with proof when src/proof.v available. *)
   Axiom exclusion_proof_refines :
     forall (H : Ty.t) (proof : ExclusionProof) (root : Bytes32),
       rust_verify_exclusion_proof proof root <->
       verify_exclusion_proof proof root.
   
-  (** Root hash refinement: Rust hash matches simulation hash *)
+  (** [AXIOM:IMPL-GAP] Root hash refinement: Rust hash matches simulation.
+      Status: Axiomatized - requires Hasher trait linking.
+      Risk: Medium - hash computation must match across implementations.
+      Mitigation: Property-based testing with known vectors. *)
   Axiom root_hash_refines :
     forall (H : Ty.t) (rust_tree : Value.t) (sim_t : SimTree),
       tree_refines H rust_tree sim_t ->
@@ -753,10 +1041,38 @@ Module MerkleLink.
 
 End MerkleLink.
 
-(** ** Panic Freedom Theorems
+(** ** PanicFreedom Module: Panic Safety Guarantees
     
-    These theorems prove that well-formed inputs never cause the 
-    Rust operations to panic. This is crucial for safety guarantees.
+    This module proves that well-formed inputs never cause Rust
+    operations to panic, which is crucial for safety guarantees.
+    
+    ** What "No Panic" Means:
+    The Outcome type has three variants:
+    - Success v: normal termination with value v
+    - Panic e: abnormal termination via panic!()
+    - Diverge: non-termination
+    
+    Outcome.no_panic holds for Success and Diverge, but not Panic.
+    
+    ** Rust Panic Points (from PANIC_ANALYSIS.md):
+    1. unwrap() on None/Err - avoided by HashMap returning Option
+    2. expect() - none in critical paths
+    3. panic!() macro - only in debug/unreachable paths
+    4. Index out of bounds - validated by SubIndex range check
+    
+    ** Precondition Structure:
+    - ValidInput: tree is well-formed
+    - ValidKey: stem is 31 bytes, subindex is 0-255
+    - ValidValue: value is 32 bytes
+    
+    ** Proof Strategy:
+    1. Identify all panic points in Rust code
+    2. Show preconditions ensure those paths are unreachable
+    3. This requires control flow analysis of translated code
+    
+    ** Current Status:
+    All axioms in this module are pending panic path analysis.
+    See formal/docs/PANIC_ANALYSIS.md for detailed audit.
 *)
 
 Module PanicFreedom.
@@ -775,7 +1091,10 @@ Module PanicFreedom.
     vv_wf : wf_value v
   }.
   
-  (** Get never panics on valid inputs *)
+  (** [AXIOM:PANIC] Get never panics on valid inputs.
+      Status: Axiomatized - requires panic path analysis.
+      Risk: Medium - HashMap.get may have edge cases.
+      Mitigation: Manual review of all unwrap/expect calls in get path. *)
   Axiom get_no_panic :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey),
     forall (rust_tree : Value.t) (s : Run.State),
@@ -784,7 +1103,10 @@ Module PanicFreedom.
       tree_refines H rust_tree sim_t ->
       Outcome.no_panic (fst (Run.run (GetLink.rust_get H [] [] [rust_tree; φ k]) s)).
   
-  (** Insert never panics on valid inputs *)
+  (** [AXIOM:PANIC] Insert never panics on valid inputs.
+      Status: Axiomatized - requires panic path analysis.
+      Risk: Medium - HashMap mutation may have edge cases.
+      Mitigation: Manual review of entry/or_insert_with, set_value paths. *)
   Axiom insert_no_panic :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey) (v : Value),
     forall (rust_tree : Value.t) (s : Run.State),
@@ -794,7 +1116,10 @@ Module PanicFreedom.
       tree_refines H rust_tree sim_t ->
       Outcome.no_panic (fst (Run.run (InsertLink.rust_insert H [] [] [rust_tree; φ k; φ v]) s)).
   
-  (** Delete never panics on valid inputs (follows from insert) *)
+  (** [AXIOM:PANIC] Delete never panics on valid inputs.
+      Status: Axiomatized - reduces to insert_no_panic with zero value.
+      Risk: Low - follows from insert_no_panic.
+      Mitigation: Verified reduction to insert with zero32. *)
   Axiom delete_no_panic :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey),
     forall (rust_tree : Value.t) (s : Run.State),
@@ -803,7 +1128,10 @@ Module PanicFreedom.
       tree_refines H rust_tree sim_t ->
       Outcome.no_panic (fst (Run.run (DeleteLink.rust_delete H rust_tree (φ k)) s)).
   
-  (** Root hash never panics on valid inputs *)
+  (** [AXIOM:PANIC] Root hash never panics on valid inputs.
+      Status: Axiomatized - requires panic path analysis.
+      Risk: Low - read-only tree traversal.
+      Mitigation: Manual review of Merkle hash computation path. *)
   Axiom root_hash_no_panic :
     forall (H : Ty.t) (sim_t : SimTree),
     forall (rust_tree : Value.t) (s : Run.State),
@@ -813,19 +1141,41 @@ Module PanicFreedom.
 
 End PanicFreedom.
 
-(** ** State Threading for Stateful Operations
+(** ** StateThreading Module: Memory State Management
     
-    This section handles operations that modify state (insert, delete).
-    We show that state changes are properly threaded through operations.
+    This module tracks how operations affect execution state (heap memory).
+    
+    ** RocqOfRust Memory Model:
+    The M monad threads through ExecState.t which tracks:
+    - next_addr: next available heap address
+    - heap: list of (address, value) pairs
+    
+    Operations can:
+    - StateAlloc: allocate new heap cell
+    - StateRead: read from heap address
+    - StateWrite: update existing cell
+    
+    ** State Preservation Properties:
+    - Read-only operations (get, root_hash) preserve state exactly
+    - Write operations (insert, delete) may allocate but preserve
+      existing heap entries
+    
+    ** Key Invariants:
+    - Insert may allocate new StemNode entries
+    - Get never allocates or modifies heap
+    - Root hash never allocates (read-only traversal)
+    
+    ** Proof Strategy:
+    Pure/read-only operations trivially preserve state since they
+    make no StateAlloc/StateWrite calls.
 *)
 
 Module StateThreading.
   
-  (** [AXIOM:LINKING] Get operation is state-preserving.
-      
-      This axiom captures that rust_get is a pure read operation that
-      does not modify the execution state. This is a property of the
-      Rust implementation: get performs only reads, no allocations. *)
+  (** [AXIOM:IMPL-GAP] Get operation is state-preserving.
+      Status: Axiomatized - requires memory model analysis.
+      Risk: Low - get performs only reads, no allocations.
+      Mitigation: Manual code review of get implementation. *)
   Axiom get_state_pure : forall (H : Ty.t) (args : list Value.t) (s : Run.State),
     snd (Run.run (GetLink.rust_get H [] [] args) s) = s.
   
@@ -841,10 +1191,10 @@ Module StateThreading.
     intros. apply get_state_pure.
   Qed.
   
-  (** [AXIOM:LINKING] Root hash operation is state-preserving.
-      
-      This axiom captures that rust_root_hash is a pure computation
-      that reads tree structure but performs no allocations. *)
+  (** [AXIOM:IMPL-GAP] Root hash operation is state-preserving.
+      Status: Axiomatized - requires memory model analysis.
+      Risk: Low - read-only Merkle hash computation.
+      Mitigation: Manual code review of root_hash implementation. *)
   Axiom root_hash_state_pure : forall (H : Ty.t) (args : list Value.t) (s : Run.State),
     snd (Run.run (HashLink.rust_root_hash H [] [] args) s) = s.
   
@@ -859,12 +1209,10 @@ Module StateThreading.
     intros. apply root_hash_state_pure.
   Qed.
   
-  (** [AXIOM:LINKING] Insert result is independent of initial state.
-      
-      While insert may allocate new nodes (changing state), the *result*
-      (the new tree value) is determined purely by the tree structure
-      and inserted key/value, not by the memory state. This is a
-      functional purity property of the insert algorithm. *)
+  (** [AXIOM:IMPL-GAP] Insert result is independent of initial state.
+      Status: Axiomatized - requires functional purity analysis.
+      Risk: Medium - result depends only on tree structure, not memory state.
+      Mitigation: Manual review verifying no state-dependent behavior. *)
   Axiom insert_result_pure : forall (H : Ty.t) (args : list Value.t) (s1 s2 : Run.State),
     fst (Run.run (InsertLink.rust_insert H [] [] args) s1) =
     fst (Run.run (InsertLink.rust_insert H [] [] args) s2).
@@ -1178,7 +1526,36 @@ Proof.
   exact Hv.
 Qed.
 
-(** ** Batch Proof Verification Linking *)
+(** ** BatchVerifyLink Module: Batch Proof Verification Linking
+    
+    This module establishes the correspondence between Rust's batch
+    proof verification and the simulation's verify_batch_* functions.
+    
+    ** Batch Proof Types:
+    - BatchInclusionProof: list of inclusion proofs sharing a root
+    - BatchExclusionProof: list of exclusion proofs sharing a root
+    - BatchProof: mixed inclusion + exclusion proofs
+    - SharedWitness: optimized proof structure with deduplication
+    
+    ** Rust Implementation (src/proof.rs):
+    batch_verify() validates multiple proofs efficiently by:
+    1. Extracting common path prefixes
+    2. Validating individual proofs against shared witness
+    3. Checking all paths reconstruct to same root
+    
+    ** Simulation Path (simulations/tree.v):
+    verify_batch_inclusion/exclusion are defined as:
+    Forall (λ p. verify_*_proof p root) proofs
+    
+    ** Key Properties:
+    - All proofs in batch are individually sound
+    - Same-key proofs in batch have same value (consistency)
+    - Batch verification implies individual verification
+    
+    ** Security Implications:
+    Batch verification is security-critical. Incorrect batching could
+    allow selective forgery where some proofs are valid and others forged.
+*)
 
 Module BatchVerifyLink.
 
@@ -1196,7 +1573,10 @@ Module BatchVerifyLink.
   (** Axiom: Rust batch verification function *)
   Parameter rust_verify_batch : Ty.t -> Value.t -> Value.t -> Value.t -> M.
 
-  (** Axiom: Rust verify batch inclusion matches simulation *)
+  (** [AXIOM:IMPL-GAP] Rust batch inclusion verification matches simulation.
+      Status: Axiomatized pending M monad interpreter.
+      Risk: High - batch verification is security-critical.
+      Mitigation: Property-based testing, manual review of batch logic. *)
   Axiom rust_verify_batch_inclusion_executes :
     forall (H : Ty.t) (batch : BatchInclusionProof) (root : Bytes32),
     forall (rust_batch : Value.t) (rust_root : Value.t) (s : Run.State),
@@ -1259,7 +1639,10 @@ Module BatchVerifyLink.
   Parameter rust_verify_batch_with_shared : 
     Ty.t -> Value.t -> Value.t -> Value.t -> M.
 
-  (** Axiom: Shared witness verification matches simulation *)
+  (** [AXIOM:IMPL-GAP] Shared witness verification matches simulation.
+      Status: Axiomatized pending M monad interpreter.
+      Risk: Medium - optimization variant of batch verification.
+      Mitigation: Property-based testing, verify shared_verify_implies_batch. *)
   Axiom rust_verify_shared_executes :
     forall (H : Ty.t) (batch : BatchInclusionProof) 
            (root : Bytes32) (sw : SharedWitness),

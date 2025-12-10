@@ -226,6 +226,40 @@ The [simulations/security.v](file:///Users/user/pse/paradigm/ubt/formal/simulati
 
 ---
 
+## Iterator Modeling (Low Priority)
+
+The [simulations/iterator.v](file:///Users/user/pse/paradigm/ubt-rs/formal/simulations/iterator.v) file provides iterator modeling for completeness. These are **informational/low-priority** specifications since the Rust implementation uses HashMap with arbitrary iteration order.
+
+### Iterator Operations
+
+| Operation | Description |
+|-----------|-------------|
+| `sim_tree_keys` | Returns list of all keys in tree |
+| `sim_tree_values` | Returns list of all values |
+| `sim_tree_entries` | Returns list of (key, value) pairs |
+| `sim_tree_fold` | Fold operation over tree entries |
+| `sim_tree_stems` | Returns list of all stems |
+
+### Iterator Theorems
+
+| Theorem | Location | Statement |
+|---------|----------|-----------|
+| `keys_complete` | [iterator.v:L122-157](../simulations/iterator.v#L122-L157) | All inserted keys appear in iteration |
+| `keys_unique` | [iterator.v:L178-189](../simulations/iterator.v#L178-L189) | No duplicate keys (requires wf_tree) |
+| `entries_match_get` | [iterator.v:L193-222](../simulations/iterator.v#L193-L222) | Iterated entries match individual gets |
+| `key_in_iff_get_some` | [iterator.v:L259-282](../simulations/iterator.v#L259-L282) | k ∈ keys ⟺ get k = Some v |
+| `entry_in_iff_get` | [iterator.v:L285-317](../simulations/iterator.v#L285-L317) | Full characterization of entries |
+| `fold_cons_entries` | [iterator.v:L227-234](../simulations/iterator.v#L227-L234) | Fold with cons equals rev(entries) |
+
+### Notes
+
+- **Priority:** Low - provided for completeness only
+- **Ordering:** Iterator order is abstract/unspecified (matches HashMap behavior)
+- **Admits:** Some proofs require additional well-formedness invariants and are admitted
+- **Use Case:** Reasoning about bulk operations, not performance-critical code
+
+---
+
 ## Note on Linking Layer
 
 The linking layer (`linking/operations.v`) is now fully complete (December 2024):
