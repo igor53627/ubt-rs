@@ -20,12 +20,12 @@
     with appropriate [wf_stem] premises. The same applies to [stem_eq_via_third].
 *)
 
-Require Import Stdlib.Lists.List.
-Require Import Stdlib.ZArith.ZArith.
-Require Import Stdlib.FSets.FMapList.
-Require Import Stdlib.Structures.OrderedTypeEx.
-Require Import Stdlib.Bool.Bool.
-Require Import Stdlib.micromega.Lia.
+Require Import Coq.Lists.List.
+Require Import Coq.ZArith.ZArith.
+Require Import Coq.FSets.FMapList.
+Require Import Coq.Structures.OrderedTypeEx.
+Require Import Coq.Bool.Bool.
+Require Import Coq.micromega.Lia.
 Import ListNotations.
 
 Open Scope Z_scope.
@@ -1521,7 +1521,7 @@ Qed.
     - For exclusion (None): the key is not in the tree
     
     Relies on hash collision resistance and the Merkle tree construction. *)
-Axiom multiproof_soundness :
+Axiom multiproof_soundness_combined :
   forall (t : SimTree) (mp : MultiProof),
     wf_multiproof mp ->
     verify_multiproof mp (sim_root_hash t) ->
@@ -1596,7 +1596,7 @@ Proof.
     destruct Hnth as [Hk Hv].
     rewrite Hk, Hv. reflexivity.
     unfold wf_multiproof in Hwf. exact Hwf. }
-  eapply multiproof_soundness; eauto.
+  eapply multiproof_soundness_combined; eauto.
 Qed.
 
 (** ** Witness Generation Correctness *)
@@ -1636,7 +1636,7 @@ Lemma generated_multiproof_sound :
 Proof.
   intros t keys Hwf mp idx k v Hget.
   destruct (witness_generation_correct t keys Hwf) as [Hwfmp [_ Hverify]].
-  eapply multiproof_soundness; eauto.
+  eapply multiproof_soundness_combined; eauto.
 Qed.
 
 (** ** Stem-level Proof Properties *)
@@ -1710,4 +1710,4 @@ Axiom batch_to_multiproof_equiv :
     mp_keys mp = map ip_key batch /\
     mp_values mp = map (fun p => Some (ip_value p)) batch.
 
-(** NoDup is already imported from Stdlib.Lists.List at the top of the file *)
+(** NoDup is already imported from Coq.Lists.List at the top of the file *)

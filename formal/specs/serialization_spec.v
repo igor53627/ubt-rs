@@ -5,8 +5,8 @@
     format (JSON, bincode, etc.).
 *)
 
-Require Import Stdlib.Lists.List.
-Require Import Stdlib.ZArith.ZArith.
+Require Import Coq.Lists.List.
+Require Import Coq.ZArith.ZArith.
 Import ListNotations.
 
 (** ** Abstract Serialization Interface *)

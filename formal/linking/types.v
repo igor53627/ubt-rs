@@ -49,9 +49,9 @@ Require Import RocqOfRust.RocqOfRust.
 Require Import RocqOfRust.links.M.
 Require Import RocqOfRust.simulations.M.
 
-Require Import Stdlib.Lists.List.
-Require Import Stdlib.Sorting.Permutation.
-Require Import Stdlib.ZArith.ZArith.
+Require Import Coq.Lists.List.
+Require Import Coq.Sorting.Permutation.
+Require Import Coq.ZArith.ZArith.
 Import ListNotations.
 
 Require Import UBT.Sim.crypto.

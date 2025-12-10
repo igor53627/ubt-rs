@@ -30,9 +30,9 @@
     Note: QuickChick tests are interactive and require compilation with extraction.
 *)
 
-Require Import Stdlib.Lists.List.
-Require Import Stdlib.ZArith.ZArith.
-Require Import Stdlib.Bool.Bool.
+Require Import Coq.Lists.List.
+Require Import Coq.ZArith.ZArith.
+Require Import Coq.Bool.Bool.
 Import ListNotations.
 
 (** Import our simulation layer *)

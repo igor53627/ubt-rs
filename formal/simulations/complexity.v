@@ -15,11 +15,11 @@
     - Memory usage guarantees for node operators
 *)
 
-Require Import Stdlib.Lists.List.
-Require Import Stdlib.ZArith.ZArith.
-Require Import Stdlib.Arith.PeanoNat.
-Require Import Stdlib.micromega.Lia.
-Require Import Stdlib.Bool.Bool.
+Require Import Coq.Lists.List.
+Require Import Coq.ZArith.ZArith.
+Require Import Coq.Arith.PeanoNat.
+Require Import Coq.micromega.Lia.
+Require Import Coq.Bool.Bool.
 Import ListNotations.
 
 Require Import UBT.Sim.tree.
