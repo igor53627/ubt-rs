@@ -901,21 +901,49 @@ Proof.
   intros t k1 v1 k2 v2 Hstem Hidx.
   unfold tree_eq. intros k.
   unfold sim_tree_get, sim_tree_insert. simpl.
-  apply stem_eq_true in Hstem. subst.
+  (* Use stem_eq_true to get propositional equality *)
+  assert (Hstem_eq: tk_stem k1 = tk_stem k2) by (apply stem_eq_true; exact Hstem).
   destruct (stem_eq (tk_stem k) (tk_stem k2)) eqn:Ek.
-  - apply stem_eq_true in Ek. subst.
+  - (* k matches k2's stem (and k1's stem) *)
+    assert (Ek1: stem_eq (tk_stem k) (tk_stem k1) = true).
+    { rewrite Hstem_eq in Ek. exact Ek. }
+    assert (Ek_rev: stem_eq (tk_stem k2) (tk_stem k) = true).
+    { rewrite stem_eq_sym. exact Ek. }
+    assert (Ek1_rev: stem_eq (tk_stem k1) (tk_stem k) = true).
+    { rewrite stem_eq_sym. exact Ek1. }
+    (* For LHS: query k on (insert (insert t k1 v1) k2 v2)
+       Outer set is at k2, which matches k *)
+    rewrite (stems_get_stem_eq _ (tk_stem k) (tk_stem k2) Ek).
     rewrite stems_get_set_same.
+    (* For RHS: query k on (insert (insert t k2 v2) k1 v1)  
+       Outer set is at k1, which matches k *)
+    rewrite <- Hstem_eq.
+    rewrite (stems_get_stem_eq _ (tk_stem k) (tk_stem k1) Ek1).
     rewrite stems_get_set_same.
+    (* Now both sides have sim_set applied to the inner stems_get result.
+       The inner stems_get looks up the INNER insert's stem in the updated map. *)
+    (* LHS inner: stems_get on (set ... k1 ...) at k2 - need to check if k1=k2 *)
+    rewrite <- Hstem_eq.
     rewrite stems_get_set_same.
+    (* RHS inner: stems_get on (set ... k2 ...) at k1 *)
+    rewrite Hstem_eq.
     rewrite stems_get_set_same.
+    (* Now both sides are sim_set applied to same base, use sim_set_comm *)
     destruct (stems_get (st_stems t) (tk_stem k2)) as [base_map|] eqn:Hbase.
     + apply sim_set_comm. exact Hidx.
     + apply sim_set_comm. exact Hidx.
-  - assert (Ek': stem_eq (tk_stem k2) (tk_stem k) = false) 
+  - (* k doesn't match k2's stem *)
+    assert (Ek1: stem_eq (tk_stem k) (tk_stem k1) = false).
+    { destruct (stem_eq (tk_stem k) (tk_stem k1)) eqn:E; [|reflexivity].
+      exfalso. apply stem_eq_true in E.
+      rewrite E, Hstem_eq in Ek. rewrite stem_eq_refl in Ek. discriminate. }
+    assert (Ek': stem_eq (tk_stem k2) (tk_stem k) = false) 
       by (rewrite stem_eq_sym; exact Ek).
+    assert (Ek1': stem_eq (tk_stem k1) (tk_stem k) = false) 
+      by (rewrite stem_eq_sym; exact Ek1).
     rewrite stems_get_set_other by exact Ek'.
-    rewrite stems_get_set_other by exact Ek'.
-    rewrite stems_get_set_other by exact Ek'.
+    rewrite stems_get_set_other by exact Ek1'.
+    rewrite stems_get_set_other by exact Ek1'.
     rewrite stems_get_set_other by exact Ek'.
     reflexivity.
 Qed.
