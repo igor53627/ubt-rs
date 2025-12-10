@@ -276,10 +276,10 @@ Module Step.
 
   Definition step (c : Config) : option Config :=
     match SmallStep.step c with
-    | SmallStep.Step c' => Some c'
-    | SmallStep.Terminal _ => None
-    | SmallStep.Exception _ => None
-    | SmallStep.StuckState => None
+    | StepTo c' => Some c'
+    | Terminal _ => None
+    | Exception _ => None
+    | Stuck _ => None
     end.
   
   (** Compatibility with Eval.step from operations.v *)
@@ -295,13 +295,13 @@ End Step.
 Module FuelExec.
   Import Outcome.
   
-  (** Convert monad.Outcome to operations.Outcome *)
-  Definition convert_outcome (o : monad.Outcome.t Value.t) : ValueOutcome :=
+  (** Convert Fuel.Outcome to operations.Outcome *)
+  Definition convert_outcome (o : Fuel.Outcome Value.t) : ValueOutcome :=
     match o with
-    | monad.Outcome.Success v => Success v
-    | monad.Outcome.Panic e => Panic (existS _ e)
-    | monad.Outcome.Stuck => Diverge
-    | monad.Outcome.OutOfFuel => Diverge
+    | Fuel.Success v => Success v
+    | Fuel.Panic e => Panic (existS _ e)
+    | Fuel.StuckWith _ => Diverge
+    | Fuel.OutOfFuel => Diverge
     end.
 
   (** Convert State.t to ExecState.t *)
@@ -316,12 +316,12 @@ Module FuelExec.
   (** Sufficient fuel exists for terminating computations *)
   Definition has_sufficient_fuel (m : M) (s : State.t) : Prop :=
     exists fuel v s',
-      Fuel.run fuel (Config.mk m s) = (monad.Outcome.Success v, s').
+      Fuel.run fuel (Config.mk m s) = (Fuel.Success v, s').
 
   (** Connection to Run.run from operations.v *)
   Lemma run_fuel_implies_run :
     forall m s fuel v s',
-      Fuel.run fuel (Config.mk m s) = (monad.Outcome.Success v, s') ->
+      Fuel.run fuel (Config.mk m s) = (Fuel.Success v, s') ->
       Run.run m (convert_state s) = (Success v, convert_state s').
   Proof.
     (* This connects fuel-based execution to the axiomatized Run.run *)
@@ -550,7 +550,7 @@ Module MonadLaws.
   (** Pure immediately terminates with the given value.
       Proven in monad.Laws.run_pure *)
   Theorem run_pure_proven : forall (v : Value.t) (s : State.t),
-    Fuel.run 1 (Config.mk (M.pure v) s) = (monad.Outcome.Success v, s).
+    Fuel.run 1 (Config.mk (M.pure v) s) = (Fuel.Success v, s).
   Proof.
     exact Laws.run_pure.
   Qed.
@@ -570,7 +570,7 @@ Module MonadLaws.
       Proven in monad.Laws.run_panic *)
   Theorem run_panic_proven : forall (msg : string) (s : State.t),
     Fuel.run 1 (Config.mk (M.panic (Panic.Make msg)) s) = 
-    (monad.Outcome.Panic msg, s).
+    (Fuel.Panic msg, s).
   Proof.
     exact Laws.run_panic.
   Qed.
@@ -578,11 +578,11 @@ Module MonadLaws.
   (** Bind sequences computations correctly *)
   Theorem run_bind_fuel : forall (m : M) (f : Value.t -> M) (s : State.t),
     forall v s' fuel_m,
-      Fuel.run fuel_m (Config.mk m s) = (monad.Outcome.Success v, s') ->
+      Fuel.run fuel_m (Config.mk m s) = (Fuel.Success v, s') ->
       forall r s'' fuel_f,
-        Fuel.run fuel_f (Config.mk (f v) s') = (monad.Outcome.Success r, s'') ->
+        Fuel.run fuel_f (Config.mk (f v) s') = (Fuel.Success r, s'') ->
         exists fuel_total,
-          Fuel.run fuel_total (Config.mk (M.let_ m f) s) = (monad.Outcome.Success r, s'').
+          Fuel.run fuel_total (Config.mk (M.let_ m f) s) = (Fuel.Success r, s'').
   Proof.
     intros m f s v s' fuel_m Hm r s'' fuel_f Hf.
     (* Use Laws.let_sequence *)
@@ -613,7 +613,7 @@ Module OpExec.
       exists fuel s',
         Fuel.run fuel 
           (Config.mk (M.pure (φ (sim_stem_map_get m key))) s) =
-        (monad.Outcome.Success (φ (sim_stem_map_get m key)), s').
+        (Fuel.Success (φ (sim_stem_map_get m key)), s').
 
   (** SubIndexMap.get stepping *)
   Axiom subindexmap_get_steps :
@@ -621,7 +621,7 @@ Module OpExec.
       exists fuel s',
         Fuel.run fuel
           (Config.mk (M.pure (φ (sim_subindex_map_get m idx))) s) =
-        (monad.Outcome.Success (φ (sim_subindex_map_get m idx)), s').
+        (Fuel.Success (φ (sim_subindex_map_get m idx)), s').
 
   (** ** Operation Theorems
       
@@ -643,7 +643,7 @@ Module OpExec.
       wf_stem (tk_stem k) ->
       exists fuel (s' : State.t),
         Fuel.run fuel (Config.mk (GetLink.rust_get H [] [] [rust_tree; φ k]) s) = 
-        (monad.Outcome.Success (φ (sim_tree_get sim_t k)), s').
+        (Fuel.Success (φ (sim_tree_get sim_t k)), s').
   Proof.
     intros H sim_t k rust_tree s Href Hwf Hstem.
     (* Strategy outline:
@@ -670,7 +670,7 @@ Module OpExec.
       wf_value v ->
       exists fuel (rust_tree' : Value.t) (s' : State.t),
         Fuel.run fuel (Config.mk (InsertLink.rust_insert H [] [] [rust_tree; φ k; φ v]) s) =
-        (monad.Outcome.Success rust_tree', s') /\
+        (Fuel.Success rust_tree', s') /\
         tree_refines H rust_tree' (sim_tree_insert sim_t k v).
   Proof.
     intros H sim_t k v rust_tree s Href Hwf Hstem Hval.
@@ -692,7 +692,7 @@ Module OpExec.
       wf_stem (tk_stem k) ->
       exists fuel (rust_tree' : Value.t) (s' : State.t),
         Fuel.run fuel (Config.mk (DeleteLink.rust_delete H rust_tree (φ k)) s) =
-        (monad.Outcome.Success rust_tree', s') /\
+        (Fuel.Success rust_tree', s') /\
         tree_refines H rust_tree' (sim_tree_delete sim_t k).
   Proof.
     intros H sim_t k rust_tree s Href Hwf Hstem.

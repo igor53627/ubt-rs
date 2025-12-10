@@ -1681,10 +1681,18 @@ Axiom multiproof_dedup_sound :
 
 (** [AXIOM:OPTIMIZATION] Multiproof size is bounded by sum of individual proof sizes.
     This is a loose upper bound - actual size is smaller due to node deduplication.
-    The bound assumes worst case: 8 nodes and 8 siblings per key. *)
+    
+    The bound requires the multiproof be well-formed and that nodes/stems counts
+    are bounded by the tree depth (248 bits) times number of keys. In practice,
+    deduplication means the actual bound is much tighter.
+    
+    Per-key worst case: 248 internal nodes + 8 subtree siblings + 1 stem. *)
 Axiom multiproof_size_efficient :
   forall (mp : MultiProof),
-    (multiproof_size mp <= length (mp_keys mp) * (32 + 33 + 32 * 8 + 31 * 8))%nat.
+    wf_multiproof mp ->
+    (length (mp_nodes mp) <= length (mp_keys mp) * 256)%nat ->
+    (length (mp_stems mp) <= length (mp_keys mp))%nat ->
+    (multiproof_size mp <= length (mp_keys mp) * (33 + 33 + 32 * 256 + 31))%nat.
 
 (** ** Batch to MultiProof Conversion *)
 

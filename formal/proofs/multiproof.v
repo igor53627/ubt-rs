@@ -26,24 +26,11 @@ Require Import UBT.Sim.tree.
 
 Open Scope Z_scope.
 
-(** ** MultiProof Structure *)
-
-(** 
-   MultiProof mirrors the Rust MultiProof struct:
-   - keys: list of TreeKey being proven
-   - values: list of Option<Value> (None for non-existence)
-   - nodes: deduplicated shared proof nodes
-   - stems: stems included in the proof
+(** ** MultiProof Structure
+    
+    MultiProof is defined in UBT.Sim.tree (imported above).
+    We re-export helper definitions here for convenience.
 *)
-Record MultiProof := mkMultiProof {
-  mp_keys : list TreeKey;
-  mp_values : list (option Value);
-  mp_nodes : list Bytes32;
-  mp_stems : list Stem
-}.
-
-Definition empty_multiproof : MultiProof :=
-  mkMultiProof [] [] [] [].
 
 Definition multiproof_len (mp : MultiProof) : nat :=
   length (mp_keys mp).
