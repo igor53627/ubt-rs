@@ -23,6 +23,7 @@ Require Import Coq.Lists.List.
 Require Import Coq.ZArith.ZArith.
 Require Import Coq.Bool.Bool.
 Require Import Coq.micromega.Lia.
+Require Import Coq.Sorting.Permutation.
 Require Import UBT.Sim.tree.
 Import ListNotations.
 
@@ -407,10 +408,71 @@ Proof.
   (* Straightforward by induction on entries - admit for now *)
 Admitted.
 
-(** TODO: Prove fold is independent of order for commutative operations.
-    This requires permutation reasoning (e.g., via Permutation from Stdlib).
-    Statement: For commutative f, folding over any permutation of entries
-    yields the same result. Currently not proven. *)
+(** ** Fold Order Independence for Commutative Operations *)
+
+(** A binary operation is commutative *)
+Definition commutative {A B : Type} (f : A -> B -> B -> A) : Prop :=
+  forall acc x y, f acc x y = f acc y x.
+
+(** A fold function is left-commutative: order of accumulation doesn't matter *)
+Definition fold_left_commutative {A B : Type} (f : A -> B -> A) : Prop :=
+  forall acc x y, f (f acc x) y = f (f acc y) x.
+
+(** Key lemma: fold_left over a permutation yields the same result
+    when the fold function is left-commutative. *)
+Lemma fold_left_permutation : forall {A B : Type} (f : A -> B -> A) (l1 l2 : list B) (init : A),
+  fold_left_commutative f ->
+  Permutation l1 l2 ->
+  fold_left f l1 init = fold_left f l2 init.
+Proof.
+  intros A B f l1 l2 init Hcomm Hperm.
+  generalize dependent init.
+  induction Hperm; intros init.
+  - reflexivity.
+  - simpl. apply IHHperm.
+  - simpl. rewrite Hcomm. reflexivity.
+  - rewrite IHHperm1. apply IHHperm2.
+Qed.
+
+(** Fold function for tree entries is left-commutative when
+    the underlying key-value fold is commutative. *)
+Definition entry_fold_commutative {A : Type} (f : A -> TreeKey -> Value -> A) : Prop :=
+  forall acc e1 e2,
+    f (f acc (fst e1) (snd e1)) (fst e2) (snd e2) =
+    f (f acc (fst e2) (snd e2)) (fst e1) (snd e1).
+
+(** Main theorem: sim_tree_fold produces the same result regardless of
+    iteration order when the fold function is commutative.
+    
+    Since sim_tree_entries returns entries in some fixed order, we express
+    this by showing that folding over any permutation of those entries
+    yields the same result. *)
+Theorem sim_tree_fold_order_independent : forall {A : Type} 
+  (f : A -> TreeKey -> Value -> A) (init : A) (t : SimTree) (entries' : list Entry),
+  entry_fold_commutative f ->
+  Permutation (sim_tree_entries t) entries' ->
+  sim_tree_fold f init t = fold_left (fun acc e => f acc (fst e) (snd e)) entries' init.
+Proof.
+  intros A f init t entries' Hcomm Hperm.
+  unfold sim_tree_fold.
+  apply fold_left_permutation.
+  - unfold fold_left_commutative. intros acc x y.
+    apply Hcomm.
+  - exact Hperm.
+Qed.
+
+(** Corollary: Two trees with the same entries (as a set) produce the same
+    fold result when the fold function is commutative. *)
+Corollary sim_tree_fold_entries_eq : forall {A : Type}
+  (f : A -> TreeKey -> Value -> A) (init : A) (t1 t2 : SimTree),
+  entry_fold_commutative f ->
+  Permutation (sim_tree_entries t1) (sim_tree_entries t2) ->
+  sim_tree_fold f init t1 = sim_tree_fold f init t2.
+Proof.
+  intros A f init t1 t2 Hcomm Hperm.
+  unfold sim_tree_fold.
+  apply fold_left_permutation; auto.
+Qed.
 
 (** ** Count Operations *)
 
