@@ -61,18 +61,23 @@ Definition tree_depth (t : SimTree) : nat :=
   end.
 
 (** Alternative: compute actual depth from stem distribution.
-    For a more precise bound, we can compute the actual branching depth. *)
-Fixpoint stem_path_depth_aux (stems : list Stem) (depth : nat) : nat :=
-  if Nat.leb (length stems) 1 then depth
-  else if Nat.leb MAX_DEPTH depth then depth
-  else
-    let left := filter (fun s => negb (stem_bit_at s depth)) stems in
-    let right := filter (fun s => stem_bit_at s depth) stems in
-    max (stem_path_depth_aux left (S depth)) (stem_path_depth_aux right (S depth)).
+    For a more precise bound, we can compute the actual branching depth.
+    Uses fuel parameter to ensure termination (depth limited by MAX_DEPTH). *)
+Fixpoint stem_path_depth_aux (fuel : nat) (stems : list Stem) (depth : nat) : nat :=
+  match fuel with
+  | O => depth  (* Out of fuel, return current depth *)
+  | S fuel' =>
+    if Nat.leb (length stems) 1 then depth
+    else if Nat.leb MAX_DEPTH depth then depth
+    else
+      let left := filter (fun s => negb (stem_bit_at s depth)) stems in
+      let right := filter (fun s => stem_bit_at s depth) stems in
+      max (stem_path_depth_aux fuel' left (S depth)) (stem_path_depth_aux fuel' right (S depth))
+  end.
 
 Definition actual_tree_depth (t : SimTree) : nat :=
   let stems := map fst (st_stems t) in
-  stem_path_depth_aux stems 0 + STEM_SUBTREE_DEPTH.
+  stem_path_depth_aux MAX_DEPTH stems 0 + STEM_SUBTREE_DEPTH.
 
 (** ** Entry Count Function *)
 
@@ -115,11 +120,11 @@ Theorem actual_depth_bound : forall t : SimTree,
 Proof.
   intros t.
   unfold actual_tree_depth, TOTAL_MAX_DEPTH.
-  assert (H: forall stems d, d <= MAX_DEPTH -> stem_path_depth_aux stems d <= MAX_DEPTH).
-  { induction stems as [|s rest IH]; intros d Hd.
-    - simpl. destruct (Nat.leb 0 1); lia.
+  assert (H: forall fuel stems d, d <= MAX_DEPTH -> stem_path_depth_aux fuel stems d <= MAX_DEPTH).
+  { induction fuel as [|fuel' IH]; intros stems d Hd.
+    - simpl. lia.
     - simpl.
-      destruct (Nat.leb (length (s :: rest)) 1) eqn:E1.
+      destruct (Nat.leb (length stems) 1) eqn:E1.
       + lia.
       + destruct (Nat.leb MAX_DEPTH d) eqn:E2.
         * apply Nat.leb_le in E2. lia.
@@ -127,7 +132,7 @@ Proof.
           apply Nat.max_lub.
           -- apply IH. lia.
           -- apply IH. lia. }
-  specialize (H (map fst (st_stems t)) 0).
+  specialize (H MAX_DEPTH (map fst (st_stems t)) 0).
   lia.
 Qed.
 
