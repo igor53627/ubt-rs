@@ -1474,8 +1474,7 @@ Definition sim_verify_multi_proof (mp : MultiProof) (root : Bytes32) : bool :=
   (* Check well-formedness: keys and values same length *)
   Nat.eqb (length (mp_keys mp)) (length (mp_values mp)) &&
   (* Check stems list is non-empty when keys exist *)
-  (* implb a b = negb a || b *)
-  (negb (negb (Nat.eqb (length (mp_keys mp)) 0)) || negb (Nat.eqb (length (mp_stems mp)) 0)).
+  (Bool.implb (negb (Nat.eqb (length (mp_keys mp)) 0)) (negb (Nat.eqb (length (mp_stems mp)) 0))).
 
 (** sim_verify_multi_proof returning true implies well-formedness *)
 Lemma sim_verify_implies_wf : forall mp root,
@@ -1554,7 +1553,7 @@ Proof.
   induction l as [|a rest IH].
   - destruct Hin.
   - destruct Hin as [Heq | Hin].
-    + subst. exists 0. reflexivity.
+    + subst. exists 0%nat. reflexivity.
     + apply IH in Hin. destruct Hin as [idx Hnth].
       exists (S idx). simpl. exact Hnth.
 Qed.
