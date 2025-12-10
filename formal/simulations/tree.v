@@ -1076,12 +1076,12 @@ Proof.
       * simpl. constructor.
         { intro Hin. simpl in Hnd. inversion Hnd. subst.
           rewrite In_map_iff in Hin.
-          destruct Hin as [[j w] [Heq Hin']].
+          destruct Hin as [[j w] [Hin' Heq]].
           simpl in Heq. subst i.
           apply filter_In in Hin'.
           destruct Hin' as [Hin' _].
           apply In_map_iff in Hin'.
-          destruct Hin' as [[j' w'] [Heq' Hin'']].
+          destruct Hin' as [[j' w'] [Hin'' Heq']].
           simpl in Heq'. subst j.
           apply H1. apply in_map. exact Hin''. }
         { simpl in Hnd. inversion Hnd. subst.
@@ -1090,7 +1090,7 @@ Proof.
     simpl. constructor.
     + intro Hin.
       rewrite In_map_iff in Hin.
-      destruct Hin as [[j w] [Heq Hin']].
+      destruct Hin as [[j w] [Hin' Heq]].
       simpl in Heq. subst idx.
       apply filter_In in Hin'.
       destruct Hin' as [_ Hfilter].
@@ -1105,12 +1105,12 @@ Proof.
         { simpl. constructor.
           - intro Hin. simpl in Hnd. inversion Hnd. subst.
             rewrite In_map_iff in Hin.
-            destruct Hin as [[j w] [Heq Hin']].
+            destruct Hin as [[j w] [Hin' Heq]].
             simpl in Heq. subst i.
             apply filter_In in Hin'.
             destruct Hin' as [Hin' _].
             apply In_map_iff in Hin'.
-            destruct Hin' as [[j' w'] [Heq' Hin'']].
+            destruct Hin' as [[j' w'] [Hin'' Heq']].
             simpl in Heq'. subst j.
             apply H1. apply in_map. exact Hin''.
           - simpl in Hnd. inversion Hnd. subst.
@@ -1127,7 +1127,7 @@ Proof.
   constructor.
   - intro Hin.
     rewrite In_map_iff in Hin.
-    destruct Hin as [[stem submap] [Heq Hin']].
+    destruct Hin as [[stem submap] [Hin' Heq]].
     simpl in Heq. subst s.
     apply filter_In in Hin'.
     destruct Hin' as [_ Hfilter].
@@ -1142,12 +1142,12 @@ Proof.
       * simpl. constructor.
         { intro Hin. simpl in Hnd. inversion Hnd. subst.
           rewrite In_map_iff in Hin.
-          destruct Hin as [[stem' submap'] [Heq Hin']].
+          destruct Hin as [[stem' submap'] [Hin' Heq]].
           simpl in Heq. subst stem.
           apply filter_In in Hin'.
           destruct Hin' as [Hin' _].
           apply In_map_iff in Hin'.
-          destruct Hin' as [[stem'' submap''] [Heq' Hin'']].
+          destruct Hin' as [[stem'' submap''] [Hin'' Heq']].
           simpl in Heq'. subst stem'.
           apply H1. apply in_map. exact Hin''. }
         { simpl in Hnd. inversion Hnd. subst.
