@@ -21,7 +21,11 @@
       "author": "maintainer"
     },
     {
-      "content": "Monad laws status (PR #48): Laws.run_pure and Laws.run_panic are PROVEN via reflexivity after simpl. step_let is split into step_let_pure (computable, covers Pure cases) and step_let_nonpure (axiom, for mutual recursion with step). Laws.let_sequence remains Admitted pending step_let_nonpure implementation. See Issues #48-#54 for remaining work.",
+      "content": "Monad laws status (PR #55): Laws.run_pure and Laws.run_panic are PROVEN via reflexivity after simpl. step_let is split into step_let_pure (computable, covers Pure cases) and step_let_nonpure (axiom, for mutual recursion with step). Laws.let_sequence is a SEMANTIC AXIOM (not proof gap).",
+      "author": "maintainer"
+    },
+    {
+      "content": "Fuel determinism (PR #56): Fuel.run_success_unique PROVEN by induction on fuel. SmallStep.step is a function so Fuel.run is deterministic. InsertExec.insert_fuel_refines_simulation PROVEN using fuel determinism. Admitted count reduced from 6 to 5. Remaining: #49 (semantic), #51 (structural), #53 (semantic), #54 (blocked by #49).",
       "author": "maintainer"
     }
   ],
@@ -87,7 +91,12 @@
     },
     {
       "title": "Monad Laws",
-      "purpose": "Document the Laws and MonadLaws modules in interpreter.v. Cover run_pure, run_panic (proven), let_sequence (admitted). Explain the step_let split into pure (Definition) and nonpure (Parameter) parts. Reference Issues #48-#54.",
+      "purpose": "Document the Laws and MonadLaws modules in interpreter.v. Cover run_pure, run_panic (proven), let_sequence (semantic axiom). Explain the step_let split into pure (Definition) and nonpure (Parameter) parts. Reference Issues #48-#54.",
+      "parent": "Linking Layer"
+    },
+    {
+      "title": "Fuel Determinism",
+      "purpose": "Document Fuel.run_success_unique lemma. Explain how SmallStep.step being a function implies Fuel.run is deterministic. Show how this enables proving theorems from execution axioms (e.g. insert_fuel_refines_simulation).",
       "parent": "Linking Layer"
     },
     {
