@@ -1,8 +1,8 @@
 # Linking Layer Completion Roadmap
 
 **Created:** December 2024  
-**Updated:** December 2024 (PR #57)  
-**Status:** Monad Bind Axiom Added - 2 Admitted Proofs Remaining  
+**Updated:** December 2024 (PR #58)  
+**Status:** Near Complete - 1 Admitted Proof Remaining  
 **Owner:** UBT Formal Verification Team
 
 ---
@@ -11,7 +11,7 @@
 
 The linking layer (`formal/linking/`) bridges translated Rust code to simulation-level proofs. This roadmap tracks what's proven, what's axiomatized, and the path to complete verification.
 
-### Current State (Post PR #57)
+### Current State (Post PR #58)
 
 | Category | Status | Count |
 |----------|--------|-------|
@@ -22,10 +22,16 @@ The linking layer (`formal/linking/`) bridges translated Rust code to simulation
 | Composition Theorems | **Proven** | 18 theorems |
 | Monad Laws | **Complete** | 5 proven, 1 explicit axiom (let_sequence) |
 | Batch Verification | **Infrastructure** | 4 axioms, 6 proven lemmas |
-| Run/Fuel Connection | **Infrastructure** | 2 axioms, 5 proven lemmas |
-| Admitted Proofs | **2 remaining** | See Issues #51, #53 |
+| Run/Fuel Connection | **Complete** | 2 axioms, 6 proven lemmas |
+| Admitted Proofs | **1 remaining** | root_hash_executes_sketch (#53) |
 
-### Recent Progress (PR #57 - Issues #49, #54)
+### Recent Progress (PR #58 - Issue #51)
+
+| Issue | Status | Details |
+|-------|--------|---------|
+| #51 run_fuel_implies_run | **RESOLVED** | Removed redundant lemma, use RunFuelLink.run_fuel_implies_run_v2 |
+
+### Prior Progress (PR #57 - Issues #49, #54)
 
 | Issue | Status | Details |
 |-------|--------|---------|
@@ -33,13 +39,12 @@ The linking layer (`formal/linking/`) bridges translated Rust code to simulation
 | #49 MonadLaws.run_bind_fuel | **PROVEN** | Uses let_sequence axiom |
 | #54 batch_fold_short_circuit | **PROVEN** | Induction + let_sequence |
 
-### Prior Progress (PR #56 - Issues #51, #52)
+### Prior Progress (PR #56 - Issue #52)
 
 | Issue | Status | Details |
 |-------|--------|---------|
 | #52 insert_fuel_refines | **CLOSED** | Fuel.run_success_unique determinism |
-| #51 run_fuel_implies_run | Structural | Logically resolved via RunFuelLink.run_fuel_implies_run_v2 |
-| #53 root_hash_executes_sketch | Semantic Axiom | Closure/trait stepping |
+| #53 root_hash_executes_sketch | Semantic Axiom | Only remaining Admitted |
 
 ### Prior Progress (PR #55 - Issues #48-#54)
 
