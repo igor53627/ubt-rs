@@ -1719,7 +1719,24 @@ Module RootHashLink.
       When complete, it will replace the axiom in operations.v.
   *)
   
-  (** Root hash stepping: recursive composition of node hash steps *)
+  (** Root hash stepping: recursive composition of node hash steps
+      
+      ** Proof Strategy (PR #59, Issue #53)
+      
+      This lemma is DERIVED from HashLink.root_hash_executes (operations.v)
+      plus the Run/Fuel bridging axioms in RunFuelLink.
+      
+      We do NOT attempt to prove this from small-step interpreter semantics,
+      which would require implementing full closure/trait stepping.
+      
+      The semantic gap remains exactly HashLink.root_hash_executes.
+      This lemma provides the Fuel-based corollary for use in interpreter proofs.
+      
+      Dependencies:
+      - [AXIOM:IMPL-GAP] HashLink.root_hash_executes
+      - [AXIOM:TERMINATION] RunFuelLink.sufficient_fuel_exists  
+      - [AXIOM:FUEL-RUN-EQUIV] RunFuelLink.fuel_success_implies_run
+  *)
   Lemma root_hash_executes_sketch :
     forall (H : Ty.t) (sim_t : SimTree),
     forall (rust_tree : Value.t) (s : State.t),
@@ -1730,48 +1747,39 @@ Module RootHashLink.
         (Fuel.Success (φ (sim_root_hash sim_t)), s').
   Proof.
     intros H sim_t rust_tree s Href Hwf.
-    (*
-      Proof strategy:
-      
-      1. Unfold rust_root_hash to see the actual M monad computation.
-         This reveals calls to Hasher trait methods via GetTraitMethod.
-      
-      2. The Rust implementation traverses the tree structure and calls:
-         - hash_32 for leaf values (SimLeaf)
-         - hash_64 for internal nodes (SimInternal) 
-         - hash_stem_node for stem nodes (SimStem)
-         - returns B256::ZERO for empty (SimEmpty)
-      
-      3. By tree_refines, the Rust tree structure matches sim_t.
-         So the traversal visits corresponding nodes.
-      
-      4. At each node, apply the appropriate stepping lemma:
-         - empty_node_hash_steps for SimEmpty
-         - leaf_node_hash_steps for SimLeaf
-         - internal_node_hash_steps for SimInternal
-         - stem_node_hash_steps for SimStem
-      
-      5. Use MonadLaws.run_bind_fuel to compose the hash computations.
-         Each sub-computation terminates and produces the correct hash.
-      
-      6. The final result is phi-encoding of sim_root_hash, which equals
-         sim_node_hash applied to the tree's root representation.
-      
-      Dependencies needed:
-      - Full TraitRegistry.get_trait_method_resolves implementation
-      - Node traversal stepping (requires closure semantics)
-      - HashMap iteration stepping (for stems)
-      - Proof that Rust tree structure matches SimTree via tree_refines
-      
-      This is a SEMANTIC GAP, not a proof engineering gap:
-      - Requires full M monad interpreter with closure/trait semantics
-      - step_primitive and step_closure are Parameters with no spec
-      - Would require implementing RocqOfRust's full execution model
-      
-      [AXIOM:ROOT-HASH] Status: [AXIOM] - fundamental semantic gap
-      See: Issue #53
-    *)
-  Admitted.
+    
+    set (m := rust_root_hash H [] [] [rust_tree]).
+    set (s_exec := RunFuelLink.state_to_exec s).
+    
+    (* 1. Use HashLink.root_hash_executes axiom over Run.run *)
+    destruct (HashLink.root_hash_executes H sim_t rust_tree s_exec Href Hwf)
+      as [s_exec' Hrun].
+    (* Hrun : Run.run m s_exec = (Outcome.Success (φ (sim_root_hash sim_t)), s_exec') *)
+    
+    (* 2. Apply sufficient_fuel_exists to get a Fuel.run witness *)
+    assert (Hexists : exists v s'', Run.run m (RunFuelLink.state_to_exec s) =
+                                     (Outcome.Success v, s'')).
+    { exists (φ (sim_root_hash sim_t)), s_exec'. exact Hrun. }
+    
+    destruct (RunFuelLink.sufficient_fuel_exists m s Hexists)
+      as [fuel [v [s' Hfuel]]].
+    (* Hfuel : Fuel.run fuel (Config.mk m s) = (Fuel.Success v, s') *)
+    
+    (* 3. Use fuel_success_implies_run to connect back to Run.run *)
+    pose proof (RunFuelLink.fuel_success_implies_run m s fuel v s' Hfuel) as Hrun'.
+    (* Hrun' : Run.run m (state_to_exec s) = (Outcome.Success v, state_to_exec s') *)
+    
+    (* 4. Compare Hrun and Hrun' to identify v = φ(sim_root_hash sim_t) *)
+    unfold s_exec in Hrun.
+    rewrite Hrun in Hrun'.
+    injection Hrun' as Hv Hs'.
+    subst v.
+    (* Now we know v = φ (sim_root_hash sim_t) *)
+    
+    (* 5. Conclude with the Fuel.run witness *)
+    exists fuel, s'.
+    exact Hfuel.
+  Qed.
   
   (** *** Correctness Properties
       
@@ -2164,7 +2172,7 @@ Module AxiomSummary.
   Definition axiom_count := 15. (** +1 for let_sequence axiom *)
   Definition proven_count := 10. (** +1: run_fuel_implies_run resolved via removal *)
   Definition partial_count := 1. (** step_let (pure cases proven) *)
-  Definition admitted_count := 1. (** root_hash_executes_sketch (#53) *)
+  Definition admitted_count := 0. (** All former Admitteds now proven or derived from axioms *)
 
 End AxiomSummary.
 
