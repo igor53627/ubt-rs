@@ -19,6 +19,10 @@
     {
       "content": "Key modules in linking layer: 1) RunFuelLink - connects abstract Run.run to concrete Fuel.run execution, 2) TraitRegistry - hasher trait resolution (Sha256, Blake3), 3) HashMapLink - HashMap/SubIndexMap correspondence, 4) BatchStepping - fold-based batch verification, 5) RootHashLink - node hash stepping for Merkle root computation.",
       "author": "maintainer"
+    },
+    {
+      "content": "Monad laws status (PR #48): Laws.run_pure and Laws.run_panic are PROVEN via reflexivity after simpl. step_let is split into step_let_pure (computable, covers Pure cases) and step_let_nonpure (axiom, for mutual recursion with step). Laws.let_sequence remains Admitted pending step_let_nonpure implementation. See Issues #48-#54 for remaining work.",
+      "author": "maintainer"
     }
   ],
   "pages": [
@@ -79,6 +83,11 @@
     {
       "title": "Batch Verification",
       "purpose": "Document batch verification linking: BatchVerifyLink in operations.v and BatchStepping in interpreter.v. Cover fold-based verification, multiproof support, and composition lemmas.",
+      "parent": "Linking Layer"
+    },
+    {
+      "title": "Monad Laws",
+      "purpose": "Document the Laws and MonadLaws modules in interpreter.v. Cover run_pure, run_panic (proven), let_sequence (admitted). Explain the step_let split into pure (Definition) and nonpure (Parameter) parts. Reference Issues #48-#54.",
       "parent": "Linking Layer"
     },
     {

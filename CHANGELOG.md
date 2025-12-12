@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Monad Law Proofs** (PR #48, Issues #48-#54)
+  - Laws.run_pure and Laws.run_panic fully proven
+  - MonadLaws.run_pure_proven and run_panic_proven completed
+  - step_let split into step_let_pure (proven) + step_let_nonpure (axiom)
+  - Created GitHub issues #48-#54 for remaining Admitted proofs
+
 - **Linking Layer Infrastructure** (PR #47, Issues #40-#46)
   - 5-layer OpExec architecture for structured proof decomposition
   - RunFuelLink module connecting abstract Run.run to concrete Fuel.run
