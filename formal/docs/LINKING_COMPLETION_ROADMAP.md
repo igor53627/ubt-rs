@@ -1,8 +1,8 @@
 # Linking Layer Completion Roadmap
 
 **Created:** December 2024  
-**Updated:** December 2024 (PR #48)  
-**Status:** Monad Laws Partially Proven - 6 Admitted Proofs Remaining  
+**Updated:** December 2024 (PR #56)  
+**Status:** Fuel Determinism Proven - 5 Admitted Proofs Remaining  
 **Owner:** UBT Formal Verification Team
 
 ---
@@ -11,31 +11,38 @@
 
 The linking layer (`formal/linking/`) bridges translated Rust code to simulation-level proofs. This roadmap tracks what's proven, what's axiomatized, and the path to complete verification.
 
-### Current State (Post PR #48)
+### Current State (Post PR #56)
 
 | Category | Status | Count |
 |----------|--------|-------|
 | Type Links | **Complete** | 13 types linked |
 | Refinement Lemmas | **Proven** | 15 lemmas |
-| Execution Axioms | **Partial** | 6 axioms (1 proven: delete_executes) |
+| Execution Axioms | **Partial** | 6 axioms (2 proven: delete_executes, insert_fuel_refines) |
 | Panic Freedom | **Axiomatized** | 4 axioms |
 | Composition Theorems | **Proven** | 18 theorems |
-| Monad Laws | **Partial** | 4 proven, 2 admitted |
+| Monad Laws | **Partial** | 4 proven, 2 semantic axioms |
 | Batch Verification | **Infrastructure** | 4 axioms, 5 proven lemmas |
-| Run/Fuel Connection | **Infrastructure** | 2 axioms, 4 proven lemmas |
-| Admitted Proofs | **6 remaining** | See Issues #48-#54 |
+| Run/Fuel Connection | **Infrastructure** | 2 axioms, 5 proven lemmas |
+| Admitted Proofs | **5 remaining** | See Issues #49, #51, #53, #54 |
 
-### Recent Progress (PR #48 - Issues #48-#54)
+### Recent Progress (PR #56 - Issues #51, #52)
+
+| Issue | Status | Details |
+|-------|--------|---------|
+| #48 Laws.run_pure/panic | **CLOSED** | Reflexivity after simpl |
+| #49 Laws.let_sequence | Semantic Axiom | Blocked on step_let_nonpure |
+| #50 MonadLaws theorems | **CLOSED** | Lifts Laws lemmas |
+| #51 run_fuel_implies_run | Structural | Logically resolved via RunFuelLink.run_fuel_implies_run_v2 |
+| #52 insert_fuel_refines | **CLOSED** | Fuel.run_success_unique determinism |
+| #53 root_hash_executes_sketch | Semantic Axiom | Closure/trait stepping |
+| #54 batch_fold_short_circuit | Semantic Axiom | Blocked by Issue #49 |
+
+### Prior Progress (PR #55 - Issues #48-#54)
 
 | Issue | Status | Details |
 |-------|--------|---------|
 | #48 Laws.run_pure/panic | **PROVEN** | Reflexivity after simpl |
-| #49 Laws.let_sequence | Admitted | Blocked on step_let_nonpure |
 | #50 MonadLaws theorems | **PROVEN** | Lifts Laws lemmas |
-| #51 run_fuel_implies_run | Admitted | State conversion |
-| #52 insert_fuel_refines | Admitted | Fuel determinism |
-| #53 root_hash_executes_sketch | Admitted | Closure/trait stepping |
-| #54 batch_fold_short_circuit | Admitted | M.let_ stepping |
 
 ### Prior Progress (PR #47 - Issues #40-#46)
 
