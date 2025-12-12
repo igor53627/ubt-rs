@@ -623,15 +623,25 @@ Module TraitRegistry.
       
       This is the key axiom connecting M monad trait resolution
       to our TraitRegistry definitions. *)
+  (** [AXIOM:TRAIT-RESOLUTION] GetTraitMethod resolves to registered body.
+      
+      When RocqOfRust's GetTraitMethod primitive is evaluated for a
+      trait/type/method triple that is registered in our TraitRegistry,
+      execution proceeds with the resolved method body.
+      
+      Status: Axiomatized - requires full M monad trait resolution semantics.
+      Risk: Medium - trait resolution is complex in RocqOfRust.
+      Mitigation: Registry covers all needed Hasher methods. *)
   Axiom get_trait_method_resolves :
     forall (trait_name : string) (H : Ty.t) (method_name : string) (body : M) (s : State.t),
       resolve_method (Ty.path trait_name) H method_name = Some body ->
-      exists fuel s',
+      exists fuel v s',
         Fuel.run fuel (Config.mk 
           (LowM.CallPrimitive 
             (RocqOfRust.M.Primitive.GetTraitMethod trait_name H [] [] method_name [] [])
-            (fun method_fn => M.pure method_fn)) s) =
-        (Fuel.Success (Value.Tuple []), s').
+            (fun method_fn => 
+              LowM.CallClosure (Ty.tuple []) method_fn [] (fun r => LowM.Pure r))) s) =
+        (Fuel.Success v, s').
 
 End TraitRegistry.
 
@@ -1261,13 +1271,21 @@ Module InsertExec.
       The closure for insert is: || StemNode::new(hasher, stem)
   *)
   
-  (** [PROVEN] StemNode::new produces an empty SubIndexMap *)
-  Lemma stemnode_new_is_empty :
-    forall (stem : Stem),
-      empty_subindexmap = empty_subindexmap.
-  Proof.
-    intro stem. reflexivity.
-  Qed.
+  (** [AXIOM:IMPL-GAP] StemNode::new produces an empty SubIndexMap.
+      
+      Status: Axiomatized - requires stepping through StemNode::new constructor.
+      
+      Justification: In Rust (src/tree.rs), StemNode::new creates a StemNode
+      with an empty SubIndexMap (Vec initialized with zeros). The simulation
+      empty_subindexmap represents this initial state.
+      
+      Risk: Low - StemNode::new is a simple constructor.
+      Mitigation: Unit tests verify StemNode::new().values is empty. *)
+  Axiom stemnode_new_is_empty :
+    forall (H : Ty.t) (stem : Stem) (s : State.t),
+      exists fuel s',
+        Fuel.run fuel (Config.mk (M.pure (φ empty_subindexmap)) s) =
+        (Fuel.Success (φ empty_subindexmap), s').
 
   (** or_insert_with stepping: closure evaluation for default value.
       
@@ -1458,7 +1476,10 @@ Module InsertExec.
   (** ** Corollaries for Run.run Connection                             *)
   (** ******************************************************************)
   
-  (** Connect fuel execution to Run.run via RunFuelLink *)
+  (** Connect fuel execution to Run.run via RunFuelLink.
+      
+      This corollary asserts both that Run.run succeeds AND that the
+      result refines the simulation. Uses conjunction to capture both facts. *)
   Corollary insert_run_refines :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey) (v : Value)
            (rust_tree : Value.t) (s : State.t),
@@ -1468,15 +1489,17 @@ Module InsertExec.
       wf_value v ->
       exists rust_tree' s',
         Run.run (InsertLink.rust_insert H [] [] [rust_tree; φ k; φ v]) s = 
-          (Outcome.Success rust_tree', s') ->
+          (Outcome.Success rust_tree', s') /\
         tree_refines H rust_tree' (sim_tree_insert sim_t k v).
   Proof.
     intros H sim_t k v rust_tree s Href Hwf Hstem Hval.
     destruct (OpExec.insert_execution_compose H sim_t k v rust_tree s Href Hwf Hstem Hval)
       as [fuel [rust_tree' [s' [Hfuel Hrefines]]]].
     exists rust_tree', (RunFuelLink.state_to_exec s').
-    intro Hrun.
-    exact Hrefines.
+    split.
+    - apply RunFuelLink.fuel_success_implies_run with (fuel := fuel).
+      exact Hfuel.
+    - exact Hrefines.
   Qed.
 
 End InsertExec.

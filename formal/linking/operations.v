@@ -1640,19 +1640,33 @@ Module BatchVerifyLink.
       - rust_root: encoded Bytes32 root hash
       - rust_is_inclusion: bool indicating inclusion vs exclusion mode
   *)
+  
+  (** Helper: decode batch from Value.t to list of proof Value.t *)
+  Parameter decode_batch_proofs : Value.t -> list Value.t.
+  
+  (** Helper: verify a single proof using the Rust verifier *)
+  Parameter rust_verify_single_proof : Ty.t -> Value.t -> Value.t -> M.
+  
+  (** Fold over proofs: verifies each proof and accumulates result *)
+  Fixpoint verify_batch_fold (H : Ty.t) (proofs : list Value.t) 
+    (rust_root : Value.t) (acc : Value.t) : M :=
+    match proofs with
+    | [] => M.pure acc
+    | proof :: rest =>
+        M.let_ (M.pure acc) (fun acc_val =>
+          match acc_val with
+          | Value.Bool false => M.pure (Value.Bool false)
+          | Value.Bool true =>
+              M.let_ (rust_verify_single_proof H proof rust_root) (fun result =>
+                verify_batch_fold H rest rust_root result)
+          | _ => M.panic (Panic.Make "invalid accumulator type")
+          end)
+    end.
+  
   Definition rust_verify_batch (H : Ty.t) 
     (rust_batch : Value.t) (rust_root : Value.t) (rust_is_inclusion : Value.t) : M :=
-    (* Start with accumulator = true *)
-    let init_acc := M.pure (Value.Bool true) in
-    (* For empty batch, return true immediately *)
-    (* For non-empty batch, fold over proofs *)
-    (* This is abstracted since full implementation requires:
-       1. Decoding rust_batch to list of proofs
-       2. Iterating via closure/loop construct
-       3. Calling verify_inclusion_proof for each *)
-    M.let_ init_acc (fun acc =>
-      (* Batch verification succeeds if all proofs verify *)
-      M.pure acc).
+    let proofs := decode_batch_proofs rust_batch in
+    verify_batch_fold H proofs rust_root (Value.Bool true).
 
   (** rust_verify_multiproof: M monad term for multiproof verification.
       
@@ -1662,13 +1676,29 @@ Module BatchVerifyLink.
       2. Reconstruct Merkle tree root from shared nodes
       3. Compare reconstructed root against expected root
   *)
+  
+  (** Helper: extract keys from multiproof *)
+  Parameter multiproof_extract_keys : Value.t -> list Value.t.
+  
+  (** Helper: extract values from multiproof *)  
+  Parameter multiproof_extract_values : Value.t -> list Value.t.
+  
+  (** Helper: extract proof nodes from multiproof *)
+  Parameter multiproof_extract_nodes : Value.t -> list Value.t.
+  
+  (** Helper: reconstruct root from multiproof data *)
+  Parameter multiproof_reconstruct_root : Ty.t -> list Value.t -> list Value.t -> list Value.t -> M.
+  
+  (** Helper: compare two root hashes for equality *)
+  Parameter roots_equal : Value.t -> Value.t -> M.
+  
   Definition rust_verify_multiproof (H : Ty.t)
     (rust_mp : Value.t) (rust_root : Value.t) : M :=
-    (* Extract proof components *)
-    M.let_ (M.pure rust_mp) (fun mp =>
-      (* Verify well-formedness: keys.len() == values.len() *)
-      (* Reconstruct root from nodes and compare *)
-      M.pure (Value.Bool true)).
+    let keys := multiproof_extract_keys rust_mp in
+    let values := multiproof_extract_values rust_mp in
+    let nodes := multiproof_extract_nodes rust_mp in
+    M.let_ (multiproof_reconstruct_root H keys values nodes) (fun reconstructed_root =>
+      roots_equal reconstructed_root rust_root).
 
   (** ** Stepping Lemmas for Batch Operations
       
