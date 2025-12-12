@@ -9,11 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Monad Law Proofs** (PR #48, Issues #48-#54)
+- **Fuel Determinism Lemma** (PR #56, Issue #52)
+  - Fuel.run_success_unique proven by induction on fuel
+  - Uses fact that SmallStep.step is a function (deterministic)
+  - Enables proving theorems from execution axioms
+
+- **Monad Law Proofs** (PR #55, Issues #48-#54)
   - Laws.run_pure and Laws.run_panic fully proven
   - MonadLaws.run_pure_proven and run_panic_proven completed
   - step_let split into step_let_pure (proven) + step_let_nonpure (axiom)
   - Created GitHub issues #48-#54 for remaining Admitted proofs
+
+### Changed
+
+- **InsertExec.insert_fuel_refines_simulation converted from Admitted to Qed** (PR #56, Issue #52)
+  - Proof uses Fuel.run_success_unique determinism lemma
+  - Shows that any successful fuel execution produces simulation-equivalent result
+  - Reduces Admitted count from 6 to 5
+
+- **Semantic gap classification** (PR #56)
+  - Remaining Admitted proofs documented as SEMANTIC GAPS (not proof engineering gaps)
+  - Issue #49: step_let_nonpure has no constraining spec
+  - Issue #53: requires full closure/trait stepping
+  - Issue #54: blocked by Issue #49
+  - Issue #51: structural (module ordering), logically resolved via RunFuelLink.run_fuel_implies_run_v2
 
 - **Linking Layer Infrastructure** (PR #47, Issues #40-#46)
   - 5-layer OpExec architecture for structured proof decomposition
