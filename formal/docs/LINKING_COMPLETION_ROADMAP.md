@@ -1,7 +1,8 @@
 # Linking Layer Completion Roadmap
 
 **Created:** December 2024  
-**Status:** Active Development  
+**Updated:** December 2024 (PR #47)  
+**Status:** Infrastructure Complete - Axioms Remaining  
 **Owner:** UBT Formal Verification Team
 
 ---
@@ -10,16 +11,29 @@
 
 The linking layer (`formal/linking/`) bridges translated Rust code to simulation-level proofs. This roadmap tracks what's proven, what's axiomatized, and the path to complete verification.
 
-### Current State
+### Current State (Post PR #47)
 
 | Category | Status | Count |
 |----------|--------|-------|
-| Type Links | **Complete** | 11 types linked |
-| Refinement Lemmas | **Proven** | 12 lemmas |
-| Execution Axioms | **Axiomatized** | 7 axioms |
+| Type Links | **Complete** | 13 types linked |
+| Refinement Lemmas | **Proven** | 15 lemmas |
+| Execution Axioms | **Partial** | 6 axioms (1 proven: delete_executes) |
 | Panic Freedom | **Axiomatized** | 4 axioms |
-| Composition Theorems | **Proven** | 14 theorems |
-| Monad Laws | **Partial** | 2 proven, 2 axiomatized |
+| Composition Theorems | **Proven** | 18 theorems |
+| Monad Laws | **Partial** | 3 proven, 1 axiomatized |
+| Batch Verification | **Infrastructure** | 4 axioms, 5 proven lemmas |
+| Run/Fuel Connection | **Infrastructure** | 2 axioms, 4 proven lemmas |
+
+### Recent Progress (PR #47 - Issues #40-#46)
+
+| Issue | Status | Details |
+|-------|--------|---------|
+| #41 get_executes | Infrastructure | 5-layer OpExec architecture |
+| #42 insert_executes | Infrastructure | InsertExec module with entry stepping |
+| #43 delete_executes | **PROVEN** | Reduced to insert with zero32 |
+| #44 root_hash_executes | Infrastructure | TraitRegistry + RootHashLink |
+| #45 Run.run via Fuel.run | Infrastructure | RunFuelLink module |
+| #46 Batch verification | Infrastructure | BatchStepping module |
 
 ---
 

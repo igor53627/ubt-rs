@@ -11,6 +11,14 @@
     {
       "content": "The tree uses a 248-bit key space with stems (31 bytes) and subindices (1 byte). Each stem can hold up to 256 values. The implementation supports both full rebuild mode (O(S log S)) and incremental mode for block execution. Verkle polynomial commitments are planned but cryptographic primitives are currently axiomatized.",
       "author": "maintainer"
+    },
+    {
+      "content": "Linking layer architecture (PR #47): 5-layer OpExec architecture for proof decomposition - L1: Pure stepping (proven), L2: Simulation decomposition (proven), L3: Data structure stepping (axioms), L4: Composition (axioms), L5: Operation theorems (proven from L4). delete_executes is fully proven by reducing to insert with zero32.",
+      "author": "maintainer"
+    },
+    {
+      "content": "Key modules in linking layer: 1) RunFuelLink - connects abstract Run.run to concrete Fuel.run execution, 2) TraitRegistry - hasher trait resolution (Sha256, Blake3), 3) HashMapLink - HashMap/SubIndexMap correspondence, 4) BatchStepping - fold-based batch verification, 5) RootHashLink - node hash stepping for Merkle root computation.",
+      "author": "maintainer"
     }
   ],
   "pages": [
@@ -55,8 +63,23 @@
     },
     {
       "title": "Axiom Audit",
-      "purpose": "Summarize the axiom count (currently 78), categorization (crypto, verkle, linking, spec), and trust assumptions. Reference formal/docs/axiom_audit.md",
+      "purpose": "Summarize the axiom count (currently ~85), categorization (crypto, verkle, linking, spec), and trust assumptions. Reference formal/docs/axiom_audit.md",
       "parent": "Formal Verification"
+    },
+    {
+      "title": "OpExec Architecture",
+      "purpose": "Document the 5-layer OpExec architecture in interpreter.v: Layer 1 (pure stepping), Layer 2 (simulation decomposition), Layer 3 (data structure axioms), Layer 4 (composition axioms), Layer 5 (operation theorems). Explain how delete_executes is proven.",
+      "parent": "Linking Layer"
+    },
+    {
+      "title": "RunFuelLink",
+      "purpose": "Document the RunFuelLink module that connects abstract Run.run (Parameter) to concrete Fuel.run execution. Cover state conversion, sufficient_fuel_exists axiom, and fuel_success_implies_run axiom.",
+      "parent": "Linking Layer"
+    },
+    {
+      "title": "Batch Verification",
+      "purpose": "Document batch verification linking: BatchVerifyLink in operations.v and BatchStepping in interpreter.v. Cover fold-based verification, multiproof support, and composition lemmas.",
+      "parent": "Linking Layer"
     },
     {
       "title": "QuickChick Testing",
