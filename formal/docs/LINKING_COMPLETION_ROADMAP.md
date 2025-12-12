@@ -1,8 +1,8 @@
 # Linking Layer Completion Roadmap
 
 **Created:** December 2024  
-**Updated:** December 2024 (PR #47)  
-**Status:** Infrastructure Complete - Axioms Remaining  
+**Updated:** December 2024 (PR #48)  
+**Status:** Monad Laws Partially Proven - 6 Admitted Proofs Remaining  
 **Owner:** UBT Formal Verification Team
 
 ---
@@ -11,7 +11,7 @@
 
 The linking layer (`formal/linking/`) bridges translated Rust code to simulation-level proofs. This roadmap tracks what's proven, what's axiomatized, and the path to complete verification.
 
-### Current State (Post PR #47)
+### Current State (Post PR #48)
 
 | Category | Status | Count |
 |----------|--------|-------|
@@ -20,11 +20,24 @@ The linking layer (`formal/linking/`) bridges translated Rust code to simulation
 | Execution Axioms | **Partial** | 6 axioms (1 proven: delete_executes) |
 | Panic Freedom | **Axiomatized** | 4 axioms |
 | Composition Theorems | **Proven** | 18 theorems |
-| Monad Laws | **Partial** | 3 proven, 1 axiomatized |
+| Monad Laws | **Partial** | 4 proven, 2 admitted |
 | Batch Verification | **Infrastructure** | 4 axioms, 5 proven lemmas |
 | Run/Fuel Connection | **Infrastructure** | 2 axioms, 4 proven lemmas |
+| Admitted Proofs | **6 remaining** | See Issues #48-#54 |
 
-### Recent Progress (PR #47 - Issues #40-#46)
+### Recent Progress (PR #48 - Issues #48-#54)
+
+| Issue | Status | Details |
+|-------|--------|---------|
+| #48 Laws.run_pure/panic | **PROVEN** | Reflexivity after simpl |
+| #49 Laws.let_sequence | Admitted | Blocked on step_let_nonpure |
+| #50 MonadLaws theorems | **PROVEN** | Lifts Laws lemmas |
+| #51 run_fuel_implies_run | Admitted | State conversion |
+| #52 insert_fuel_refines | Admitted | Fuel determinism |
+| #53 root_hash_executes_sketch | Admitted | Closure/trait stepping |
+| #54 batch_fold_short_circuit | Admitted | M.let_ stepping |
+
+### Prior Progress (PR #47 - Issues #40-#46)
 
 | Issue | Status | Details |
 |-------|--------|---------|
