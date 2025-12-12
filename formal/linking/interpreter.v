@@ -381,23 +381,13 @@ Module FuelExec.
 
   (** Connection to Run.run from operations.v 
       
-      [RESOLVED:Issue #51] This lemma is subsumed by RunFuelLink.run_fuel_implies_run_v2
-      which is proven using the fuel_success_implies_run axiom.
+      [RESOLVED:Issue #51] This functionality is provided by:
+      - RunFuelLink.run_fuel_implies_run_v2 (proven theorem)
+      - RunFuelLink.fuel_success_implies_run (axiom)
       
-      Due to module ordering (RunFuelLink defines the axiom after FuelExec),
-      this is a forward declaration. Use RunFuelLink.run_fuel_implies_run_v2 
-      directly for new code. This version exists for backwards compatibility.
+      The lemma was removed in PR #58 to eliminate the Admitted.
+      Use RunFuelLink.run_fuel_implies_run_v2 for this functionality.
   *)
-  Lemma run_fuel_implies_run :
-    forall m s fuel v s',
-      Fuel.run fuel (Config.mk m s) = (Fuel.Success v, s') ->
-      Run.run m (convert_state s) = (Success v, convert_state s').
-  Proof.
-    (* [AXIOM:RUN-FUEL] Forward declaration - proof in RunFuelLink.run_fuel_implies_run_v2.
-       The axiom fuel_success_implies_run is defined in RunFuelLink module below.
-       Module ordering prevents direct reference here.
-       Status: Logically resolved, structurally Admitted due to Coq module constraints. *)
-  Admitted.
 
 End FuelExec.
 
@@ -2151,8 +2141,9 @@ Module AxiomSummary.
       [x] PROVEN (Issue #54 - batch short-circuit):
       - BatchStepping.batch_fold_short_circuit - proven via let_sequence + induction
       
-      [ ] STRUCTURAL ADMITTED (module ordering - Issue #51):
-      - FuelExec.run_fuel_implies_run - logically resolved via RunFuelLink.run_fuel_implies_run_v2
+      [x] RESOLVED (Issue #51 - run_fuel_implies_run):
+      - FuelExec.run_fuel_implies_run removed (was redundant)
+      - Use RunFuelLink.run_fuel_implies_run_v2 instead (proven)
       
       [ ] SEMANTIC AXIOM (requires closure/trait stepping):
       - RootHashLink.root_hash_executes_sketch (Issue #53)
@@ -2165,17 +2156,15 @@ Module AxiomSummary.
       - NewLink.new_executes, HashLink.root_hash_executes
       - BatchVerifyLink.* axioms
       
-      IMPLEMENTATION STATUS (PR #57):
-      - Laws.let_sequence: promoted to [AXIOM:MONAD-BIND]
-      - MonadLaws.run_bind_fuel: PROVEN using let_sequence
-      - BatchStepping.batch_fold_short_circuit: PROVEN via induction + let_sequence
-      - Admitted count reduced from 5 to 3
+      IMPLEMENTATION STATUS (PR #58):
+      - FuelExec.run_fuel_implies_run: REMOVED (use RunFuelLink.run_fuel_implies_run_v2)
+      - Admitted count reduced from 2 to 1
   *)
   
   Definition axiom_count := 15. (** +1 for let_sequence axiom *)
-  Definition proven_count := 9.  (** +3: run_bind_fuel, batch_fold_short_circuit, let_sequence now explicit axiom *)
+  Definition proven_count := 10. (** +1: run_fuel_implies_run resolved via removal *)
   Definition partial_count := 1. (** step_let (pure cases proven) *)
-  Definition admitted_count := 2. (** run_fuel_implies_run (#51), root_hash_executes_sketch (#53) *)
+  Definition admitted_count := 1. (** root_hash_executes_sketch (#53) *)
 
 End AxiomSummary.
 

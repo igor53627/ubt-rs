@@ -9,12 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Remove Redundant Admitted** (PR #58, Issue #51)
+  - FuelExec.run_fuel_implies_run removed (was duplicate of RunFuelLink.run_fuel_implies_run_v2)
+  - Use RunFuelLink.run_fuel_implies_run_v2 for fuel-to-run connection
+  - Reduces Admitted count from 2 to 1
+  - Only remaining Admitted: root_hash_executes_sketch (#53)
+
 - **Monad Bind Axiom** (PR #57, Issues #49, #54)
   - Laws.let_sequence promoted to explicit [AXIOM:MONAD-BIND]
   - Standard monad law: running m then f equals running (M.let_ m f)
   - MonadLaws.run_bind_fuel now PROVEN using let_sequence
   - BatchStepping.batch_fold_short_circuit PROVEN via induction + let_sequence
-  - Reduces Admitted count from 5 to 2
 
 - **Fuel Determinism Lemma** (PR #56, Issue #52)
   - Fuel.run_success_unique proven by induction on fuel
@@ -33,10 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Proof uses Fuel.run_success_unique determinism lemma
   - Shows that any successful fuel execution produces simulation-equivalent result
 
-- **Semantic gap classification** (PR #56, #57)
-  - Remaining Admitted proofs: 2 (down from 10 initially)
-  - Issue #51: structural (module ordering), logically resolved via RunFuelLink.run_fuel_implies_run_v2
-  - Issue #53: requires full closure/trait stepping
+- **Semantic gap classification** (PR #56, #57, #58)
+  - Remaining Admitted proofs: 1 (down from 10 initially)
+  - Issue #51: RESOLVED - redundant lemma removed
+  - Issue #53: requires full closure/trait stepping (only remaining Admitted)
 
 - **Linking Layer Infrastructure** (PR #47, Issues #40-#46)
   - 5-layer OpExec architecture for structured proof decomposition
