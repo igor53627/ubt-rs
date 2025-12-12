@@ -20,6 +20,10 @@ The linking layer (`formal/linking/`) bridges translated Rust code to simulation
 | Panic Freedom | **Axiomatized** | 4 axioms |
 | Composition Theorems | **Proven** | 14 theorems |
 | Monad Laws | **Partial** | 2 proven, 2 axiomatized |
+| TraitRegistry | **Complete** | 2 hasher instances |
+| HashMap Decode | **Complete** | 5 decode functions + axioms |
+
+**Build Status (Dec 2024):** All files compile. Audit: 7 Admitted, 220 Axioms, 88 Parameters, 6 admit tactics.
 
 ---
 
@@ -150,7 +154,7 @@ These axioms are the primary verification gap. They require a full M monad inter
 ### 4.1 M Monad Interpreter (Critical Path)
 
 **Location:** `linking/interpreter.v`, `linking/monad.v`  
-**Effort:** High (40-60 hours)  
+**Effort:** Medium (25-40 hours remaining)  
 **Dependencies:** RocqOfRust library semantics
 
 | Component | Status | Notes |
@@ -160,34 +164,49 @@ These axioms are the primary verification gap. They require a full M monad inter
 | Pure/panic handling | Complete | `Laws.run_pure`, `Laws.run_panic` |
 | Let binding | Partial | `Laws.let_sequence` admitted |
 | Closure semantics | Stub | Needs full implementation |
-| Trait resolution | Stub | `TraitRegistry` skeleton |
+| Trait resolution | **Complete** | `TraitRegistry` with hasher instances |
 | State operations | Stub | alloc/read/write stubs |
 
 **Tasks:**
 1. Complete `SmallStep.step` for all LowM constructors
-2. Implement `TraitRegistry.resolve_method` with actual Hasher impls
+2. ~~Implement `TraitRegistry.resolve_method` with actual Hasher impls~~ **Done**
 3. Prove `Fuel.sufficient_implies_eval`
 4. Link `Run.run` axioms to fuel-based execution
 
+**Recent Progress (Dec 2024):**
+- `TraitRegistry` now includes full hash method bodies connecting to crypto.v axioms:
+  - `hash_32_body` -> `hash_value`
+  - `hash_64_body` -> `hash_pair`
+  - `hash_stem_node_body` -> `hash_stem`
+- Two hasher instances registered: `Sha256Hasher`, `Blake3Hasher`
+- `resolve_method` and `find_impl` fully implemented
+
 ### 4.2 HashMap Linking (High Priority)
 
-**Location:** New module needed  
-**Effort:** Medium (15-25 hours)  
+**Location:** `linking/interpreter.v:HashMapLink`  
+**Effort:** Low (5-10 hours remaining)  
 **Dependencies:** M monad interpreter
 
 Rust's `HashMap<Stem, StemNode>` must be linked to simulation's `StemMap`.
 
 | Task | Status | Notes |
 |------|--------|-------|
-| HashMap.get stepping | Axiom | `hashmap_get_steps` |
-| HashMap.entry stepping | TODO | Needed for insert |
-| HashMap.insert stepping | TODO | Alternative to entry |
-| SubIndexMap correspondence | Axiom | `subindexmap_get_steps` |
+| Decode functions | **Complete** | `decode_bytes32`, `decode_stem`, `decode_subindex`, `decode_*_map` |
+| Round-trip axioms | **Complete** | `decode_*_correct` for all types |
+| HashMap.get stepping | Axiom | `hashmap_get_refines` |
+| HashMap.entry stepping | Axiom | `hashmap_entry_or_insert_refines` |
+| SubIndexMap.get | Axiom | `subindexmap_get_refines` |
+| SubIndexMap.insert | Axiom | `subindexmap_insert_refines` |
+
+**Recent Progress (Dec 2024):**
+- Added decode functions as Parameters: `decode_bytes32`, `decode_stem`, `decode_subindex_map`, `decode_stem_map`
+- Defined `decode_subindex` directly (matches on `Value.Integer`)
+- Round-trip correctness axioms for all decode functions
 
 **Proof Strategy:**
-1. Define HashMap simulation as association list
-2. Prove HashMap.get = assoc list lookup
-3. Prove HashMap.insert = assoc list update
+1. ~~Define HashMap simulation as association list~~ (using existing StemMap)
+2. Prove HashMap.get = assoc list lookup (axiomatized as `hashmap_get_refines`)
+3. Prove HashMap.insert = assoc list update (axiomatized as `subindexmap_insert_refines`)
 4. Connect via StemMap/SubIndexMap links
 
 ### 4.3 Closure Semantics (Medium Priority)
@@ -202,18 +221,20 @@ Rust's `HashMap<Stem, StemNode>` must be linked to simulation's `StemMap`.
 | Closure application | Stub | Needs body execution |
 | Captured variable handling | TODO | Environment semantics |
 
-### 4.4 Hasher Trait Linking (Medium Priority)
+### 4.4 Hasher Trait Linking (Complete)
 
 **Location:** `linking/interpreter.v:TraitRegistry`  
-**Effort:** Medium (10-15 hours)  
+**Effort:** Complete (0 hours remaining)  
 **Dependencies:** Hash function axioms
 
 | Task | Status | Notes |
 |------|--------|-------|
-| Register PoseidonHasher | TODO | Populate instances list |
-| Register Keccak256Hasher | TODO | Populate instances list |
-| Method resolution | Skeleton | find_impl, resolve_method |
-| Hash computation correspondence | TODO | Link hash_value, hash_pair |
+| Register Sha256Hasher | **Complete** | `sha256_hasher_instance` |
+| Register Blake3Hasher | **Complete** | `blake3_hasher_instance` |
+| Method resolution | **Complete** | `find_impl`, `resolve_method` |
+| Hash computation correspondence | **Complete** | `hash_32_body`->`hash_value`, `hash_64_body`->`hash_pair`, `hash_stem_node_body`->`hash_stem` |
+
+**Note:** Additional hashers (PoseidonHasher, Keccak256Hasher) can be added using `register_hasher` utility.
 
 ### 4.5 Panic Analysis Automation (Low Priority)
 
@@ -270,12 +291,12 @@ Currently panic freedom is axiomatized based on code inspection. Could be automa
 
 | Component | Effort (hours) | Risk | Priority |
 |-----------|----------------|------|----------|
-| M monad interpreter | 40-60 | High | Critical |
-| HashMap linking | 15-25 | Medium | High |
+| M monad interpreter | 25-40 | Medium | Critical |
+| HashMap linking | 5-10 | Low | High |
 | Closure semantics | 10-15 | Medium | Medium |
-| Hasher trait linking | 10-15 | Low | Medium |
+| Hasher trait linking | ~~10-15~~ **Complete** | - | - |
 | Panic automation | 5-10 | Low | Low |
-| **Total** | **80-125** | - | - |
+| **Total** | **45-75** | - | - |
 
 ### 6.2 Phased Approach
 
@@ -340,6 +361,9 @@ Currently panic freedom is axiomatized based on code inspection. Could be automa
 |--------------|------------|------|
 | `run_pure` | Laws.run_pure (proven) | Dec 2024 |
 | `run_panic` | Laws.run_panic (proven) | Dec 2024 |
+| `wf_stem_encoding_length` | Proven with `bytes_to_array_length` helper | Dec 2024 |
+| `treekey_encoding_preserves_components` | Proven | Dec 2024 |
+| `simtree_encoding_preserves_stems` | Proven | Dec 2024 |
 
 ### 8.2 Axioms Pending Conversion
 

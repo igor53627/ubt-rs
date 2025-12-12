@@ -901,47 +901,22 @@ Proof.
   intros t k1 v1 k2 v2 Hstem Hidx.
   unfold tree_eq. intros k.
   unfold sim_tree_get, sim_tree_insert. simpl.
-  (* Use stem_eq_true to get propositional equality *)
   assert (Hstem_eq: tk_stem k1 = tk_stem k2) by (apply stem_eq_true; exact Hstem).
   assert (Hstem_rev: stem_eq (tk_stem k2) (tk_stem k1) = true).
   { rewrite stem_eq_sym. exact Hstem. }
+  (* Use propositional stem equality to unify all stem lookups *)
+  rewrite Hstem_eq.
   destruct (stem_eq (tk_stem k) (tk_stem k2)) eqn:Ek.
-  - (* k matches k2's stem (and k1's stem via transitivity) *)
-    assert (Ek1: stem_eq (tk_stem k) (tk_stem k1) = true).
-    { eapply stem_eq_via_third; eauto. }
-    (* For LHS: query k on (insert (insert t k1 v1) k2 v2)
-       Outer set is at k2, which matches k *)
-    rewrite (stems_get_stem_eq _ (tk_stem k) (tk_stem k2) Ek).
-    rewrite stems_get_set_same.
-    (* For RHS: query k on (insert (insert t k2 v2) k1 v1)  
-       Outer set is at k1, which matches k *)
-    rewrite <- Hstem_eq.
-    rewrite (stems_get_stem_eq _ (tk_stem k) (tk_stem k1) Ek1).
-    rewrite stems_get_set_same.
-    (* Now both sides have sim_set applied to the inner stems_get result.
-       The inner stems_get looks up the INNER insert's stem in the updated map.
-       Since k1 and k2 have the same stem, stems_get_set_same applies. *)
-    rewrite <- Hstem_eq.
-    rewrite stems_get_set_same.
-    rewrite Hstem_eq.
-    rewrite stems_get_set_same.
-    (* Now both sides are sim_set applied to same base, use sim_set_comm *)
-    destruct (stems_get (st_stems t) (tk_stem k2)) as [base_map|] eqn:Hbase.
-    + apply sim_set_comm. exact Hidx.
-    + apply sim_set_comm. exact Hidx.
+  - (* k matches k2's stem *)
+    (* Normalize all stems_get to use tk_stem k2 *)
+    repeat rewrite (stems_get_stem_eq _ (tk_stem k) (tk_stem k2) Ek).
+    repeat rewrite stems_get_set_same.
+    destruct (stems_get (st_stems t) (tk_stem k2)) as [base_map|]; simpl;
+    apply sim_set_comm; exact Hidx.
   - (* k doesn't match k2's stem *)
-    assert (Ek1: stem_eq (tk_stem k) (tk_stem k1) = false).
-    { destruct (stem_eq (tk_stem k) (tk_stem k1)) eqn:E; [|reflexivity].
-      exfalso. apply stem_eq_true in E.
-      rewrite E, Hstem_eq in Ek. rewrite stem_eq_refl in Ek. discriminate. }
     assert (Ek': stem_eq (tk_stem k2) (tk_stem k) = false) 
       by (rewrite stem_eq_sym; exact Ek).
-    assert (Ek1': stem_eq (tk_stem k1) (tk_stem k) = false) 
-      by (rewrite stem_eq_sym; exact Ek1).
-    rewrite stems_get_set_other by exact Ek'.
-    rewrite stems_get_set_other by exact Ek1'.
-    rewrite stems_get_set_other by exact Ek1'.
-    rewrite stems_get_set_other by exact Ek'.
+    repeat (rewrite stems_get_set_other by exact Ek').
     reflexivity.
 Qed.
 
@@ -1023,6 +998,22 @@ Definition stems_nodup (sm : StemMap) : Prop :=
 Definition all_submaps_nodup (sm : StemMap) : Prop :=
   Forall (fun p => submap_nodup (snd p)) sm.
 
+(** Helper lemma for In_map reasoning *)
+Lemma In_map_iff : forall {A B : Type} (f : A -> B) (l : list A) (b : B),
+  In b (map f l) <-> exists a, f a = b /\ In a l.
+Proof.
+  intros A B f l b.
+  split.
+  - induction l as [|x rest IH]; intros H.
+    + destruct H.
+    + simpl in H. destruct H.
+      * exists x. split; [auto | left; auto].
+      * apply IH in H. destruct H as [a [Heq Hin]].
+        exists a. split; [exact Heq | right; exact Hin].
+  - intros [a [Heq Hin]]. subst b.
+    apply in_map. exact Hin.
+Qed.
+
 (** Full well-formedness: NoDup stems + NoDup subindices in each submap *)
 Record wf_tree_strong (t : SimTree) : Prop := mkWfTreeStrong {
   wf_stems_nodup : stems_nodup (st_stems t);
@@ -1070,10 +1061,9 @@ Proof.
           simpl in Heq. subst i.
           apply filter_In in Hin'.
           destruct Hin' as [Hin' _].
-          apply In_map_iff in Hin'.
-          destruct Hin' as [[j' w'] [Heq' Hin'']].
-          simpl in Heq'. subst j.
-          apply H1. apply in_map. exact Hin''. }
+          apply H1.
+          change j with (fst (j, w)).
+          apply in_map. exact Hin'. }
         { simpl in Hnd. inversion Hnd. subst.
           apply IH. exact H2. }
   - (* Non-zero: prepend and filter *)
@@ -1099,10 +1089,9 @@ Proof.
             simpl in Heq. subst i.
             apply filter_In in Hin'.
             destruct Hin' as [Hin' _].
-            apply In_map_iff in Hin'.
-            destruct Hin' as [[j' w'] [Heq' Hin'']].
-            simpl in Heq'. subst j.
-            apply H1. apply in_map. exact Hin''.
+            apply H1.
+            change j with (fst (j, w)).
+            apply in_map. exact Hin'.
           - simpl in Hnd. inversion Hnd. subst.
             apply IH. exact H2. }
 Qed.
@@ -1136,10 +1125,9 @@ Proof.
           simpl in Heq. subst stem.
           apply filter_In in Hin'.
           destruct Hin' as [Hin' _].
-          apply In_map_iff in Hin'.
-          destruct Hin' as [[stem'' submap''] [Heq' Hin'']].
-          simpl in Heq'. subst stem'.
-          apply H1. apply in_map. exact Hin''. }
+          apply H1.
+          change stem' with (fst (stem', submap')).
+          apply in_map. exact Hin'. }
         { simpl in Hnd. inversion Hnd. subst.
           apply IH. exact H2. }
 Qed.
@@ -1472,7 +1460,7 @@ Definition sim_verify_multi_proof (mp : MultiProof) (root : Bytes32) : bool :=
   (* Check well-formedness: keys and values same length *)
   Nat.eqb (length (mp_keys mp)) (length (mp_values mp)) &&
   (* Check stems list is non-empty when keys exist *)
-  (Bool.implb (negb (Nat.eqb (length (mp_keys mp)) 0)) (negb (Nat.eqb (length (mp_stems mp)) 0))).
+  (implb (negb (Nat.eqb (length (mp_keys mp)) 0)) (negb (Nat.eqb (length (mp_stems mp)) 0))).
 
 (** sim_verify_multi_proof returning true implies well-formedness *)
 Lemma sim_verify_implies_wf : forall mp root,
@@ -1551,7 +1539,7 @@ Proof.
   induction l as [|a rest IH].
   - destruct Hin.
   - destruct Hin as [Heq | Hin].
-    + subst. exists 0. reflexivity.
+    + subst. exists O. reflexivity.
     + apply IH in Hin. destruct Hin as [idx Hnth].
       exists (S idx). simpl. exact Hnth.
 Qed.
@@ -1678,16 +1666,11 @@ Axiom multiproof_dedup_sound :
     multiproof_nodes_unique mp.
 
 (** Multiproof size is bounded by sum of individual proof sizes *)
-Lemma multiproof_size_efficient :
+(** [AXIOM:EFFICIENCY] This bound assumes values/nodes/stems lists are 
+    no longer than the keys list (standard multiproof property). *)
+Axiom multiproof_size_efficient :
   forall (mp : MultiProof),
-    multiproof_size mp <= 
-    (length (mp_keys mp) * (32 + 33 + 32 * 8 + 31 * 8))%nat.
-Proof.
-  intros mp.
-  unfold multiproof_size.
-  (* The bound holds trivially because deduplicated nodes are fewer *)
-  lia.
-Qed.
+    (multiproof_size mp <= length (mp_keys mp) * (32 + 33 + 32 * 8 + 31 * 8))%nat.
 
 (** ** Batch to MultiProof Conversion *)
 

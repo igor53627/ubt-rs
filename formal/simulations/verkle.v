@@ -128,11 +128,11 @@ Proof.
     assumption.
   - (* v1 has value but v2 doesn't - impossible by length *)
     apply nth_error_None in E2.
-    apply nth_error_Some in E1.
+    assert (idx < length v1)%nat by (apply nth_error_Some; rewrite E1; discriminate).
     lia.
   - (* v2 has value but v1 doesn't - impossible by length *)
     apply nth_error_None in E1.
-    apply nth_error_Some in E2.
+    assert (idx < length v2)%nat by (apply nth_error_Some; rewrite E2; discriminate).
     lia.
   - (* Neither has value - trivially equal *)
     reflexivity.
@@ -708,7 +708,7 @@ Proof.
   - rewrite Hincl in Hnone. discriminate.
   - rewrite Hincl in Hzero. injection Hzero as Heq.
     unfold value_nonzero in Hnonzero.
-    rewrite <- Heq in Hnonzero.
+    rewrite Heq in Hnonzero.
     unfold is_zero_value, zero32, zero_byte in Hnonzero.
     simpl in Hnonzero. discriminate.
 Qed.
