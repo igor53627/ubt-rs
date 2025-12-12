@@ -29,7 +29,11 @@
       "author": "maintainer"
     },
     {
-      "content": "Monad bind axiom (PR #57): Laws.let_sequence promoted to explicit [AXIOM:MONAD-BIND]. MonadLaws.run_bind_fuel PROVEN using axiom. BatchStepping.batch_fold_short_circuit PROVEN via induction + let_sequence. Admitted reduced from 5 to 2. Remaining: #51 (structural), #53 (closure/trait stepping).",
+      "content": "Monad bind axiom (PR #57): Laws.let_sequence promoted to explicit [AXIOM:MONAD-BIND]. MonadLaws.run_bind_fuel PROVEN using axiom. BatchStepping.batch_fold_short_circuit PROVEN via induction + let_sequence.",
+      "author": "maintainer"
+    },
+    {
+      "content": "Final cleanup (PR #58): FuelExec.run_fuel_implies_run REMOVED (was duplicate of RunFuelLink.run_fuel_implies_run_v2). Admitted reduced from 2 to 1. Only remaining: root_hash_executes_sketch (#53) - requires full closure/trait stepping.",
       "author": "maintainer"
     }
   ],
