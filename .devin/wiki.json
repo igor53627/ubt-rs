@@ -33,7 +33,11 @@
       "author": "maintainer"
     },
     {
-      "content": "Final cleanup (PR #58): FuelExec.run_fuel_implies_run REMOVED (was duplicate of RunFuelLink.run_fuel_implies_run_v2). Admitted reduced from 2 to 1. Only remaining: root_hash_executes_sketch (#53) - requires full closure/trait stepping.",
+      "content": "Prior cleanup (PR #58): FuelExec.run_fuel_implies_run REMOVED (was duplicate of RunFuelLink.run_fuel_implies_run_v2). Admitted reduced from 2 to 1.",
+      "author": "maintainer"
+    },
+    {
+      "content": "Zero Admitted achieved (PR #59): RootHashLink.root_hash_executes_sketch PROVEN by deriving from HashLink.root_hash_executes + Run/Fuel bridging axioms. Semantic gap remains at HashLink.root_hash_executes axiom (operations.v). Admitted count: 0 (down from 10 initially).",
       "author": "maintainer"
     }
   ],

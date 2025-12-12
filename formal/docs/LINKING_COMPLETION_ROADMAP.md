@@ -1,8 +1,8 @@
 # Linking Layer Completion Roadmap
 
 **Created:** December 2024  
-**Updated:** December 2024 (PR #58)  
-**Status:** Near Complete - 1 Admitted Proof Remaining  
+**Updated:** December 2024 (PR #59)  
+**Status:** COMPLETE - Zero Admitted Proofs  
 **Owner:** UBT Formal Verification Team
 
 ---
@@ -11,21 +11,27 @@
 
 The linking layer (`formal/linking/`) bridges translated Rust code to simulation-level proofs. This roadmap tracks what's proven, what's axiomatized, and the path to complete verification.
 
-### Current State (Post PR #58)
+### Current State (Post PR #59)
 
 | Category | Status | Count |
 |----------|--------|-------|
 | Type Links | **Complete** | 13 types linked |
 | Refinement Lemmas | **Proven** | 15 lemmas |
-| Execution Axioms | **Partial** | 6 axioms (2 proven: delete_executes, insert_fuel_refines) |
+| Execution Axioms | **Partial** | 6 axioms (3 proven: delete_executes, insert_fuel_refines, root_hash_executes_sketch) |
 | Panic Freedom | **Axiomatized** | 4 axioms |
 | Composition Theorems | **Proven** | 18 theorems |
 | Monad Laws | **Complete** | 5 proven, 1 explicit axiom (let_sequence) |
 | Batch Verification | **Infrastructure** | 4 axioms, 6 proven lemmas |
 | Run/Fuel Connection | **Complete** | 2 axioms, 6 proven lemmas |
-| Admitted Proofs | **1 remaining** | root_hash_executes_sketch (#53) |
+| Admitted Proofs | **0 remaining** | All resolved |
 
-### Recent Progress (PR #58 - Issue #51)
+### Recent Progress (PR #59 - Issue #53)
+
+| Issue | Status | Details |
+|-------|--------|---------|
+| #53 root_hash_executes_sketch | **PROVEN** | Derived from HashLink.root_hash_executes + Run/Fuel axioms |
+
+### Prior Progress (PR #58 - Issue #51)
 
 | Issue | Status | Details |
 |-------|--------|---------|
@@ -44,7 +50,6 @@ The linking layer (`formal/linking/`) bridges translated Rust code to simulation
 | Issue | Status | Details |
 |-------|--------|---------|
 | #52 insert_fuel_refines | **CLOSED** | Fuel.run_success_unique determinism |
-| #53 root_hash_executes_sketch | Semantic Axiom | Only remaining Admitted |
 
 ### Prior Progress (PR #55 - Issues #48-#54)
 
