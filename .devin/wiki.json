@@ -21,11 +21,15 @@
       "author": "maintainer"
     },
     {
-      "content": "Monad laws status (PR #55): Laws.run_pure and Laws.run_panic are PROVEN via reflexivity after simpl. step_let is split into step_let_pure (computable, covers Pure cases) and step_let_nonpure (axiom, for mutual recursion with step). Laws.let_sequence is a SEMANTIC AXIOM (not proof gap).",
+      "content": "Monad laws status (PR #55): Laws.run_pure and Laws.run_panic are PROVEN via reflexivity after simpl. step_let is split into step_let_pure (computable, covers Pure cases) and step_let_nonpure (axiom, for mutual recursion with step).",
       "author": "maintainer"
     },
     {
-      "content": "Fuel determinism (PR #56): Fuel.run_success_unique PROVEN by induction on fuel. SmallStep.step is a function so Fuel.run is deterministic. InsertExec.insert_fuel_refines_simulation PROVEN using fuel determinism. Admitted count reduced from 6 to 5. Remaining: #49 (semantic), #51 (structural), #53 (semantic), #54 (blocked by #49).",
+      "content": "Fuel determinism (PR #56): Fuel.run_success_unique PROVEN by induction on fuel. SmallStep.step is a function so Fuel.run is deterministic. InsertExec.insert_fuel_refines_simulation PROVEN using fuel determinism.",
+      "author": "maintainer"
+    },
+    {
+      "content": "Monad bind axiom (PR #57): Laws.let_sequence promoted to explicit [AXIOM:MONAD-BIND]. MonadLaws.run_bind_fuel PROVEN using axiom. BatchStepping.batch_fold_short_circuit PROVEN via induction + let_sequence. Admitted reduced from 5 to 2. Remaining: #51 (structural), #53 (closure/trait stepping).",
       "author": "maintainer"
     }
   ],

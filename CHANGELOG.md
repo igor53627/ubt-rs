@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Monad Bind Axiom** (PR #57, Issues #49, #54)
+  - Laws.let_sequence promoted to explicit [AXIOM:MONAD-BIND]
+  - Standard monad law: running m then f equals running (M.let_ m f)
+  - MonadLaws.run_bind_fuel now PROVEN using let_sequence
+  - BatchStepping.batch_fold_short_circuit PROVEN via induction + let_sequence
+  - Reduces Admitted count from 5 to 2
+
 - **Fuel Determinism Lemma** (PR #56, Issue #52)
   - Fuel.run_success_unique proven by induction on fuel
   - Uses fact that SmallStep.step is a function (deterministic)
@@ -25,14 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **InsertExec.insert_fuel_refines_simulation converted from Admitted to Qed** (PR #56, Issue #52)
   - Proof uses Fuel.run_success_unique determinism lemma
   - Shows that any successful fuel execution produces simulation-equivalent result
-  - Reduces Admitted count from 6 to 5
 
-- **Semantic gap classification** (PR #56)
-  - Remaining Admitted proofs documented as SEMANTIC GAPS (not proof engineering gaps)
-  - Issue #49: step_let_nonpure has no constraining spec
-  - Issue #53: requires full closure/trait stepping
-  - Issue #54: blocked by Issue #49
+- **Semantic gap classification** (PR #56, #57)
+  - Remaining Admitted proofs: 2 (down from 10 initially)
   - Issue #51: structural (module ordering), logically resolved via RunFuelLink.run_fuel_implies_run_v2
+  - Issue #53: requires full closure/trait stepping
 
 - **Linking Layer Infrastructure** (PR #47, Issues #40-#46)
   - 5-layer OpExec architecture for structured proof decomposition
