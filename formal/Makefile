@@ -152,6 +152,7 @@ linking/get_stepping.vo: linking/interpreter.vo linking/types.vo linking/operati
 linking/iterator_stepping.vo: linking/interpreter.vo linking/types.vo linking/operations.vo simulations/iterator.vo
 linking/insert_stepping.vo: linking/interpreter.vo linking/types.vo linking/operations.vo
 linking/root_hash_stepping.vo: linking/interpreter.vo linking/iterator_stepping.vo linking/types.vo linking/operations.vo
+linking/ubt_stepping.vo: linking/types.vo linking/operations.vo
 
 # Explicit dependencies for proofs layer
 proofs/spec_linking.vo: simulations/tree.vo
