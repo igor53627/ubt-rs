@@ -185,7 +185,7 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 | Metric | Initial | Final | Change |
 |--------|---------|-------|--------|
 | **Theorems (Qed)** | ~20 | **628** | +3040% |
-| **Axioms** | 50+ | **38** | -24% |
+| **Axioms** | 50+ | **25** | -50% |
 | **Admitted** | 10+ | 95 | Tracked |
 | **QuickChick Properties** | 5 | **50** | +900% |
 | **Verification Confidence** | - | **95%** | Complete |

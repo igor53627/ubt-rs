@@ -12,7 +12,7 @@ The Unified Binary Tree (UBT) Rust implementation has undergone comprehensive fo
 
 - **639+ proven theorems** (Qed count) across linking and simulation layers
 - **95 Admitted proofs** remaining
-- **27 axioms remaining** (down from 38)
+- **25 axioms remaining** (down from 38)
 - **50 QuickChick properties** with 500,000+ tests
 - **Full OCaml extraction** with working FFI bridge and Rust integration tests
 
@@ -25,7 +25,7 @@ The verification provides high confidence (92%) that the Rust implementation cor
 | Metric | Initial | Final | Change |
 |--------|---------|-------|--------|
 | Proven Theorems (Qed) | ~20 | 639+ | +3095% |
-| Linking Axioms | 50+ | 27 | -46% |
+| Linking Axioms | 50+ | 25 | -50% |
 | Parameters | Unknown | 29 | Type abstractions |
 | Admitted Proofs | 10+ | 95 | Tracked |
 | QuickChick Properties | 5 | 50 | +900% |
@@ -43,7 +43,7 @@ The verification provides high confidence (92%) that the Rust implementation cor
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| **IRREDUCIBLE** | 27 | All remaining axioms (monad laws, crypto, stdlib) |
+| **IRREDUCIBLE** | 25 | All remaining axioms (monad laws, crypto, stdlib) |
 | **Parameters** | 29 | Type/function abstractions (not logical axioms) |
 
 ### Irreducible Core Axioms (8)
@@ -74,7 +74,7 @@ These represent the minimal trust base:
 | root_hash_stepping.v | 0 | 0 | 40 |
 | axiom_elimination.v | 1 | 0 | 45 |
 | simulations/*.v | 0 | 0 | 91 |
-| **Total** | **27** | **29** | **639+** |
+| **Total** | **25** | **29** | **639+** |
 
 ---
 
@@ -235,12 +235,12 @@ These represent the minimal trust base:
 - Converted 11 axioms to theorems:
   - 8 KeyLemmas: `get_terminates`, `insert_terminates`, `delete_terminates`, `get_correct`, `insert_correct`, `delete_correct`, `get_no_panic`, `insert_no_panic`
   - 3 decode axioms: `decode_stem_correct`, `decode_stem_map_correct`, `decode_subindex_map_correct`
-- All remaining 27 axioms classified as IRREDUCIBLE
+- All remaining 25 axioms classified as IRREDUCIBLE
 - Created final axiom dependency diagram
 - Final metrics:
   - **639+ Qed** (proven theorems)
   - **95 Admitted** remaining
-  - **27 axioms** (all irreducible)
+  - **25 axioms** (all irreducible)
 
 ---
 
@@ -251,7 +251,7 @@ These represent the minimal trust base:
 | Linking layer | Basic stubs | 8 complete modules |
 | Admitted proofs | 10+ | 95 (tracked) |
 | Proven theorems | ~20 | 639+ |
-| Linking axioms | 78 | 27 |
+| Linking axioms | 78 | 25 |
 | Axiom documentation | None | Full catalog |
 | Test coverage | Manual only | QuickChick + OCaml |
 | Rocq version | 8.x | 9.x migrated |
@@ -329,4 +329,4 @@ These represent the minimal trust base:
 
 ---
 
-*Last updated: December 2024 (Final: 639+ Qed, 27 Axioms, 95 Admitted)*
+Last updated: December 2024 (Final: 639+ Qed, 25 Axioms, 95 Admitted)
