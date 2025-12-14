@@ -2153,7 +2153,7 @@ Module AxiomSummary.
       - FuelExec.run_fuel_implies_run removed (was redundant)
       - Use RunFuelLink.run_fuel_implies_run_v2 instead (proven)
       
-      [ ] SEMANTIC AXIOM (requires closure/trait stepping):
+      [x] PROVEN (derived from axioms; semantic gap remains in HashLink.root_hash_executes):
       - RootHashLink.root_hash_executes_sketch (Issue #53)
       
       [x] PROVEN (Issue #43):
