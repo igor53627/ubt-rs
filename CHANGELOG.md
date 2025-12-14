@@ -24,19 +24,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Axioms (4): `string_eq_refl`, `string_eq_trans_common`, `get_subpointer_read_steps`, `get_subpointer_write_steps`
   - Used by get_stepping.v, insert_stepping.v, root_hash_stepping.v
 
-### Changed
-
-- **Reduced interpreter.v axiom count: 13 -> 12**
-  - `fuel_run_state_roundtrip`: Converted from Axiom to Theorem
-  - Derived from `fuel_run_equiv` + `exec_state_exec_equiv`
-  - Remaining 12 axioms classified as IRREDUCIBLE (see formal/linking/interpreter.v)
-
-- **Completed proof of fuel_success_implies_run_proven (formal/linking/axiom_elimination.v)**
-  - Converted from Admitted to Qed using fuel_success_monotone and fuel_run_state_roundtrip
-  - Proof strategy: lift fuel to max_fuel, then apply roundtrip axiom for state conversion
-
-### Added
-
 - **Integrated rocq-of-rust-interp library as submodule**
   - General-purpose M monad interpreter at [rocq-of-rust-interp](https://github.com/igor53627/rocq-of-rust-interp)
   - Submodule at `formal/lib/rocq-of-rust-interp`
@@ -73,6 +60,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   
   This library is designed to be **reusable across any RocqOfRust project**,
   not just UBT. It would reduce axiom burden for verified Rust programs.
+
+### Changed
+
+- **Reduced interpreter.v axiom count: 13 -> 12**
+  - `fuel_run_state_roundtrip`: Converted from Axiom to Theorem
+  - Derived from `fuel_run_equiv` + `exec_state_exec_equiv`
+  - Remaining 12 axioms classified as IRREDUCIBLE (see formal/linking/interpreter.v)
+
+- **Completed proof of fuel_success_implies_run_proven (formal/linking/axiom_elimination.v)**
+  - Converted from Admitted to Qed using fuel_success_monotone and fuel_run_state_roundtrip
+  - Proof strategy: lift fuel to max_fuel, then apply roundtrip axiom for state conversion
 
 ### Summary: Phase 11 Final Axiom Reduction
 

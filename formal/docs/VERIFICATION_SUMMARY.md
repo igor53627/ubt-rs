@@ -49,9 +49,9 @@ The verification provides high confidence (92%) that the Rust implementation cor
 | **DERIVABLE** | 128 | Could be proven with additional effort |
 | **Parameters** | 77 | Type/function abstractions (not logical axioms) |
 
-### Irreducible Core Axioms (8)
+### Irreducible Core Axioms (8 of 25)
 
-These represent the minimal trust base:
+These represent the core minimal trust base (full inventory in "Axioms by File" below):
 
 | # | Axiom | File | Justification |
 |---|-------|------|---------------|
