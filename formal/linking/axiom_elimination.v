@@ -104,7 +104,7 @@ Module RunDefinition.
       For UBT operations:
       - Tree depth bounded by stem length (31 bytes = 248 bits max)
       - HashMap operations O(n) where n = number of stems
-      - Realistic bound: 10^6 steps is very generous
+      - Realistic bound: 10^4 steps is very generous
   *)
   Definition max_fuel : nat := 10000.
   

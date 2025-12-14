@@ -195,7 +195,7 @@ The `prim_string_compare_*` axioms relate to RocqOfRust's encoding of Rust primi
 
 ## Dependency Graph
 
-```
+```text
                     +---------------------------+
                     | IRREDUCIBLE AXIOMS (25)   |
                     +---------------------------+
@@ -305,4 +305,6 @@ Parameters are opaque definitions, not logical axioms. They define the interface
 
 ---
 
-*Last updated: December 2025 (Final Classification - 641+ Qed, 25 Axioms, 29 Parameters)*
+## Last Updated
+
+December 2025 (Final Classification - 641+ Qed, 25 Axioms, 29 Parameters)

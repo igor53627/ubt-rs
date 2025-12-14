@@ -19,8 +19,8 @@
     These are design axioms per EIP-7864 and are not expected to be proven.
 *)
 
-Require Import Coq.Lists.List.
-Require Import Coq.ZArith.ZArith.
+From Coq Require Import List.
+From Coq Require Import ZArith.
 Import ListNotations.
 
 (** Import simulation layer for proven theorems *)

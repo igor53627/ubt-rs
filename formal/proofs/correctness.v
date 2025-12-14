@@ -24,8 +24,8 @@
     - No-panic guarantees via monadic analysis
 *)
 
-Require Import Coq.Lists.List.
-Require Import Coq.ZArith.ZArith.
+From Coq Require Import List.
+From Coq Require Import ZArith.
 Import ListNotations.
 
 (* Import the simulation layer *)

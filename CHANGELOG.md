@@ -30,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Integrated rocq-of-rust-interp library as submodule**
-  - General-purpose M monad interpreter at https://github.com/igor53627/rocq-of-rust-interp
+  - General-purpose M monad interpreter at [rocq-of-rust-interp](https://github.com/igor53627/rocq-of-rust-interp)
   - Submodule at `formal/lib/rocq-of-rust-interp`
   - Makefile updated with `-Q lib/rocq-of-rust-interp/src RocqInterp`
 

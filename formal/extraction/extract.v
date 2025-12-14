@@ -7,11 +7,11 @@
     Output: extraction/extracted.ml, extraction/extracted.mli
 *)
 
-Require Import Coq.Lists.List.
-Require Import Coq.ZArith.ZArith.
-Require Import Coq.extraction.Extraction.
-Require Import Coq.extraction.ExtrOcamlBasic.
-Require Import Coq.extraction.ExtrOcamlZInt.
+From Coq Require Import List.
+From Coq Require Import ZArith.
+From Coq Require Import Extraction.
+From Coq Require Import ExtrOcamlBasic.
+From Coq Require Import ExtrOcamlZInt.
 Import ListNotations.
 
 (** Import UBT simulation modules *)
@@ -169,6 +169,9 @@ Extraction "extracted"
   
   (* Hash operations from tree.v *)
   tree.sim_node_hash
+  tree.sim_root_hash
+  tree.subindex_map_hash
+  tree.stem_entry_hash
   
   (* Types from crypto.v *)
   crypto.Direction

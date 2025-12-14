@@ -8,10 +8,10 @@
     that underpin complexity arguments.
 *)
 
-Require Import Coq.Lists.List.
-Require Import Coq.ZArith.ZArith.
-Require Import Coq.Arith.PeanoNat.
-Require Import Coq.micromega.Lia.
+From Coq Require Import List.
+From Coq Require Import ZArith.
+From Coq Require Import PeanoNat.
+From Coq Require Import Lia.
 Import ListNotations.
 
 (** ** Basic Definitions (from tree_spec.v) *)
