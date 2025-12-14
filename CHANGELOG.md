@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `FieldStepping` module for reading/writing fields in `Value.StructRecord`
   - Core functions: `step_field_read`, `step_field_write`, `lookup_field`, `update_field`
   - Key lemmas: `read_stems_field`, `stems_field_in_tree`, `field_write_other_preserved`
-  - Axioms (3): `string_eq_refl`, `string_eq_trans_common`, `get_subpointer_read_steps`, `get_subpointer_write_steps`
+  - Axioms (4): `string_eq_refl`, `string_eq_trans_common`, `get_subpointer_read_steps`, `get_subpointer_write_steps`
   - Used by get_stepping.v, insert_stepping.v, root_hash_stepping.v
 
 ### Changed

@@ -585,6 +585,8 @@ Module InsertDerivation.
   Definition remaining_axioms : list string := [
     "OpExec.insert_execution_compose";
     "InsertExec.tree_rebuild_preserves_refines";
+    "InsertExec.subindexmap_insert_steps";
+    "InsertExec.insert_run_refines";
     "RunFuelLink.fuel_success_implies_run"
   ].
   
@@ -592,11 +594,9 @@ Module InsertDerivation.
     "FieldStepping.read_stems_field";
     "InsertExec.entry_or_insert_combined";
     "InsertExec.stemnode_new_is_empty";
-    "InsertExec.subindexmap_insert_steps";
     "InsertExec.sim_tree_insert_unfold";
     "InsertExec.insert_stem_present";
-    "InsertExec.insert_execution_decompose";
-    "InsertExec.insert_run_refines"
+    "InsertExec.insert_execution_decompose"
   ].
 
   (** ******************************************************************)
