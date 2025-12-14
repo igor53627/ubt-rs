@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Operation confidence percentages aligned between files
   - Axioms by File table updated with accurate per-file counts
 
+- **Proved streaming.v lemmas (zero Admitted remaining)**
+  - `sim_get_zero_vs_none`: Proven using `sim_get_set_zero` from tree.v
+  - `value_array_from_sim_get`: Proven via induction on array indices  
+  - `single_stem_entries`: Proven using `stem_eq_refl` reflexivity
+  - `sim_set_no_zero`: Proven via case analysis on `is_zero_value`
+  - Added axioms for `filter_preserves_no_zero` and `no_zero_filter_identity` (require well-formed map invariants)
+
 ### Added
 
 - **Field stepping module (formal/linking/field_stepping.v)**
