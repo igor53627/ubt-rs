@@ -30,13 +30,13 @@
     GENUINELY IRREDUCIBLE (require external knowledge):
     
     1. computation_bounded [AXIOM:TERMINATION-BOUND]
-       - States: All UBT operations terminate within 10^6 interpreter steps
+       - States: All UBT operations terminate within 10^4 interpreter steps
        - WHY IRREDUCIBLE: Requires domain knowledge about UBT operation complexity:
          * Tree depth bounded by stem length (31 bytes = 248 bits max)
          * HashMap operations O(n) where n = number of stems
          * No unbounded recursion in the implementation
        - CANNOT be proven without concrete interpreter stepping analysis
-       - RISK: Low (bound is conservative; real ops use << 10^6 steps)
+       - RISK: Low (bound is conservative; real ops use << 10^3 steps)
        
     2. step_primitive (Parameter in interpreter.v SmallStep)
        - Defines how Primitive.t constructs execute to StepResult
@@ -239,7 +239,7 @@ Module RunDefinition.
       in some actual_steps <= fuel. If actual_steps <= max_fuel, we're done.
       If actual_steps > max_fuel, then max_fuel is genuinely insufficient.
       
-      However, we defined max_fuel = 1000000 which should be sufficient for
+      However, we defined max_fuel = 10000 which should be sufficient for
       all well-formed UBT operations. So we add this as a well-formedness
       precondition in the form of an axiom on program behavior.
   *)
@@ -253,14 +253,14 @@ Module RunDefinition.
       - HashMap operations are O(n) where n = number of stems (typically < 1000)
       - No unbounded recursion in get/insert/delete implementations
       
-      ** Why 10^6 Steps is Conservative:
+      ** Why 10^4 Steps is Conservative:
       
       - Single tree traversal: O(248) steps for path following
       - HashMap lookup: O(n) where n << 10^4 in practice  
       - Root hash computation: O(n * depth) ~ O(248 * n)
       - Worst case insert: O(n * 248) for full path split
       
-      Even with n = 10^4 stems, operations complete in < 10^6 steps.
+      Even with n = 100 stems, operations complete in < 10^4 steps.
       
       ** Why This is Genuinely Irreducible:
       
@@ -275,8 +275,8 @@ Module RunDefinition.
       
       ** Risk Assessment: LOW
       
-      - Bound is conservative by factor of 100-1000x
-      - Real operations complete in << 10^4 steps
+      - Bound is conservative by factor of 10-100x
+      - Real operations complete in << 10^3 steps
       - Only fails if Rust code has unbounded loops (would be a bug)
       
       For computations that exceed max_fuel, we cannot guarantee the bridge

@@ -147,7 +147,24 @@ Module SmallStep.
     | None => step_let_nonpure e k s
     end.
   
+  (** [PARAMETER:STEP-PRIMITIVE] Primitive operation stepping.
+      
+      Must be instantiated with concrete implementations for each primitive:
+      - StateAlloc/StateRead/StateWrite: heap operations
+      - GetTraitMethod: trait resolution
+      - GetAssociatedFunction: method lookup
+      
+      See axiom_elimination.v for partial implementations and ubt_stepping.v
+      for UBT-specific extensions.
+  *)
   Parameter step_primitive : RocqOfRust.M.Primitive.t -> (Value.t -> M) -> State.t -> StepResult.
+  
+  (** [PARAMETER:STEP-CLOSURE] Closure call stepping.
+      
+      Must be instantiated with closure body lookup and application.
+      See Closure module for abstract operations and ubt_stepping.v
+      for UBT-specific closures (StemNode::new, or_insert_with).
+  *)
   Parameter step_closure : Value.t -> list Value.t -> (Value.t + Exception.t -> M) -> State.t -> StepResult.
   
   (** Main step function *)
@@ -473,7 +490,7 @@ Module RunFuelLink.
   *)
   Definition run_via_fuel (m : M) (s : ExecState.t) : Outcome.t Value.t * ExecState.t :=
     let int_state := exec_to_state s in
-    let (outcome, s') := Fuel.run 1000000 (Config.mk m int_state) in
+    let (outcome, s') := Fuel.run 10000 (Config.mk m int_state) in
     (fuel_outcome_to_run_outcome outcome, state_to_exec s').
 
   (** Theorem: run_via_fuel agrees with Run.run when computation terminates.

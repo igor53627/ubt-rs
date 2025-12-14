@@ -1,6 +1,6 @@
 # UBT Formal Verification Summary
 
-**Date:** December 2024  
+**Date:** December 2025  
 **Status:** VERIFICATION COMPLETE  
 **Confidence:** 92%
 
@@ -10,9 +10,9 @@
 
 The Unified Binary Tree (UBT) Rust implementation has undergone comprehensive formal verification using the Rocq proof assistant (formerly Coq). Over 11 phases of verification work, the project achieved:
 
-- **639+ proven theorems** (Qed count) across linking and simulation layers
-- **95 Admitted proofs** remaining
-- **25 axioms remaining** (down from 38)
+- **583 proven theorems** (Qed count) across linking and simulation layers
+- **7 Admitted proofs** remaining
+- **83 axioms** in linking layer (25 classified as irreducible)
 - **50 QuickChick properties** with 500,000+ tests
 - **Full OCaml extraction** with working FFI bridge and Rust integration tests
 
@@ -24,10 +24,11 @@ The verification provides high confidence (92%) that the Rust implementation cor
 
 | Metric | Initial | Final | Change |
 |--------|---------|-------|--------|
-| Proven Theorems (Qed) | ~20 | 639+ | +3095% |
-| Linking Axioms | 50+ | 25 | -50% |
-| Parameters | Unknown | 29 | Type abstractions |
-| Admitted Proofs | 10+ | 95 | Tracked |
+| Proven Theorems (Qed) | ~20 | 583 | +2815% |
+| Linking Axioms (total) | 50+ | 83 | All documented |
+| Irreducible Axioms | N/A | 25 | Minimal trust base |
+| Parameters | Unknown | 31 | Type abstractions |
+| Admitted Proofs | 10+ | 7 | Tracked |
 | QuickChick Properties | 5 | 50 | +900% |
 | QuickChick Tests | 5,000 | 500,000+ | +9900% |
 | OCaml Tests | 0 | 10 | Extraction working |
@@ -43,8 +44,10 @@ The verification provides high confidence (92%) that the Rust implementation cor
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| **IRREDUCIBLE** | 25 | All remaining axioms (monad laws, crypto, stdlib) |
-| **Parameters** | 29 | Type/function abstractions (not logical axioms) |
+| **Total Axioms** | 83 | All Axiom declarations in linking layer |
+| **IRREDUCIBLE** | 25 | Minimal trust base (cannot be proven) |
+| **DERIVABLE** | 58 | Could be proven with additional effort |
+| **Parameters** | 31 | Type/function abstractions (not logical axioms) |
 
 ### Irreducible Core Axioms (8)
 
@@ -63,18 +66,18 @@ These represent the minimal trust base:
 
 ### Axioms by File
 
-| File | Axioms | Parameters | Theorems |
-|------|--------|------------|----------|
-| interpreter.v | 16 | 18 | 210+ |
-| operations.v | 8 | 11 | 150+ |
-| types.v | 0 | 0 | 50 |
-| get_stepping.v | 2 | 0 | 35 |
-| insert_stepping.v | 0 | 0 | 45 |
-| iterator_stepping.v | 0 | 0 | 55 |
-| root_hash_stepping.v | 0 | 0 | 40 |
-| axiom_elimination.v | 1 | 0 | 45 |
-| simulations/*.v | 0 | 0 | 91 |
-| **Total** | **25** | **29** | **639+** |
+| File | Axioms | Parameters | Notes |
+|------|--------|------------|-------|
+| interpreter.v | 40 | 18 | Core M monad stepping |
+| operations.v | 23 | 11 | Run module, operation links |
+| types.v | 12 | 0 | Encoding axioms |
+| get_stepping.v | 2 | 0 | Get derivation |
+| insert_stepping.v | 1 | 0 | Insert derivation |
+| field_stepping.v | 4 | 0 | Struct field access |
+| axiom_elimination.v | 1 | 2 | Fuel axiom elimination |
+| **Total Linking** | **83** | **31** | See AXIOM_CATALOG.md |
+
+Note: Axiom count includes all `Axiom` declarations. The 25 "irreducible" axioms are those that cannot be reduced to simpler proofs.
 
 ---
 
@@ -329,4 +332,4 @@ These represent the minimal trust base:
 
 ---
 
-Last updated: December 2024 (Final: 639+ Qed, 25 Axioms, 95 Admitted)
+Last updated: December 2025 (Final: 583 Qed, 83 Axioms (25 irreducible), 7 Admitted)

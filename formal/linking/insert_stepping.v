@@ -540,6 +540,10 @@ Module InsertDerivation.
       Status: Axiomatized due to type unification issues between
       Run.State (ExecState.t) and State.t (interpreter state).
       The underlying correctness is captured by InsertExec.insert_run_refines.
+      
+      TODO(CodeRabbit#61): Convert this Axiom to a Theorem by resolving the 
+      type unification issues. The proof should use RunFuelLink state conversion
+      lemmas (exec_to_state, state_to_exec) to bridge the state types.
   *)
   Axiom insert_executes_derived :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey) (v : Value),

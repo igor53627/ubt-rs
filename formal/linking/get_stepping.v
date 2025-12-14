@@ -636,7 +636,7 @@ Module GetExecutesDerivation.
          Risk: LOW
          Status: Validated by QuickChick property testing
          Justification: UBT operations are O(depth * n) where depth <= 248
-                        and n = number of stems; max_fuel = 10^6 is generous
+                        and n = number of stems; max_fuel = 10^4 is generous
       
       ** PROVEN:
       
@@ -859,7 +859,7 @@ End GetExecutesDerivation.
       Note: Subsumed by hashmap_get_stepping_compose for main use case
     
     Level 5 - Fuel Execution (1 AXIOM):
-    - computation_bounded : AXIOM (all UBT ops < 10^6 steps)
+    - computation_bounded : AXIOM (all UBT ops < 10^4 steps)
       Risk: LOW - validated by QuickChick, generous bound
     - fuel_success_monotone : PROVEN (strong induction)
     - fuel_success_actual_steps : PROVEN
@@ -882,7 +882,7 @@ End GetExecutesDerivation.
        
     3. computation_bounded [LOW risk]
        - UBT operations are O(depth * n), depth <= 248, n = stems
-       - Bound of 10^6 is very generous
+       - Bound of 10^4 is generous for typical usage
        - Validated by QuickChick property testing
     
     ** PROVEN Theorems (13 total)

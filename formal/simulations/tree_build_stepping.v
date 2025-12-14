@@ -891,7 +891,14 @@ Definition partition_stems (stems : list Stem) (d : nat) : list (list Stem) :=
     The proof proceeds by contradiction: if a partition at depth 248 contains
     two distinct stems, they must differ at some bit d < 248. But they're
     in the same partition at depth 248, meaning they agreed on all bits
-    used for partitioning. This contradicts the existence of a differing bit. *)
+    used for partitioning. This contradicts the existence of a differing bit.
+    
+    TODO(CodeRabbit#61): The current proof conclusion `exact (Hneq eq_refl)` 
+    is logically incomplete. The proof establishes Hdiff_stem_bit (stems differ
+    at some bit) and Hb1/Hb2 (both have same value at bit 248), but doesn't
+    derive the actual contradiction. Needs refactoring to show that having
+    the same bit-248 value but different bit-idx values is a contradiction
+    with both being in the same single-depth partition. *)
 Lemma partition_terminates_at_max_depth :
   forall stems,
     NoDup stems ->

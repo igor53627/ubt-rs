@@ -1,13 +1,13 @@
 # Complete Axiom Catalog - UBT Formal Verification
 
-**Generated:** December 2024  
+**Generated:** December 2025  
 **Updated:** December 2025 (Final Axiom Classification)  
 **Status:** Comprehensive catalog of all axioms in linking layer  
 **Scope:** `formal/linking/` files only
 
 See also: [VERIFICATION_SUMMARY.md](VERIFICATION_SUMMARY.md) for executive summary.
 
-> **Note on Axiom Counts:** This catalog lists **25 irreducible axioms** - the minimal trust base that cannot be proven within the current framework. [LINKING_COMPLETION_ROADMAP.md](LINKING_COMPLETION_ROADMAP.md) reports **61 total axioms** which includes PRIMITIVE (8), SEMANTIC (7), and DERIVABLE (44) categories. The difference reflects counting methodology: this catalog focuses on the irreducible core, while the roadmap tracks all axiomatized statements including those marked as provable with additional effort.
+> **Note on Axiom Counts:** The linking layer contains **83 total Axiom declarations** and **31 Parameters**. Of these, **25 are classified as irreducible** - the minimal trust base that cannot be proven within the current framework. The remaining 58 axioms are derivable with additional stepping infrastructure. This catalog focuses on the irreducible core axioms.
 
 ---
 
@@ -15,16 +15,18 @@ See also: [VERIFICATION_SUMMARY.md](VERIFICATION_SUMMARY.md) for executive summa
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| **Total Axioms** | 25 | All irreducible in current framework |
-| **Parameters** | 29 | Opaque definitions (not logical axioms) |
-| **Proven Theorems** | 641+ | Qed count (increased from 639) |
+| **Total Axioms** | 83 | All Axiom declarations in linking layer |
+| **Irreducible Axioms** | 25 | Minimal trust base |
+| **Derivable Axioms** | 58 | Could be proven with more effort |
+| **Parameters** | 31 | Opaque definitions (not logical axioms) |
+| **Proven Theorems** | 583 | Qed count |
 
 ### Key Metrics
 
-- **Total Axioms in Linking Layer:** 25 (down from 38)
-- **Parameters:** 29 opaque definitions
-- **Proven Theorems:** 641+ (Qed count)
-- **All 25 axioms are IRREDUCIBLE** in the current framework
+- **Total Axioms in Linking Layer:** 83 (25 irreducible + 58 derivable)
+- **Parameters:** 31 opaque definitions
+- **Proven Theorems:** 583 (Qed count)
+- **Admitted Proofs:** 7
 
 ### Verification Confidence
 
@@ -307,4 +309,4 @@ Parameters are opaque definitions, not logical axioms. They define the interface
 
 ## Last Updated
 
-December 2025 (Final Classification - 641+ Qed, 25 Axioms, 29 Parameters)
+December 2025 (Final Classification - 583 Qed, 83 Axioms (25 irreducible), 31 Parameters)

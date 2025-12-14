@@ -369,6 +369,16 @@ Module FieldStepping.
       Status: AXIOM - requires GetSubPointer primitive stepping
       Risk: LOW - follows from Rust field access semantics
       Mitigation: step_field_read is a pure function matching Rust layout
+      
+      NOTE(CodeRabbit#61): This axiom is effectively tautological - it only
+      asserts that M.pure field_val terminates (trivially true via Laws.run_pure).
+      The actual GetSubPointer + StateRead primitive stepping is not captured.
+      A stronger version would axiomatize the actual primitive stepping:
+        exists fuel s',
+          Fuel.run fuel (Config.mk (rust_get_field struct_val field_name) s) =
+          (Fuel.Success field_val, s') /\ step_field_read struct_val field_name = Some field_val
+      For now, this weak form suffices since we only use it to show that
+      after field extraction, we have a usable value.
   *)
   Axiom get_subpointer_read_steps :
     forall (struct_val : Value.t) (field_name : PrimString.string) 
@@ -385,6 +395,10 @@ Module FieldStepping.
       Status: AXIOM - requires StateWrite primitive stepping
       Risk: LOW - follows from Rust mutable field assignment
       Mitigation: step_field_write matches Rust struct update semantics
+      
+      NOTE(CodeRabbit#61): Like get_subpointer_read_steps, this axiom is
+      tautological - it only asserts M.pure terminates. The actual StateWrite
+      primitive stepping is not captured. See note on get_subpointer_read_steps.
   *)
   Axiom get_subpointer_write_steps :
     forall (struct_val : Value.t) (field_name : PrimString.string)

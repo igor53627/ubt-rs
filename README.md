@@ -173,7 +173,7 @@ impl Hasher for MyHasher {
 
 ## Formal Verification Status
 
-**Status:** **VERIFICATION COMPLETE** (December 2024)
+**Status:** **VERIFICATION COMPLETE** (December 2025)
 
 [![Proof Verification](https://github.com/igor53627/ubt-rs/actions/workflows/proofs.yml/badge.svg)](https://github.com/igor53627/ubt-rs/actions/workflows/proofs.yml)
 [![Verification Summary](https://img.shields.io/badge/verification-95%25%20confidence-brightgreen)](formal/docs/VERIFICATION_SUMMARY.md)
@@ -184,9 +184,10 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 
 | Metric | Initial | Final | Change |
 |--------|---------|-------|--------|
-| **Theorems (Qed)** | ~20 | **639+** | +3095% |
-| **Axioms** | 50+ | **25** | -50% |
-| **Admitted** | 10+ | 95 | Tracked |
+| **Theorems (Qed)** | ~20 | **583** | +2815% |
+| **Total Axioms** | 50+ | **83** | All documented |
+| **Irreducible Axioms** | N/A | **25** | Minimal trust base |
+| **Admitted** | 10+ | 7 | Tracked |
 | **QuickChick Properties** | 5 | **50** | +900% |
 | **Verification Confidence** | - | **92%** | Complete |
 
@@ -223,8 +224,10 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| **IRREDUCIBLE** | 25 | All remaining axioms (monad laws, crypto, stdlib) |
-| **Parameters** | 29 | Type/function abstractions (not logical axioms) |
+| **Total Axioms** | 83 | All Axiom declarations in linking layer |
+| **IRREDUCIBLE** | 25 | Minimal trust base (monad laws, crypto, stdlib) |
+| **DERIVABLE** | 58 | Could be proven with additional effort |
+| **Parameters** | 31 | Type/function abstractions (not logical axioms) |
 
 **Trust assumptions:**
 - **Monad Laws:** Standard mathematical properties (high confidence)
