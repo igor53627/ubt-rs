@@ -262,8 +262,14 @@ formal/
 ├── simulations/     # Idiomatic Rocq implementation + security proofs
 ├── proofs/          # Correctness proofs + QuickChick tests
 ├── linking/         # Rust-to-Rocq refinement (complete)
+├── lib/             # Reusable libraries (submodules)
 └── src/             # Auto-generated translation (24k lines)
 ```
+
+### Dependencies
+
+- [rocq-of-rust](https://github.com/formal-land/rocq-of-rust) - Rust to Rocq translation
+- [rocq-of-rust-interp](https://github.com/igor53627/rocq-of-rust-interp) - M monad interpreter library (submodule)
 
 ## Comparison with MPT
 

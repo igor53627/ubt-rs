@@ -322,6 +322,11 @@ These represent the minimal trust base:
 - [formal/linking/README.md](../linking/README.md) - Build instructions
 - [EIP-7864](https://eips.ethereum.org/EIPS/eip-7864) - Specification
 
+## External Dependencies
+
+- [rocq-of-rust](https://github.com/formal-land/rocq-of-rust) - Rust to Rocq translation tool
+- [rocq-of-rust-interp](https://github.com/igor53627/rocq-of-rust-interp) - M monad interpreter library (submodule at `formal/lib/rocq-of-rust-interp`)
+
 ---
 
 *Last updated: December 2024 (Final: 639+ Qed, 27 Axioms, 95 Admitted)*

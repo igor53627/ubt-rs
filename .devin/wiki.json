@@ -71,6 +71,10 @@
     {
       "content": "FieldStepping module (PR #61): step_field_read for reading struct fields, read_stems_field theorem (proven), stems_field_in_tree lemma. Enables get_stepping.v and insert_stepping.v to extract stems from tree values matching tree_refines.",
       "author": "maintainer"
+    },
+    {
+      "content": "rocq-of-rust-interp library (PR #61): General-purpose M monad interpreter extracted to https://github.com/igor53627/rocq-of-rust-interp. Integrated as git submodule at formal/lib/rocq-of-rust-interp. Provides reusable stepping infrastructure for any RocqOfRust project.",
+      "author": "maintainer"
     }
   ],
   "pages": [
