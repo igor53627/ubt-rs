@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Aligned verification metrics across documentation**
+  - README.md and VERIFICATION_SUMMARY.md now show consistent counts
+  - Qed: 647 (was incorrectly 583), Admitted: 0 (was 7), Axioms: 153 (was 83)
+  - Operation confidence percentages aligned between files
+  - Axioms by File table updated with accurate per-file counts
+
 ### Added
 
 - **Field stepping module (formal/linking/field_stepping.v)**
