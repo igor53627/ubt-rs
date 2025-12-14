@@ -57,7 +57,7 @@ These represent the minimal trust base:
 | 3 | `Run.run_panic` | operations.v | Exception semantics |
 | 4 | `Run.run_eval_sound` | operations.v | Step/Run equivalence |
 | 5 | `sufficient_fuel_exists` | interpreter.v | Bounded recursion termination |
-| 6 | `fuel_success_implies_run` | interpreter.v | Fuel/Run connection |
+| 6 | `fuel_success_implies_run` | interpreter.v | Fuel/Run connection (proven in axiom_elimination.v) |
 | 7 | `get_trait_method_resolves` | interpreter.v | Trait dispatch resolution |
 | 8 | `let_sequence` | interpreter.v | Monad sequencing (fuel) |
 
