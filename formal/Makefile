@@ -144,14 +144,13 @@ linking/%.vo: linking/%.v
 
 # Explicit dependencies for linking layer
 linking/operations.vo: linking/types.vo
-linking/monad.vo: linking/types.vo linking/operations.vo
-linking/interpreter.vo: linking/monad.vo linking/operations.vo linking/types.vo
+linking/interpreter.vo: linking/operations.vo linking/types.vo
 linking/axiom_elimination.vo: linking/interpreter.vo linking/operations.vo linking/types.vo
 linking/field_stepping.vo: linking/interpreter.vo linking/operations.vo linking/types.vo
-linking/get_stepping.vo: linking/interpreter.vo linking/types.vo linking/operations.vo
+linking/get_stepping.vo: linking/interpreter.vo linking/types.vo linking/operations.vo linking/field_stepping.vo
 linking/iterator_stepping.vo: linking/interpreter.vo linking/types.vo linking/operations.vo simulations/iterator.vo
-linking/insert_stepping.vo: linking/interpreter.vo linking/types.vo linking/operations.vo
-linking/root_hash_stepping.vo: linking/interpreter.vo linking/iterator_stepping.vo linking/types.vo linking/operations.vo
+linking/insert_stepping.vo: linking/interpreter.vo linking/types.vo linking/operations.vo linking/field_stepping.vo
+linking/root_hash_stepping.vo: linking/interpreter.vo linking/iterator_stepping.vo linking/types.vo linking/operations.vo linking/field_stepping.vo
 linking/ubt_stepping.vo: linking/types.vo linking/operations.vo
 linking/hashmap_bridge.vo: simulations/tree.vo
 

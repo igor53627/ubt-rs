@@ -693,10 +693,14 @@ Proof.
   exact Habsent.
 Qed.
 
-(** Exclusion-inclusion mutual exclusivity: cannot have both valid proofs.
-    
-    Note: Proof requires careful handling of is_zero_value discriminate.
-    Admitted for compatibility with Coq 8.20. *)
+(** Helper: zero32 satisfies is_zero_value *)
+Lemma is_zero_value_zero32 : is_zero_value zero32 = true.
+Proof.
+  unfold is_zero_value, zero32, zero_byte.
+  simpl. reflexivity.
+Qed.
+
+(** Exclusion-inclusion mutual exclusivity: cannot have both valid proofs. *)
 Theorem verkle_exclusion_inclusion_exclusive :
   forall (t : SimTree) (vip : VerkleInclusionProof) (vep : VerkleExclusionProof),
     vip_key vip = vep_key vep ->
@@ -712,9 +716,12 @@ Proof.
   destruct Hexcl as [Hnone | Hzero].
   - rewrite Hincl in Hnone. discriminate.
   - rewrite Hincl in Hzero.
+    injection Hzero as Hval.
     unfold value_nonzero in Hnonzero.
-    (* The proof that zero32 is_zero_value requires forallb computation *)
-Admitted.
+    rewrite Hval in Hnonzero.
+    rewrite is_zero_value_zero32 in Hnonzero.
+    discriminate.
+Qed.
 
 (** ** Proof Size Bounds Formalization *)
 

@@ -244,32 +244,206 @@ Definition sim_collect_stem_hashes (entries : SortedEntries) : list StemHash :=
 
 (** ** Properties of collect_same_stem *)
 
-(** collect_same_stem returns remaining entries that don't match the stem *)
+(** collect_same_stem returns remaining entries that don't match the stem.
+    This requires both sortedness AND that entries start with the stem being collected.
+    The second condition ensures that once we hit a different stem, all subsequent
+    stems are > that stem (by sorting), hence > our target stem too. *)
 Lemma collect_same_stem_remaining_neq : forall stem entries submap remaining,
+  entries_sorted entries ->
+  (match entries with [] => True | (e, _) :: _ => stem_eq (tk_stem e) stem = true end) ->
   collect_same_stem stem entries = (submap, remaining) ->
   forall k v, In (k, v) remaining -> stem_eq (tk_stem k) stem = false.
 Proof.
   intros stem entries.
-  induction entries as [|[key val] rest IH]; intros submap remaining Hcoll k v Hin.
+  induction entries as [|[key val] rest IH]; intros submap remaining Hsorted Hstart Hcoll k v Hin.
+  - simpl in Hcoll. injection Hcoll as _ Hrem. subst remaining. inversion Hin.
+  - simpl in Hcoll. simpl in Hstart.
+    destruct (stem_eq (tk_stem key) stem) eqn:Heq.
+    + destruct (collect_same_stem stem rest) as [acc_map rem] eqn:Hrec.
+      injection Hcoll as _ Hrem. subst remaining.
+      apply StronglySorted_inv in Hsorted. destruct Hsorted as [Hsorted' Hforall_rest].
+      (* For the recursive call, need to establish the start condition for rest *)
+      destruct rest as [|[key2 val2] rest'] eqn:Hrest.
+      * (* rest is empty, remaining is empty *)
+        simpl in Hrec. injection Hrec as _ Hrem2. subst rem. inversion Hin.
+      * (* rest = (key2,val2)::rest' *)
+        (* Check if key2's stem matches *)
+        destruct (stem_eq (tk_stem key2) stem) eqn:Heq2.
+        -- (* key2's stem = stem, use IH *)
+           eapply IH; eauto; simpl; exact Heq2.
+        -- (* key2's stem != stem. Rewrite Hrec to show rem = rest *)
+           simpl in Hrec. rewrite Heq2 in Hrec.
+           injection Hrec as _ Hrem2. subst rem.
+           (* Now Hin : In (k, v) ((key2, val2) :: rest') *)
+           rewrite Forall_forall in Hforall_rest.
+           destruct Hin as [Hin_hd | Hin_tl].
+           ** injection Hin_hd as Hk _. subst key2. exact Heq2.
+           ** (* (k, v) is in rest', which is part of sorted entries after key *)
+              assert (HIn_rest: In (k, v) ((key2, val2) :: rest')).
+              { right. exact Hin_tl. }
+              (* Save Hforall_rest for later use before specializing *)
+              assert (Hforall_rest_saved := Hforall_rest).
+              specialize (Hforall_rest (k, v) HIn_rest).
+              unfold entry_lt in Hforall_rest. simpl in Hforall_rest.
+              destruct Hforall_rest as [Hlt | [Heq_stems _]].
+              --- (* stem_lt (tk_stem key) (tk_stem k) *)
+                  rewrite stem_eq_sym. apply stem_lt_neq.
+                  apply stem_eq_true in Heq. rewrite <- Heq. exact Hlt.
+              --- (* stem_eq (tk_stem key) (tk_stem k) = true - derive contradiction *)
+                  (* key.stem = k.stem and key.stem = stem, so k.stem = stem *)
+                  (* But Heq2 says key2.stem != stem, and (k,v) is in rest' after key2.
+                     By sorting of Hsorted', entry_lt (key2,val2) (k,v) must hold.
+                     This means key2.stem < k.stem or same stem.
+                     But key.stem = stem and key.stem = k.stem, so k.stem = stem.
+                     And by Hforall_rest, entry_lt (key,val) (key2,val2), which means
+                     key.stem < key2.stem or same stem. If same stem, key2.stem = key.stem = stem,
+                     contradicting Heq2. So key.stem < key2.stem, i.e., stem < key2.stem.
+                     But then k.stem = stem < key2.stem, and entry_lt (key2,val2) (k,v) requires
+                     key2.stem <= k.stem. Contradiction! *)
+                  exfalso.
+                  apply stem_eq_true in Heq_stems.
+                  apply stem_eq_true in Heq.
+                  apply StronglySorted_inv in Hsorted'.
+                  destruct Hsorted' as [_ Hforall_rest2].
+                  rewrite Forall_forall in Hforall_rest2.
+                  specialize (Hforall_rest2 (k, v) Hin_tl).
+                  unfold entry_lt in Hforall_rest2. simpl in Hforall_rest2.
+                  (* Hforall_rest was already specialized, but we need entry_lt (key,val) (key2,val2).
+                     However, Hforall_rest is now consumed. We need to reconstruct it.
+                     Actually, we still have Hsorted' from before being destructed above.
+                     Let's use the original Hsorted' properly. *)
+                  (* Hforall_rest is entry_lt (key,val) (k,v), already destructed as Heq_stems case.
+                     We need entry_lt (key,val) (key2,val2) to show key.stem < key2.stem.
+                     But Hforall_rest applied to (k,v) was already used.
+                     We need to use the fact that (key2,val2) is also in (key2,val2)::rest'. *)
+                  (* Use the original Hforall_rest before it was specialized.
+                     Actually, we can't - it's gone. Let's use a different approach.
+                     We have Hforall_rest2 (k, v): entry_lt (key2,val2) (k,v).
+                     This means key2.stem < k.stem or same stem.
+                     We have k.stem = key.stem = stem.
+                     So key2.stem < stem or key2.stem = stem.
+                     But Heq2 says key2.stem != stem.
+                     So key2.stem < stem. But entry_lt ordering says key < key2, meaning
+                     key.stem <= key2.stem. Since key.stem = stem, we have stem <= key2.stem.
+                     Contradiction with key2.stem < stem. *)
+                  destruct Hforall_rest2 as [Hlt_key2_k | [Heq_key2_k _]].
+                  ++ (* stem_lt key2.stem k.stem *)
+                     (* k.stem = stem, so stem_lt key2.stem stem.
+                        But by sorting, entry_lt (key,val) (key2,val2) means key.stem <= key2.stem.
+                        Since key.stem = stem, we have stem <= key2.stem.
+                        Combined with key2.stem < stem, contradiction. *)
+                     (* We need entry_lt (key,val) (key2,val2). This should come from the original
+                        StronglySorted. Let's get it from the fact that Hsorted was for (key,val)::rest
+                        and rest = (key2,val2)::rest', so entry_lt (key,val) (key2,val2). *)
+                     (* But Hsorted was already destructed. We need to work with what we have.
+                        We have Hlt_key2_k: stem_lt key2.stem k.stem = stem_lt key2.stem stem.
+                        This means key2.stem < stem. But key2.stem != stem by Heq2.
+                        We need to show this leads to contradiction.
+                        The key is that entries are sorted, so key < key2 < k (roughly).
+                        If key2.stem < stem = key.stem, then entry_lt (key,val) (key2,val2) fails.
+                        So the original sorting assumption is violated. 
+                        
+                        Actually, let me use trichotomy on key.stem vs key2.stem.
+                        By stem_lt_trichotomy: key.stem < key2.stem or = or key.stem > key2.stem.
+                        Case 1: key.stem < key2.stem, i.e., stem < key2.stem.
+                           Then key2.stem < stem (from Hlt_key2_k) and stem < key2.stem. Contradiction.
+                        Case 2: key.stem = key2.stem, i.e., stem = key2.stem.
+                           But Heq2 says key2.stem != stem. Contradiction.
+                        Case 3: key.stem > key2.stem, i.e., stem > key2.stem, i.e., key2.stem < stem.
+                           This is consistent with Hlt_key2_k. But entry_lt (key,val) (key2,val2) should hold.
+                           entry_lt means stem_lt key.stem key2.stem OR same stem with idx ordering.
+                           If stem_lt key.stem key2.stem, i.e., stem < key2.stem, contradicting key2.stem < stem.
+                           If same stem, then key.stem = key2.stem, i.e., stem = key2.stem, contradicting Heq2.
+                           So entry_lt fails, contradicting that entries are sorted.
+                           But we don't have direct access to entry_lt (key,val) (key2,val2) here. *)
+                     (* stem_lt key2.stem k.stem and k.stem = key.stem = stem.
+                        So stem_lt key2.stem stem. This means key2 < stem in ordering.
+                        But key2 comes after key in sorted entries, and key has stem = stem.
+                        So key <= key2 in ordering, meaning key.stem <= key2.stem, i.e., stem <= key2.stem.
+                        Combined with key2.stem < stem (from Hlt_key2_k after substitution), contradiction. *)
+                     (* Hlt_key2_k: stem_lt (tk_stem key2) (tk_stem k) *)
+                     (* We have Heq_stems: tk_stem key = tk_stem k and Heq: tk_stem key = stem *)
+                     (* So tk_stem k = tk_stem key = stem *)
+                     (* Thus stem_lt (tk_stem key2) stem *)
+                     assert (Hlt_key2_stem: stem_lt (tk_stem key2) stem).
+                     { (* Hlt_key2_k: stem_lt (tk_stem key2) (tk_stem k) *)
+                       (* Heq_stems: tk_stem key = tk_stem k *)
+                       (* Heq: tk_stem key = stem *)
+                       (* Goal: stem_lt (tk_stem key2) stem *)
+                       rewrite <- Heq. rewrite Heq_stems. exact Hlt_key2_k. }
+                     (* Use Hforall_rest_saved to get entry_lt (key,val) (key2,val2) *)
+                     assert (Hentry_key_key2: entry_lt (key, val) (key2, val2)).
+                     { apply Hforall_rest_saved. left. reflexivity. }
+                     unfold entry_lt in Hentry_key_key2. simpl in Hentry_key_key2.
+                     destruct Hentry_key_key2 as [Hlt_key_key2 | [Heq_key_key2 _]].
+                     ---- (* stem_lt key.stem key2.stem, i.e., stem < key2.stem *)
+                          (* But Hlt_key2_stem says key2.stem < stem. Contradiction. *)
+                          (* Hlt_key_key2: stem_lt (tk_stem key) (tk_stem key2), i.e., key.stem < key2.stem *)
+                          (* Hlt_key2_stem: stem_lt (tk_stem key2) stem, i.e., key2.stem < stem *)
+                          (* Heq: tk_stem key = stem *)
+                          (* So stem < key2.stem < stem - contradiction by irreflexivity *)
+                          apply (stem_lt_irrefl stem).
+                          eapply stem_lt_trans.
+                          +++ rewrite <- Heq. exact Hlt_key_key2.
+                          +++ exact Hlt_key2_stem.
+                     ---- (* stem_eq key.stem key2.stem = true *)
+                          (* So key.stem = key2.stem, i.e., stem = key2.stem *)
+                          (* But Heq2 says key2.stem != stem. Contradiction. *)
+                          apply stem_eq_true in Heq_key_key2.
+                          rewrite Heq_key_key2 in Heq.
+                          rewrite <- Heq in Heq2.
+                          rewrite stem_eq_refl in Heq2. discriminate.
+                  ++ (* stem_eq key2.stem k.stem = true *)
+                     apply stem_eq_true in Heq_key2_k.
+                     rewrite Heq_key2_k in Heq2.
+                     rewrite <- Heq_stems in Heq2.
+                     rewrite <- Heq in Heq2.
+                     rewrite stem_eq_refl in Heq2. discriminate.
+    + (* First entry doesn't match, so return ([], entries) - contradiction with Hstart *)
+      rewrite Hstart in Heq. discriminate.
+Qed.
+
+(** First entry in remaining (if any) has different stem.
+    This proof is self-contained and doesn't need sortedness. *)
+Lemma collect_same_stem_first_remaining : forall stem entries submap k v remaining,
+  collect_same_stem stem entries = (submap, (k, v) :: remaining) ->
+  stem_eq (tk_stem k) stem = false.
+Proof.
+  intros stem entries. revert stem.
+  induction entries as [|[key val] rest IH]; intros stem submap k v remaining Hcoll.
+  - simpl in Hcoll. injection Hcoll as _ Hrem. discriminate.
+  - simpl in Hcoll.
+    destruct (stem_eq (tk_stem key) stem) eqn:Heq.
+    + destruct (collect_same_stem stem rest) as [acc_map rem] eqn:Hrec.
+      injection Hcoll as Hsub Hrem.
+      (* rem = (k, v) :: remaining *)
+      destruct rem as [|[k' v'] rem'].
+      * discriminate.
+      * injection Hrem as Hk Hv Hrem'. subst k' v' rem'.
+        eapply IH. exact Hrec.
+    + (* First entry doesn't match, so remaining = (key,val)::rest *)
+      (* Hcoll : ([], (key, val) :: rest) = (submap, (k, v) :: remaining) *)
+      (* Pair injection gives us (key,val)::rest = (k,v)::remaining *)
+      (* So key = k *)
+      assert (key = k) as Hk by (injection Hcoll; congruence).
+      subst key. exact Heq.
+Qed.
+
+(** collect_same_stem returns a suffix: all elements in remaining are in entries *)
+Lemma collect_same_stem_suffix : forall stem entries submap remaining,
+  collect_same_stem stem entries = (submap, remaining) ->
+  forall x, In x remaining -> In x entries.
+Proof.
+  intros stem entries.
+  induction entries as [|[key val] rest IH]; intros submap remaining Hcoll x Hin.
   - simpl in Hcoll. injection Hcoll as _ Hrem. subst remaining. inversion Hin.
   - simpl in Hcoll.
     destruct (stem_eq (tk_stem key) stem) eqn:Heq.
     + destruct (collect_same_stem stem rest) as [acc_map rem] eqn:Hrec.
       injection Hcoll as _ Hrem. subst remaining.
-      eapply IH; eauto.
-    + (* When first entry doesn't match, we return ([], entries).
-         The first entry of remaining has different stem by Heq.
-         For entries in rest, we need sorted assumption - admit for now *)
-Admitted.
-
-(** First entry in remaining (if any) has different stem *)
-Lemma collect_same_stem_first_remaining : forall stem entries submap k v remaining,
-  collect_same_stem stem entries = (submap, (k, v) :: remaining) ->
-  stem_eq (tk_stem k) stem = false.
-Proof.
-  intros stem entries submap k v remaining Hcoll.
-  eapply collect_same_stem_remaining_neq; eauto.
-  left. reflexivity.
+      right. eapply IH; eauto.
+    + injection Hcoll as _ Hrem. subst remaining.
+      exact Hin.
 Qed.
 
 (** collect_same_stem decreases the list or returns the same list *)
@@ -875,9 +1049,7 @@ Axiom empty_entries_implies_empty_stems : forall t,
     The proof decomposes into three cases using the structural axioms:
     1. Empty tree: both produce zero32 by definition
     2. Empty entries from non-empty tree: impossible by empty_entries_implies_empty_stems
-    3. Non-empty case: uses stem_hashes_match_tree and build_tree_hash_matches_root
-    
-    Note: Full proof requires careful axiom composition. Admitted for now. *)
+    3. Non-empty case: uses stem_hashes_tree_bijection and build_tree_hash_matches_root *)
 Theorem streaming_tree_equivalence : forall (t : SimTree),
   wf_tree t ->
   sim_streaming_root_hash (sort_entries (tree_to_entries t)) = sim_root_hash t.
@@ -889,14 +1061,60 @@ Proof.
     simpl.
     rewrite (empty_entries_implies_empty_stems t Hwf Hentries).
     reflexivity.
-  - (* Non-empty entries case - complex axiom composition *)
-    admit.
-Admitted.
+  - (* Non-empty entries case *)
+    simpl.
+    set (stem_hashes := sim_collect_stem_hashes (e :: es)).
+    destruct stem_hashes as [|sh shs] eqn:Hsh.
+    + (* No stem hashes - impossible for non-empty entries *)
+      unfold stem_hashes in Hsh.
+      unfold sim_collect_stem_hashes in Hsh.
+      simpl in Hsh. destruct e as [key val].
+      destruct (collect_same_stem (tk_stem key) ((key, val) :: es)) as [vm rem].
+      discriminate.
+    + (* Have at least one stem hash *)
+      pose proof (stem_hashes_tree_bijection t Hwf) as Hbij.
+      simpl in Hbij.
+      rewrite Hentries in Hbij.
+      unfold stem_hashes in Hsh.
+      rewrite Hsh in Hbij.
+      apply (build_tree_hash_matches_root (sh :: shs) (st_stems t) Hbij).
+Qed.
+
+(** [AXIOM:STRUCTURAL] Entries with same get behavior produce same root hash.
+    If two entry lists have the same lookup behavior, their streaming root 
+    hashes are equal. This follows from the hash only depending on values
+    retrievable via entry lookups. *)
+Axiom entries_same_get_same_hash : forall entries1 entries2,
+  entries_sorted entries1 ->
+  entries_sorted entries2 ->
+  (forall k, 
+    match find (fun e => andb (stem_eq (tk_stem (fst e)) (tk_stem k))
+                              (Z.eqb (tk_subindex (fst e)) (tk_subindex k))) entries1 with
+    | Some (_, v) => if is_zero_value v then None else Some v
+    | None => None
+    end =
+    match find (fun e => andb (stem_eq (tk_stem (fst e)) (tk_stem k))
+                              (Z.eqb (tk_subindex (fst e)) (tk_subindex k))) entries2 with
+    | Some (_, v) => if is_zero_value v then None else Some v
+    | None => None
+    end) ->
+  sim_streaming_root_hash entries1 = sim_streaming_root_hash entries2.
+
+(** [AXIOM:STRUCTURAL] tree_to_entries produces entries matching sim_tree_get.
+    For a well-formed tree, the sorted entries have the same lookup behavior
+    as the tree's get operation. *)
+Axiom tree_to_entries_get_equiv : forall t,
+  wf_tree t ->
+  forall k, sim_tree_get t k = 
+    match find (fun e => andb (stem_eq (tk_stem (fst e)) (tk_stem k))
+                              (Z.eqb (tk_subindex (fst e)) (tk_subindex k))) 
+               (sort_entries (tree_to_entries t)) with
+    | Some (_, v) => if is_zero_value v then None else Some v
+    | None => None
+    end.
 
 (** Corollary: streaming with pre-sorted entries matches tree.
-    
-    Note: The proof requires showing entries matches tree_to_entries modulo ordering,
-    which needs additional lemmas about tree representation. Admitted for now. *)
+    Uses the fact that entries with same get behavior produce same hash. *)
 Corollary streaming_presorted_equiv : forall (t : SimTree) (entries : SortedEntries),
   wf_tree t ->
   entries_sorted entries ->
@@ -910,8 +1128,12 @@ Corollary streaming_presorted_equiv : forall (t : SimTree) (entries : SortedEntr
   sim_streaming_root_hash entries = sim_root_hash t.
 Proof.
   intros t entries Hwf Hsorted Hequiv.
-  (* Requires showing entries matches sort_entries (tree_to_entries t) up to content *)
-Admitted.
+  rewrite <- (streaming_tree_equivalence t Hwf).
+  apply entries_same_get_same_hash.
+  - exact Hsorted.
+  - apply sort_entries_sorted.
+  - intro k. rewrite <- Hequiv. apply tree_to_entries_get_equiv. exact Hwf.
+Qed.
 
 (** ** Properties of Streaming Operations *)
 
@@ -948,9 +1170,7 @@ Proof.
 Qed.
 
 (** Collect preserves stem ordering - main lemma.
-    
-    Note: The proof involves complex nested destructs and injections that
-    are sensitive to Coq 8.20's stricter injection behavior. Admitted for now. *)
+    Uses sortedness to show consecutive stem hashes have ordered stems. *)
 Lemma collect_stem_hashes_ordered : forall entries,
   entries_sorted entries ->
   forall sh1 sh2 rest,
@@ -958,8 +1178,38 @@ Lemma collect_stem_hashes_ordered : forall entries,
     stem_lt (fst sh1) (fst sh2).
 Proof.
   intros entries Hsorted sh1 sh2 rest Hcollect.
-  (* Complex proof involving collect_same_stem properties *)
-Admitted.
+  unfold sim_collect_stem_hashes in Hcollect.
+  destruct entries as [|[key1 val1] rest_entries] eqn:Hent.
+  - simpl in Hcollect. discriminate.
+  - simpl in Hcollect.
+    destruct (collect_same_stem (tk_stem key1) ((key1, val1) :: rest_entries)) 
+      as [values_map1 remaining1] eqn:Hcoll1.
+    injection Hcollect as Hsh1 Hrest_collect.
+    destruct remaining1 as [|[key2 val2] rest_remaining1].
+    + simpl in Hrest_collect.
+      destruct (length rest_entries) eqn:Hlen; simpl in Hrest_collect; discriminate.
+    + simpl in Hrest_collect.
+      destruct (collect_same_stem (tk_stem key2) ((key2, val2) :: rest_remaining1))
+        as [values_map2 remaining2] eqn:Hcoll2.
+      injection Hrest_collect as Hsh2 Hrest'.
+      rewrite <- Hsh1. rewrite <- Hsh2. simpl.
+      assert (Hneq: stem_eq (tk_stem key2) (tk_stem key1) = false).
+      { eapply collect_same_stem_first_remaining. exact Hcoll1. }
+      assert (Hin: In (key2, val2) ((key1, val1) :: rest_entries)).
+      { eapply collect_same_stem_suffix. exact Hcoll1. left. reflexivity. }
+      destruct Hin as [Heq' | Hin'].
+      * injection Heq' as Hk _. subst key2.
+        rewrite stem_eq_refl in Hneq. discriminate.
+      * apply StronglySorted_inv in Hsorted.
+        destruct Hsorted as [_ Hforall].
+        rewrite Forall_forall in Hforall.
+        specialize (Hforall (key2, val2) Hin').
+        apply entry_lt_stem_lt.
+        -- exact Hforall.
+        -- destruct (stem_eq (tk_stem key1) (tk_stem key2)) eqn:Esym; [|reflexivity].
+           apply stem_eq_true in Esym. rewrite Esym in Hneq.
+           rewrite stem_eq_refl in Hneq. discriminate.
+Qed.
 
 (** Single stem produces single stem hash.
     

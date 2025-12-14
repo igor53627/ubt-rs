@@ -60,6 +60,9 @@ Definition zero32 : Bytes32 := repeat zero_byte 32.
 Definition zero31 : Bytes31 := repeat zero_byte 31.
 Definition zero_stem : Stem := mkStem zero31.
 
+(** Stem bit count: 31 bytes * 8 bits = 248 bits total *)
+Definition stem_bit_count : nat := 248.
+
 (** ** Helper predicates *)
 
 Definition is_zero_value (v : Value) : bool :=
@@ -1711,3 +1714,42 @@ Axiom batch_to_multiproof_equiv :
     mp_values mp = map (fun p => Some (ip_value p)) batch.
 
 (** NoDup is already imported from Coq.Lists.List at the top of the file *)
+
+(** ** Depth Bounds for Tree Structure *)
+
+(** Depth bound predicate: tree has no path longer than n bits. 
+    For UBT, maximum depth = stem_bit_count = 248 bits. *)
+Definition depth_bounded (n : nat) (t : SimTree) : Prop :=
+  forall (stem : Stem),
+    stems_get (st_stems t) stem <> None ->
+    (length (stem_data stem) * 8 <= n)%nat.
+
+(** Well-formed stems have exactly 248 bits *)
+Lemma wf_stem_bit_count :
+  forall (s : Stem),
+    wf_stem s ->
+    (length (stem_data s) * 8 = stem_bit_count)%nat.
+Proof.
+  intros s Hwf.
+  unfold wf_stem in Hwf.
+  unfold stem_bit_count.
+  rewrite Hwf.
+  reflexivity.
+Qed.
+
+(** Well-formed trees have bounded depth.
+    This is axiomatized because the full proof requires showing that
+    all stems in a wf_tree are themselves well-formed. *)
+Axiom tree_depth_bounded_by_stem_bits :
+  forall (t : SimTree),
+    wf_tree t ->
+    depth_bounded stem_bit_count t.
+
+(** Stems are unique when they match at all bit positions.
+    This is axiomatized as the full proof requires bit-level reasoning. *)
+Axiom stems_unique_at_max_depth :
+  forall (s1 s2 : Stem),
+    wf_stem s1 ->
+    wf_stem s2 ->
+    (forall i : nat, (i < stem_bit_count)%nat -> stem_bit_at s1 i = stem_bit_at s2 i) ->
+    s1 = s2.

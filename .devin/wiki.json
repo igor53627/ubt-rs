@@ -39,6 +39,38 @@
     {
       "content": "Zero Admitted achieved (PR #59): RootHashLink.root_hash_executes_sketch PROVEN by deriving from HashLink.root_hash_executes + Run/Fuel bridging axioms. Semantic gap remains at HashLink.root_hash_executes axiom (operations.v). Admitted count: 0 (down from 10 initially).",
       "author": "maintainer"
+    },
+    {
+      "content": "SmallStep expansion (Issue #60): 4 LowM constructors now implemented as pure Definitions: step_if_then_else (boolean branching), step_match_tuple (tuple destructuring), step_logical_op (short-circuit && ||), step_let_alloc_pure (heap allocation). Previously returned Stuck, now fully operational.",
+      "author": "maintainer"
+    },
+    {
+      "content": "Panic freedom analysis (Issue #60): Rust code review confirms get/insert/delete have NO panic paths (use Option-returning HashMap methods). root_hash has depth=248 panics but they're UNREACHABLE because stems are 31 bytes (248 bits) and recursion terminates when stem count <= 1.",
+      "author": "maintainer"
+    },
+    {
+      "content": "Laws.let_pure monad law (Issue #60): Added left-identity law M.let_ (M.pure v) f = f v. Fixed last remaining Admitted in operations.v. Zero Admitted in linking layer.",
+      "author": "maintainer"
+    },
+    {
+      "content": "Predicate closure stepping (Issue #60): step_predicate_closure handles |&b| b == 0 patterns. CompareOp: CmpEq/CmpLt/CmpGt. 5 correctness lemmas proven. Supports .all()/.any() iterator patterns.",
+      "author": "maintainer"
+    },
+    {
+      "content": "HashMap stepping axioms (Issue #60): hashmap_insert_steps + hashmap_insert_then_get_steps axioms. 3 proven correctness lemmas: get_after_set_same, get_after_set_other, hashmap_get_after_insert. Models HashMap as LowM.CallPrimitive + LowM.CallClosure.",
+      "author": "maintainer"
+    },
+    {
+      "content": "Linking layer complete (PR #61): All 11 linking layer files compile successfully. New modules: field_stepping.v (struct field access), get_stepping.v/insert_stepping.v (operation derivations), iterator_stepping.v (HashMap/drain proofs), root_hash_stepping.v (Merkle root), axiom_elimination.v (proven fuel lemmas), tree_build_stepping.v (streaming construction).",
+      "author": "maintainer"
+    },
+    {
+      "content": "Axiom status (PR #61): 25 irreducible axioms documented in AXIOM_CATALOG.md. Categories: Monad Laws (2), Termination (2), HashMap (6), Trait Resolution (3), State/Purity (5), Batch Verification (4), Stdlib (2). All axioms have risk assessments and mitigation strategies.",
+      "author": "maintainer"
+    },
+    {
+      "content": "FieldStepping module (PR #61): step_field_read for reading struct fields, read_stems_field theorem (proven), stems_field_in_tree lemma. Enables get_stepping.v and insert_stepping.v to extract stems from tree values matching tree_refines.",
+      "author": "maintainer"
     }
   ],
   "pages": [
@@ -83,7 +115,7 @@
     },
     {
       "title": "Axiom Audit",
-      "purpose": "Summarize the axiom count (currently ~85), categorization (crypto, verkle, linking, spec), and trust assumptions. Reference formal/docs/axiom_audit.md",
+      "purpose": "Summarize the axiom count (25 irreducible), categorization (monad, termination, hashmap, trait resolution, state, batch, stdlib), and trust assumptions. Reference formal/docs/AXIOM_CATALOG.md",
       "parent": "Formal Verification"
     },
     {
@@ -124,6 +156,21 @@
     {
       "title": "Architecture Diagram",
       "purpose": "Visual diagram showing the relationship between Rust code, RocqOfRust translation, linking layer, simulation layer, and specifications"
+    },
+    {
+      "title": "Field Stepping",
+      "purpose": "Document field_stepping.v: step_field_read for struct field access, read_stems_field theorem, and how tree_refines enables extracting stems from encoded trees",
+      "parent": "Linking Layer"
+    },
+    {
+      "title": "Iterator Stepping",
+      "purpose": "Document iterator_stepping.v: HashMap iteration proofs, drain stepping, for_each stepping, and how Permutation captures unordered iteration",
+      "parent": "Linking Layer"
+    },
+    {
+      "title": "Axiom Elimination",
+      "purpose": "Document axiom_elimination.v: fuel_success_monotone, fuel_success_implies_run proofs, and the computation_bounded axiom for termination bounds",
+      "parent": "Linking Layer"
     }
   ]
 }

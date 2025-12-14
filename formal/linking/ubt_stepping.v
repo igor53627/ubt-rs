@@ -52,25 +52,18 @@ Module UBTClosures.
   Definition PATH_STEMNODE_NEW : string := "ubt::tree::StemNode::new".
   Definition PATH_OR_INSERT_WITH : string := "std::collections::hash::map::Entry::or_insert_with".
 
-  (** Check if a closure value matches a known path *)
-  Definition closure_path_of (v : Value.t) : option string :=
-    match v with
-    | Value.Closure path _ => Some path
-    | _ => None
-    end.
+  (** Note: Value.Closure in rocq-of-rust doesn't store the path.
+      The closure body is the function itself. Path identification
+      must be done by context (e.g., what function call generated it).
+      
+      For now, we parameterize closure identification by the caller. *)
+  
+  (** Check if a closure matches a known path - requires caller context.
+      Since Value.Closure doesn't store paths, this is always None. *)
+  Definition closure_path_of (v : Value.t) : option string := None.
 
-  (** Match closure against known UBT paths *)
-  Definition is_ubt_closure (v : Value.t) : bool :=
-    match closure_path_of v with
-    | Some path =>
-        String.eqb path PATH_TREE_GET ||
-        String.eqb path PATH_TREE_INSERT ||
-        String.eqb path PATH_TREE_DELETE ||
-        String.eqb path PATH_ROOT_HASH ||
-        String.eqb path PATH_STEMNODE_NEW ||
-        String.eqb path PATH_OR_INSERT_WITH
-    | None => false
-    end.
+  (** Match closure against known UBT paths - always false without context *)
+  Definition is_ubt_closure (v : Value.t) : bool := false.
 
 End UBTClosures.
 
@@ -149,24 +142,24 @@ Module UBTClosureStepping.
     | [stem_val] =>
         let empty_subindexmap := Value.Array [] in
         let stemnode := Value.StructRecord "ubt::tree::StemNode" [] []
-          [("stem"%string, stem_val); 
-           ("values"%string, empty_subindexmap)] in
+          [("stem"%pstring, stem_val); 
+           ("values"%pstring, empty_subindexmap)] in
         Some (UBTStepTo (UBTConfig.mk (k (inl stemnode)) s))
     | _ => None
     end.
 
   (** Step or_insert_with closure - for HashMap entry pattern *)
+  (** Step or_insert_with closure - for HashMap entry pattern.
+      Note: Value.Closure doesn't store environment values explicitly.
+      The stem_val must be passed as an argument instead.
+      This is a simplified version that assumes args contains the stem. *)
   Definition step_or_insert_with
     (closure_env : Value.t)
     (args : list Value.t)
     (k : Value.t + Exception.t -> M)
     (s : UBTState.t) : option UBTStepResult :=
-    match closure_env with
-    | Value.Closure _ env_vals =>
-        match env_vals with
-        | [stem_val] => step_stemnode_new [stem_val] k s
-        | _ => None
-        end
+    match args with
+    | [stem_val] => step_stemnode_new [stem_val] k s
     | _ => None
     end.
 
@@ -219,15 +212,14 @@ Module UBTIntegration.
     eexists. reflexivity.
   Qed.
 
-  (** or_insert_with steps to StemNode::new result *)
+  (** or_insert_with with [stem_val] as args steps to StemNode::new result *)
   Lemma or_insert_with_invokes_stemnode_new :
-    forall stem_val k s cfg,
-      step_or_insert_with (Value.Closure UBTClosures.PATH_STEMNODE_NEW [stem_val]) [] k s = Some (UBTStepTo cfg) ->
+    forall stem_val closure k s cfg,
+      step_or_insert_with closure [stem_val] k s = Some (UBTStepTo cfg) ->
       step_stemnode_new [stem_val] k s = Some (UBTStepTo cfg).
   Proof.
-    intros stem_val k s cfg H.
+    intros stem_val closure k s cfg H.
     unfold step_or_insert_with in H.
-    simpl in H.
     exact H.
   Qed.
 

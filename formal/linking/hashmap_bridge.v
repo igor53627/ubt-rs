@@ -117,22 +117,14 @@ End SubIndexMapBridge.
 
 Module StemMapBridge.
 
-  (** Key equality for Stem (byte list comparison) *)
-  Definition stem_eq (s1 s2 : Stem) : bool := stem_eqb s1 s2.
+  (** Key equality for Stem - reuse from tree.v *)
+  (** Note: stem_eq is already defined in tree.v as boolean equality *)
+  
+  (** Proven: stem_eq is reflexive - reexport from tree.v *)
+  Definition stem_eq_refl := tree.stem_eq_refl.
 
-  (** Proven: stem_eq is reflexive *)
-  Lemma stem_eq_refl : forall s, stem_eq s s = true.
-  Proof. 
-    intros. unfold stem_eq.
-    apply stem_eqb_refl.
-  Qed.
-
-  (** Proven: stem_eq true implies equality *)
-  Lemma stem_eq_true : forall s1 s2, stem_eq s1 s2 = true -> s1 = s2.
-  Proof.
-    intros. unfold stem_eq in H.
-    apply stem_eqb_eq. exact H.
-  Qed.
+  (** Proven: stem_eq true implies equality - reexport from tree.v *)
+  Definition stem_eq_true := tree.stem_eq_true.
 
   (** ** Correspondence with stems_get *)
 
@@ -182,31 +174,8 @@ Module StemMapBridge.
     reflexivity.
   Qed.
 
-  (** Derived: stems_get_set_other *)
-  Lemma stems_get_set_other : forall m s1 s2 v,
-    stem_eq s1 s2 = false ->
-    stems_get (stems_set m s1 v) s2 = stems_get m s2.
-  Proof.
-    intros m s1 s2 v Hneq.
-    rewrite stems_get_is_map_get.
-    rewrite stems_set_is_map_insert.
-    simpl.
-    rewrite Hneq.
-    induction m as [|[s' v'] rest IH].
-    - reflexivity.
-    - simpl.
-      destruct (stem_eq s1 s') eqn:Hs1s'.
-      + simpl.
-        destruct (stem_eq s' s2) eqn:Hs's2.
-        * apply stem_eq_true in Hs1s'. subst.
-          apply stem_eq_true in Hs's2. subst.
-          rewrite stem_eq_refl in Hneq. discriminate.
-        * apply IH.
-      + simpl.
-        destruct (stem_eq s' s2) eqn:Hs's2.
-        * reflexivity.
-        * apply IH.
-  Qed.
+  (** Derived: stems_get_set_other - reexport from tree.v *)
+  Definition stems_get_set_other := tree.stems_get_set_other.
 
 End StemMapBridge.
 
