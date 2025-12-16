@@ -1,0 +1,3 @@
+[submodule "formal/lib/rocq-of-rust-interp"]
+	path = formal/lib/rocq-of-rust-interp
+	url = https://github.com/igor53627/rocq-of-rust-interp.git

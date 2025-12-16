@@ -1,16 +1,32 @@
 # Makefile for UBT Formal Verification
 
-# Rocq 9 uses rocqc/rocqdep, fallback to coqc/coqdep for compatibility
-COQC := $(shell which rocqc 2>/dev/null || echo coqc)
-COQDEP := $(shell which rocqdep 2>/dev/null || echo coqdep)
+# Rocq 9.1+ uses "rocq compile", earlier versions use rocqc/coqc
+# Try rocq (9.1+), then rocqc (9.0), then coqc (legacy Coq)
+ROCQ_EXISTS := $(shell which rocq 2>/dev/null)
+ifdef ROCQ_EXISTS
+  COQC := rocq compile
+  COQDEP := rocq dep
+  STDLIB_PATH :=
+else
+  COQC := $(shell which rocqc 2>/dev/null || echo coqc)
+  COQDEP := $(shell which rocqdep 2>/dev/null || echo coqdep)
+  # For Coq 8.x, we need to map the standard library to Stdlib
+  # This provides compatibility with code using "From Stdlib Require"
+  COQ_THEORIES := $(shell $(COQC) -where 2>/dev/null)/theories
+  STDLIB_PATH := -Q $(COQ_THEORIES) Stdlib
+endif
 
 # Path to RocqOfRust library
 # Can be overridden: make linking ROCQOFRUST_PATH=/custom/path
 # See docs/LINKING_LAYER_SETUP.md for setup instructions
 ROCQOFRUST_PATH ?= $(HOME)/pse/paradigm/rocq-of-rust/RocqOfRust
 
+# Path to rocq-of-rust-interp library (submodule)
+INTERP_LIB_PATH ?= lib/rocq-of-rust-interp/src
+
 # Flags for our code (specs, simulations, proofs)
-COQFLAGS := -Q specs UBT.Specs -Q simulations UBT.Sim -Q proofs UBT.Proofs
+# STDLIB_PATH is set for Coq 8.x compatibility with "From Stdlib" imports
+COQFLAGS := $(STDLIB_PATH) -Q specs UBT.Specs -Q simulations UBT.Sim -Q proofs UBT.Proofs
 
 # QuickChick library path (auto-detected via opam)
 QUICKCHICK_PATH := $(shell opam var coq-quickchick:lib 2>/dev/null)
@@ -18,7 +34,7 @@ COQFLAGS_QC := $(COQFLAGS) $(if $(QUICKCHICK_PATH),-Q $(QUICKCHICK_PATH) QuickCh
 
 # Flags for translated code (needs RocqOfRust)
 # Note: Uses -Q src src to match the auto-generated "Require Export src.xxx" paths
-COQFLAGS_TRANS := -R $(ROCQOFRUST_PATH) RocqOfRust -Q src src
+COQFLAGS_TRANS := $(STDLIB_PATH) -R $(ROCQOFRUST_PATH) RocqOfRust -Q src src
 
 # Source files
 SPEC_FILES := specs/tree_spec.v specs/embedding_spec.v
@@ -34,8 +50,8 @@ TRANS_VO := $(TRANS_FILES:.v=.vo)
 LINKING_FILES := $(wildcard linking/*.v)
 LINKING_VO := $(LINKING_FILES:.v=.vo)
 
-# Flags for linking layer (needs RocqOfRust + simulations + src)
-COQFLAGS_LINKING := -R $(ROCQOFRUST_PATH) RocqOfRust -Q simulations UBT.Sim -Q src src -Q linking UBT.Linking
+# Flags for linking layer (needs RocqOfRust + simulations + src + interp library)
+COQFLAGS_LINKING := $(STDLIB_PATH) -R $(ROCQOFRUST_PATH) RocqOfRust -Q simulations UBT.Sim -Q src src -Q linking UBT.Linking -Q $(INTERP_LIB_PATH) RocqInterp
 
 .PHONY: all clean specs simulations proofs proofs-core quickchick quickchick-ci test translate translation linking extract extract-test extract-clean docs docs-clean check-deps help ci ci-full audit verify-axioms check-admits
 
@@ -140,9 +156,17 @@ linking/%.vo: linking/%.v
 	fi
 
 # Explicit dependencies for linking layer
-linking/operations.vo: linking/types.vo
-linking/monad.vo: linking/types.vo linking/operations.vo
-linking/interpreter.vo: linking/monad.vo linking/operations.vo linking/types.vo
+linking/ubt_execution.vo: linking/types.vo
+linking/operations.vo: linking/types.vo linking/ubt_execution.vo
+linking/interpreter.vo: linking/operations.vo linking/types.vo linking/ubt_execution.vo
+linking/axiom_elimination.vo: linking/interpreter.vo linking/operations.vo linking/types.vo
+linking/field_stepping.vo: linking/interpreter.vo linking/operations.vo linking/types.vo
+linking/get_stepping.vo: linking/interpreter.vo linking/types.vo linking/operations.vo linking/field_stepping.vo
+linking/iterator_stepping.vo: linking/interpreter.vo linking/types.vo linking/operations.vo simulations/iterator.vo
+linking/insert_stepping.vo: linking/interpreter.vo linking/types.vo linking/operations.vo linking/field_stepping.vo
+linking/root_hash_stepping.vo: linking/interpreter.vo linking/iterator_stepping.vo linking/types.vo linking/operations.vo linking/field_stepping.vo
+linking/ubt_stepping.vo: linking/types.vo linking/operations.vo
+linking/hashmap_bridge.vo: simulations/tree.vo
 
 # Explicit dependencies for proofs layer
 proofs/spec_linking.vo: simulations/tree.vo
@@ -160,6 +184,7 @@ simulations/iterator.vo: simulations/tree.vo
 simulations/serialization.vo: simulations/tree.vo
 simulations/complexity.vo: simulations/tree.vo
 simulations/streaming.vo: simulations/tree.vo
+simulations/tree_build_stepping.vo: simulations/tree.vo simulations/streaming.vo
 simulations/verkle_linking.vo: simulations/verkle.vo
 
 # Generate dependencies
