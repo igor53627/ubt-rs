@@ -21,9 +21,9 @@ Generated: December 2024
 | interpreter.v | [PASS] | 0 | M monad interpreter |
 | get_stepping.v | [PASS] | 0 | Get operation derivation |
 | insert_stepping.v | [PASS] | 0 | Insert operation derivation |
-| iterator_stepping.v | [PASS] | 2 | Partial: Fuel.run instantiation |
+| iterator_stepping.v | [PASS] | 0 | Complete |
 | root_hash_stepping.v | [PASS] | 0 | Root hash derivation |
-| axiom_elimination.v | [PASS] | 3 | Fuel monotonicity, monad integration |
+| axiom_elimination.v | [PASS] | 0 | Complete |
 
 ### formal/simulations/ (10 files)
 

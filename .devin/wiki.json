@@ -75,6 +75,10 @@
     {
       "content": "rocq-of-rust-interp library (PR #61): General-purpose M monad interpreter extracted to https://github.com/igor53627/rocq-of-rust-interp. Integrated as git submodule at formal/lib/rocq-of-rust-interp. Provides reusable stepping infrastructure for any RocqOfRust project.",
       "author": "maintainer"
+    },
+    {
+      "content": "Session work (December 2024): 1) Created rocq-of-rust-interp#1 issue for full M monad interpreter. 2) Added 6 new QuickChick iterator properties (P32-P37). 3) Fixed CodeRabbit PR #61 feedback: test counts, trivial properties, wiki metrics, error handling. 4) All metrics aligned: 697 Qed, 155 Axioms, 0 Admitted in linking layer (82 total in src/specs). 5) Build verified: 22 CI QuickChick tests pass.",
+      "author": "maintainer"
     }
   ],
   "pages": [

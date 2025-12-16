@@ -188,8 +188,8 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 | **Theorems (Qed)** | ~20 | **697** | +3385% |
 | **Total Axioms** | 50+ | **155** | All documented |
 | **Irreducible Axioms** | N/A | **25** | Minimal trust base |
-| **Admitted** | 10+ | **0** | 0 in linking/simulations/proofs (82 in src/) |
-| **QuickChick Properties** | 5 | **50** | 500k tests |
+| **Admitted** | 10+ | **0** | 0 in linking/simulations/proofs (82 in RocqOfRust src/, 3 in specs) |
+| **QuickChick Properties** | 5 | **22 CI / 50 total** | 11k/500k tests |
 | **Verification Confidence** | - | **95%** | Complete |
 
 ### Operation Verification Summary
@@ -234,6 +234,8 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 - **Monad Laws:** Standard mathematical properties (high confidence)
 - **RocqOfRust Translation:** Assumes correct Rust-to-Rocq translation
 - **HashMap/Iterator Semantics:** Standard library behavior
+
+**Future work:** Full M monad interpreter to eliminate simulation axioms (tracked in [rocq-of-rust-interp#1](https://github.com/formal-land/rocq-of-rust-interp/issues/1)).
 
 See [formal/docs/VERIFICATION_SUMMARY.md](formal/docs/VERIFICATION_SUMMARY.md) for complete verification summary.
 

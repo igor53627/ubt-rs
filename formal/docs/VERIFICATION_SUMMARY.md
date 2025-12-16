@@ -13,7 +13,7 @@ The Unified Binary Tree (UBT) Rust implementation has undergone comprehensive fo
 - **697 proven theorems** (Qed count) across linking and simulation layers
 - **0 Admitted proofs** in linking/simulations/proofs (82 total in RocqOfRust src/)
 - **155 axioms** in linking layer (25 classified as irreducible)
-- **50 QuickChick properties** with 500,000+ tests
+- **22 QuickChick CI properties** with 11,000+ tests
 - **Full OCaml extraction** with working FFI bridge and Rust integration tests
 
 The verification provides high confidence (95%) that the Rust implementation correctly implements the EIP-7864 specification.
@@ -29,8 +29,8 @@ The verification provides high confidence (95%) that the Rust implementation cor
 | Irreducible Axioms | N/A | 25 | Minimal trust base |
 | Parameters | Unknown | 77 | Type abstractions |
 | Admitted Proofs | 10+ | 0 | All proven |
-| QuickChick Properties | 5 | 50 | +900% |
-| QuickChick Tests | 5,000 | 500,000+ | +9900% |
+| QuickChick Properties | 5 | 22 | CI properties |
+| QuickChick Tests | 5,000 | 11,000+ | +120% |
 | OCaml Tests | 0 | 10 | Extraction working |
 | Integration Tests | 0 | 10 | Rust-OCaml bridge |
 | Linking Files | 4 | 10 | New stepping modules |
@@ -149,8 +149,9 @@ Note: Axiom count includes all `Axiom` declarations. The 25 "irreducible" axioms
 
 1. **Monad Laws:** Standard mathematical properties used in all functional verification
 2. **Type Encoding:** All 11 injectivity lemmas fully proven
-3. **Simulation Properties:** Extensively tested with QuickChick (14 properties)
+3. **Simulation Properties:** Extensively tested with QuickChick (22 CI properties)
 4. **Tree Depth Bound:** Proven theorem guarantees max depth 248
+5. **QuickChick Testing:** 22 CI properties with 11k+ tests
 
 ### Medium Confidence (Implementation Trust)
 

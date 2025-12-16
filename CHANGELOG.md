@@ -7,7 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Created GitHub issue igor53627/rocq-of-rust-interp#1 for full M monad interpreter implementation
+- 6 new QuickChick iterator properties (P32-P37): drain_preserves_elements, iter_order_independence, fold_associativity, filter_then_drain, drain_count_matches, double_iteration_consistent
+
+### Fixed
+- Fixed CodeRabbit PR #61 feedback:
+  - QuickChick test count header (22 props, 11k tests in CI)
+  - Replaced trivial properties P28/P30 with meaningful UBT-specific tests
+  - Clarified wiki.json metrics (linking layer 0 Admitted vs 82 total)
+  - Added error handling to integration_runner.ml (int_of_string_opt, parse failure logging)
+
 ### Changed
+- Documentation metrics aligned across README.md, VERIFICATION_SUMMARY.md, BUILD_STATUS.md, wiki.json
+- Consistent counts: 697 Qed, 155 Axioms, 0 Admitted in linking layer
 
 - **Converted 3 decode_* axioms to theorems (formal/linking/types.v, interpreter.v)**
   - Added `Bytes32Link.array_to_bytes` inverse function with `array_to_bytes_correct` lemma

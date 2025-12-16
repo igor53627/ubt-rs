@@ -303,7 +303,7 @@ root_hash_executes
 
 | Test Type | Status | Details |
 |-----------|--------|---------|
-| QuickChick properties | [OK] 500,000 tests | 50 properties |
+| QuickChick properties | [OK] 11k+ tests | 22 CI properties |
 | OCaml extraction | [OK] 10/10 tests | FFI bridge |
 | Rocq compilation | [OK] All files | Zero admitted in linking |
 | Rust integration | Partial | Manual testing |
