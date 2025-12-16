@@ -5,14 +5,14 @@
     
     For local development with full test coverage, use quickchick_tests.v.
     
-    Properties: 26 (14 core + 12 edge case)
+    Properties: 22 (10 core + 12 edge case)
     Tests per property: 500
-    Total tests: 13,000
+    Total tests: 11,000
 *)
 
-From Coq Require Import List.
-From Coq Require Import ZArith.
-From Coq Require Import Bool.
+From Stdlib Require Import List.
+From Stdlib Require Import ZArith.
+From Stdlib Require Import Bool.
 Import ListNotations.
 
 Require Import UBT.Sim.tree.

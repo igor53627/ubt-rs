@@ -28,9 +28,9 @@ Require RocqOfRust.M.
 Require Import RocqOfRust.links.M.
 Require Import RocqOfRust.simulations.M.
 
-From Coq Require Import List.
-From Coq Require Import ZArith.
-From Coq Require Import String.
+From Stdlib Require Import List.
+From Stdlib Require Import ZArith.
+From Stdlib Require Import String.
 Import ListNotations.
 
 Open Scope Z_scope.

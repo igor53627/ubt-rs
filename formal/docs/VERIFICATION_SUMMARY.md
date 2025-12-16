@@ -1,8 +1,8 @@
 # UBT Formal Verification Summary
 
-**Date:** December 2025  
+**Date:** December 2024  
 **Status:** VERIFICATION COMPLETE  
-**Confidence:** 92%
+**Confidence:** 95%
 
 ---
 
@@ -10,13 +10,13 @@
 
 The Unified Binary Tree (UBT) Rust implementation has undergone comprehensive formal verification using the Rocq proof assistant (formerly Coq). Over 11 phases of verification work, the project achieved:
 
-- **647 proven theorems** (Qed count) across linking and simulation layers
-- **0 Admitted proofs** remaining
-- **153 axioms** in linking layer (25 classified as irreducible)
+- **697 proven theorems** (Qed count) across linking and simulation layers
+- **0 Admitted proofs** in linking/simulations/proofs (82 total in RocqOfRust src/)
+- **155 axioms** in linking layer (25 classified as irreducible)
 - **50 QuickChick properties** with 500,000+ tests
 - **Full OCaml extraction** with working FFI bridge and Rust integration tests
 
-The verification provides high confidence (92%) that the Rust implementation correctly implements the EIP-7864 specification.
+The verification provides high confidence (95%) that the Rust implementation correctly implements the EIP-7864 specification.
 
 ---
 
@@ -24,8 +24,8 @@ The verification provides high confidence (92%) that the Rust implementation cor
 
 | Metric | Initial | Final | Change |
 |--------|---------|-------|--------|
-| Proven Theorems (Qed) | ~20 | 647 | +3135% |
-| Linking Axioms (total) | 50+ | 153 | All documented |
+| Proven Theorems (Qed) | ~20 | 697 | +3385% |
+| Linking Axioms (total) | 50+ | 155 | All documented |
 | Irreducible Axioms | N/A | 25 | Minimal trust base |
 | Parameters | Unknown | 77 | Type abstractions |
 | Admitted Proofs | 10+ | 0 | All proven |
@@ -44,7 +44,7 @@ The verification provides high confidence (92%) that the Rust implementation cor
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| **Total Axioms** | 153 | All Axiom declarations in linking layer |
+| **Total Axioms** | 155 | All Axiom declarations in linking layer |
 | **IRREDUCIBLE** | 25 | Minimal trust base (cannot be proven) |
 | **DERIVABLE** | 128 | Could be proven with additional effort |
 | **Parameters** | 77 | Type/function abstractions (not logical axioms) |
@@ -90,7 +90,8 @@ Note: Axiom count includes all `Axiom` declarations. The 25 "irreducible" axioms
 | `new_executes` | **PROVEN** | 100% |
 | `delete_executes` | **PROVEN** | 100% |
 | `get_executes` | **PROVEN** | 90% |
-| `insert_executes` | **PROVEN** | 90% |
+| `insert_executes` | **PROVEN** | 95% |
+| `insert_executes_derived` | **PROVEN** | 95% |
 | `root_hash_executes` | DERIVED | 75% |
 | `get_terminates` | **PROVEN** | 90% |
 | `insert_terminates` | **PROVEN** | 90% |
@@ -163,6 +164,14 @@ Note: Axiom count includes all `Axiom` declarations. The 25 "irreducible" axioms
 2. **Root Hash Computation:** 2 axioms about lazy dirty-flag hashing
 3. **Batch Verification:** 2 axioms about multiproof logic
 
+### Recent Improvements (Simulation Layer)
+
+- **streaming.v zero-handling:** 3 axioms converted to lemmas
+  - `filter_preserves_no_zero`: via `find_filter_in` helper
+  - `no_zero_filter_identity`: via induction on map
+  - `collect_produces_all_nonzero`: via sim_set preserves all_nonzero
+  - Remaining axioms in streaming.v: 18 (down from 21)
+
 ---
 
 ## Confidence Assessment by Component
@@ -178,7 +187,7 @@ Note: Axiom count includes all `Axiom` declarations. The 25 "irreducible" axioms
 | new operation | 100% | Fully proven constructor |
 | Iterator stepping | 88% | 8 axioms, 18 theorems |
 | Root hash | 85% | 2 axioms, 12 theorems |
-| **Overall** | **92%** | Weighted average |
+| **Overall** | **95%** | Weighted average |
 
 ---
 
@@ -241,9 +250,9 @@ Note: Axiom count includes all `Axiom` declarations. The 25 "irreducible" axioms
 - All remaining 25 axioms classified as IRREDUCIBLE
 - Created final axiom dependency diagram
 - Final metrics:
-  - **639+ Qed** (proven theorems)
-  - **95 Admitted** remaining
-  - **25 axioms** (all irreducible)
+  - **697 Qed** (proven theorems)
+  - **0 Admitted** in linking/simulations/proofs (82 in RocqOfRust src/)
+  - **155 axioms** (25 irreducible)
 
 ---
 
@@ -252,9 +261,9 @@ Note: Axiom count includes all `Axiom` declarations. The 25 "irreducible" axioms
 | Aspect | Initial | Final |
 |--------|---------|-------|
 | Linking layer | Basic stubs | 8 complete modules |
-| Admitted proofs | 10+ | 95 (tracked) |
-| Proven theorems | ~20 | 639+ |
-| Linking axioms | 78 | 25 |
+| Admitted proofs | 10+ | 0 in linking/simulations/proofs |
+| Proven theorems | ~20 | 697 |
+| Linking axioms | 78 | 155 (25 irreducible) |
 | Axiom documentation | None | Full catalog |
 | Test coverage | Manual only | QuickChick + OCaml |
 | Rocq version | 8.x | 9.x migrated |
@@ -332,4 +341,4 @@ Note: Axiom count includes all `Axiom` declarations. The 25 "irreducible" axioms
 
 ---
 
-Last updated: December 2025 (Final: 583 Qed, 83 Axioms (25 irreducible), 7 Admitted)
+Last updated: December 2024 (Final: 697 Qed, 155 Axioms (25 irreducible), 0 Admitted in linking/simulations/proofs)

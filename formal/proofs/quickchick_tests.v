@@ -30,9 +30,9 @@
     Note: QuickChick tests are interactive and require compilation with extraction.
 *)
 
-From Coq Require Import List.
-From Coq Require Import ZArith.
-From Coq Require Import Bool.
+From Stdlib Require Import List.
+From Stdlib Require Import ZArith.
+From Stdlib Require Import Bool.
 Import ListNotations.
 
 (** Import our simulation layer *)
@@ -235,7 +235,7 @@ Definition prop_full_stem_256_values (stem_seed : Z) : bool :=
     let k := mkTreeKey s (Z.of_nat i) in
     let v := gen_nonzero_value (Z.of_nat i + 1) in
     sim_tree_insert acc k v) indices empty_tree in
-  forallb (fun i =>
+  List.forallb (fun i =>
     let k := mkTreeKey s (Z.of_nat i) in
     let v := gen_nonzero_value (Z.of_nat i + 1) in
     option_value_eqb (sim_tree_get t k) (Some v)) indices.
@@ -262,7 +262,7 @@ Definition prop_alternating_insert_delete (t : SimTree) (keys : list TreeKey) (v
   else
     let t' := fold_left (fun acc k =>
       sim_tree_delete (sim_tree_insert acc k v) k) keys t in
-    forallb (fun k =>
+    List.forallb (fun k =>
       option_value_eqb (sim_tree_get t' k) (sim_tree_get t k)) keys.
 
 (** Property 20: Batch vs individual equivalence (distinct keys only) *)
@@ -330,7 +330,7 @@ Definition prop_large_sequence_consistent (base_seed : Z) (n : nat) (v : Value) 
   else
     let keys := map (fun i => gen_key_from_bytes (base_seed + Z.of_nat i) (Z.of_nat i)) (seq 0 n) in
     let t := fold_left (fun acc k => sim_tree_insert acc k v) keys empty_tree in
-    forallb (fun k => option_value_eqb (sim_tree_get t k) (Some v)) keys.
+    List.forallb (fun k => option_value_eqb (sim_tree_get t k) (Some v)) keys.
 
 (** Property 25: Delete non-existent key is no-op *)
 Definition prop_delete_nonexistent_noop (t : SimTree) (k1 k2 : TreeKey) (v : Value) : bool :=
@@ -351,7 +351,7 @@ Definition prop_high_bit_stem_works (t : SimTree) (idx : Z) (v : Value) : bool :
 
 (** ** Iterator Properties (Properties 27-31) *)
 
-Require Import Permutation.
+From Stdlib Require Import Permutation.
 
 (** Helper: check if two lists are permutations of each other *)
 Fixpoint list_count {A : Type} (eqb : A -> A -> bool) (x : A) (l : list A) : nat :=
@@ -361,8 +361,8 @@ Fixpoint list_count {A : Type} (eqb : A -> A -> bool) (x : A) (l : list A) : nat
   end%nat.
 
 Definition is_permutation_of {A : Type} (eqb : A -> A -> bool) (l1 l2 : list A) : bool :=
-  Nat.eqb (length l1) (length l2) &&
-  forallb (fun x => Nat.eqb (list_count eqb x l1) (list_count eqb x l2)) l1.
+  Nat.eqb (List.length l1) (List.length l2) &&
+  List.forallb (fun x => Nat.eqb (list_count eqb x l1) (list_count eqb x l2)) l1.
 
 (** Boolean equality for Entry (key-value pair) *)
 Definition entry_eqb (e1 e2 : Entry) : bool :=
@@ -376,10 +376,13 @@ Definition prop_drain_yields_all_elements (t : SimTree) : bool :=
   is_permutation_of entry_eqb entries drained.
 
 (** Property 28: iter doesn't modify source (iteration is read-only)
-    Reading all entries via fold doesn't change what get returns *)
-Definition prop_iter_preserves_collection (t : SimTree) (k : TreeKey) : bool :=
-  let _ := sim_tree_fold (fun acc _ _ => acc + 1)%nat 0%nat t in
-  option_value_eqb (sim_tree_get t k) (sim_tree_get t k).
+    After folding, we can still retrieve all previously stored values *)
+Definition prop_iter_preserves_collection (t : SimTree) (k : TreeKey) (v : Value) : bool :=
+  if is_zero_value v then true
+  else
+    let t' := sim_tree_insert t k v in
+    let _ := sim_tree_fold (fun acc _ _ => acc + 1)%nat 0%nat t' in
+    option_value_eqb (sim_tree_get t' k) (Some v).
 
 (** Property 29: fold matches List.fold_left on entries
     sim_tree_fold f init t = fold_left (fun acc (k,v) => f acc k v) (entries t) init *)
@@ -388,12 +391,14 @@ Definition prop_fold_matches_list_fold (t : SimTree) : bool :=
   let sum_via_list := fold_left (fun acc e => acc + hd 0 (snd e)) (sim_tree_entries t) 0 in
   Z.eqb sum_via_tree sum_via_list.
 
-(** Property 30: map preserves element count
-    Mapping over entries preserves the count *)
-Definition prop_map_preserves_length (t : SimTree) : bool :=
-  let entries := sim_tree_entries t in
-  let mapped := map (fun e => (fst e, map (fun z => z + 1) (snd e))) entries in
-  Nat.eqb (length entries) (length mapped).
+(** Property 30: entries reflect all inserted values
+    After inserting k->v, entries should contain that mapping *)
+Definition prop_entries_contain_inserted (t : SimTree) (k : TreeKey) (v : Value) : bool :=
+  if is_zero_value v then true
+  else
+    let t' := sim_tree_insert t k v in
+    let entries := sim_tree_entries t' in
+    existsb (fun e => key_eqb (fst e) k && value_eqb (snd e) v) entries.
 
 (** Helper: collect builds a tree from entries that matches original gets *)
 Definition collect_from_entries (entries : list Entry) : SimTree :=
@@ -404,7 +409,7 @@ Definition collect_from_entries (entries : list Entry) : SimTree :=
 Definition prop_collect_roundtrip (t : SimTree) : bool :=
   let entries := sim_tree_entries t in
   let t' := collect_from_entries entries in
-  forallb (fun e => 
+  List.forallb (fun e => 
     option_value_eqb (sim_tree_get t' (fst e)) (Some (snd e))
   ) entries.
 
@@ -852,22 +857,124 @@ QuickChick (forAll genStressZList (fun seeds : list Z =>
 QuickChick (forAll arbitrary (fun t : SimTree =>
   prop_drain_yields_all_elements t)).
 
+(** ** Advanced Iterator Properties (Properties 32-37) *)
+
+(** Helper: sum values with commutative addition *)
+Definition sum_first_bytes (entries : list Entry) : Z :=
+  fold_left (fun acc e => acc + hd 0 (snd e)) entries 0.
+
+(** Helper: check if fold result matches for two entry orderings *)
+Definition fold_results_match (entries1 entries2 : list Entry) : bool :=
+  Z.eqb (sum_first_bytes entries1) (sum_first_bytes entries2).
+
+(** Helper: filter entries by predicate on first byte of value *)
+Definition filter_entries_by_value (pred : Z -> bool) (entries : list Entry) : list Entry :=
+  filter (fun e => pred (hd 0 (snd e))) entries.
+
+(** Helper: check value nonzero via list *)
+Definition value_list_nonzero (v : Value) : bool :=
+  negb (forallb (Z.eqb 0) v).
+
+(** Property 32: Drain preserves elements - draining yields permutation of all entries
+    This tests that sim_tree_fold with cons collects all key-value pairs *)
+Definition prop_drain_preserves_elements (t : SimTree) : bool :=
+  let entries := sim_tree_entries t in
+  let drained := sim_tree_fold (fun acc k v => (k, v) :: acc) [] t in
+  (* drained is rev of entries, so check same length and permutation-like properties *)
+  Nat.eqb (List.length entries) (List.length drained) &&
+  List.forallb (fun e => 
+    existsb (fun d => entry_eqb e d) drained
+  ) entries.
+
+(** Property 33: Iter order independence - iteration order doesn't affect
+    fold results for commutative operations (addition) *)
+Definition prop_iter_order_independence (t : SimTree) : bool :=
+  let entries := sim_tree_entries t in
+  let sum1 := sim_tree_fold (fun acc _ v => acc + hd 0 v) 0 t in
+  let sum2 := fold_left (fun acc e => acc + hd 0 (snd e)) (rev entries) 0 in
+  Z.eqb sum1 sum2.
+
+(** Property 34: Fold associativity - folding with associative op is order-independent
+    Uses multiplication which is both commutative and associative *)
+Definition prop_fold_associativity (t : SimTree) : bool :=
+  let entries := sim_tree_entries t in
+  (* Use mod arithmetic to avoid overflow, operation: (acc + first_byte) mod 1000 *)
+  let fold_fn := fun acc e => Z.modulo (acc + hd 1 (snd e)) 1000 in
+  let result1 := fold_left fold_fn entries 0 in
+  let result2 := fold_left fold_fn (rev entries) 0 in
+  Z.eqb result1 result2.
+
+(** Property 35: Filter then drain - filtering entries then collecting equals
+    collecting filtered elements directly *)
+Definition prop_filter_then_drain (t : SimTree) (threshold : Z) : bool :=
+  let entries := sim_tree_entries t in
+  let thresh := Z.modulo threshold 256 in
+  (* Filter entries where first byte > threshold *)
+  let filtered := filter (fun e => Z.ltb thresh (hd 0 (snd e))) entries in
+  (* Drain with filter predicate *)
+  let drained_filtered := sim_tree_fold 
+    (fun acc k v => if Z.ltb thresh (hd 0 v) then (k, v) :: acc else acc) [] t in
+  Nat.eqb (List.length filtered) (List.length drained_filtered).
+
+(** Property 36: Drain count matches entry count - number of drained elements
+    equals sim_tree_entry_count *)
+Definition prop_drain_count_matches (t : SimTree) : bool :=
+  let count_via_drain := sim_tree_fold (fun acc _ _ => S acc) 0%nat t in
+  let count_via_entries := List.length (sim_tree_entries t) in
+  Nat.eqb count_via_drain count_via_entries.
+
+(** Property 37: Double iteration consistency - iterating twice yields same results *)
+Definition prop_double_iteration_consistent (t : SimTree) : bool :=
+  let sum1 := sim_tree_fold (fun acc _ v => acc + hd 0 v) 0 t in
+  let sum2 := sim_tree_fold (fun acc _ v => acc + hd 0 v) 0 t in
+  Z.eqb sum1 sum2.
+
 (* Property 28: Iter preserves collection (read-only) *)
 QuickChick (forAll arbitrary (fun t : SimTree =>
   forAll arbitrary (fun k : TreeKey =>
-    prop_iter_preserves_collection t k))).
+    forAll arbitrary (fun v : Value =>
+      prop_iter_preserves_collection t k v)))).
 
 (* Property 29: Fold matches List.fold_left *)
 QuickChick (forAll arbitrary (fun t : SimTree =>
   prop_fold_matches_list_fold t)).
 
-(* Property 30: Map preserves length *)
+(* Property 30: Entries contain inserted values *)
 QuickChick (forAll arbitrary (fun t : SimTree =>
-  prop_map_preserves_length t)).
+  forAll arbitrary (fun k : TreeKey =>
+    forAll arbitrary (fun v : Value =>
+      prop_entries_contain_inserted t k v)))).
 
 (* Property 31: Collect roundtrip *)
 QuickChick (forAll arbitrary (fun t : SimTree =>
   prop_collect_roundtrip t)).
+
+(** ** Advanced Iterator Property Tests (Properties 32-37) *)
+
+(* Property 32: Drain preserves elements *)
+QuickChick (forAll arbitrary (fun t : SimTree =>
+  prop_drain_preserves_elements t)).
+
+(* Property 33: Iter order independence for commutative ops *)
+QuickChick (forAll arbitrary (fun t : SimTree =>
+  prop_iter_order_independence t)).
+
+(* Property 34: Fold associativity - order independent for associative ops *)
+QuickChick (forAll arbitrary (fun t : SimTree =>
+  prop_fold_associativity t)).
+
+(* Property 35: Filter then drain equivalence *)
+QuickChick (forAll arbitrary (fun t : SimTree =>
+  forAll arbitrary (fun threshold : Z =>
+    prop_filter_then_drain t threshold))).
+
+(* Property 36: Drain count matches entry count *)
+QuickChick (forAll arbitrary (fun t : SimTree =>
+  prop_drain_count_matches t)).
+
+(* Property 37: Double iteration consistency *)
+QuickChick (forAll arbitrary (fun t : SimTree =>
+  prop_double_iteration_consistent t)).
 
 (** ** Theorem Statements (proved in tree.v)
     

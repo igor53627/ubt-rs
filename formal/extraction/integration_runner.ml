@@ -51,7 +51,12 @@ let parse_bytes (s : string) : int list =
       String.split_on_char ',' inner
       |> List.map String.trim
       |> List.filter (fun x -> x <> "")
-      |> List.map int_of_string
+      |> List.filter_map (fun s ->
+           match int_of_string_opt s with
+           | Some n -> Some n
+           | None ->
+               Printf.eprintf "[WARN] parse_bytes: invalid integer '%s'\n" s;
+               None)
 
 (** Format bytes list back to string *)
 let format_bytes (bytes : int list) : string =
@@ -138,8 +143,10 @@ let parse_test_data () : test_case list =
                       let subindex = int_of_string (String.trim idx_str) in
                       let value = parse_bytes ("[" ^ val_str) in
                       t.operations <- t.operations @ [Insert (stem, subindex, value)]
-                  | _ -> ())
-             | _ -> ())
+                  | _ ->
+                      Printf.eprintf "[WARN] OP INSERT: failed to parse idx/value from '%s'\n" rest)
+             | _ ->
+                 Printf.eprintf "[WARN] OP INSERT: failed to parse stem from '%s'\n" rest)
         | None -> ()
       end
       else if String.length line >= 10 && String.sub line 0 10 = "OP DELETE " then begin

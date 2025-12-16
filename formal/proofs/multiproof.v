@@ -17,9 +17,9 @@
     - generate_stem_proof: subtree sibling collection
 *)
 
-From Coq Require Import List.
-From Coq Require Import ZArith.
-From Coq Require Import Lia.
+From Stdlib Require Import List.
+From Stdlib Require Import ZArith.
+From Stdlib Require Import Lia.
 Import ListNotations.
 
 Require Import UBT.Sim.tree.

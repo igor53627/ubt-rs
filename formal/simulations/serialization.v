@@ -21,10 +21,10 @@
       multiple encodings of the same proof could bypass deduplication.
 *)
 
-Require Import Coq.Lists.List.
-Require Import Coq.ZArith.ZArith.
-Require Import Coq.Bool.Bool.
-Require Import Coq.micromega.Lia.
+From Stdlib Require Import List.
+From Stdlib Require Import ZArith.
+From Stdlib Require Import Bool.
+From Stdlib Require Import Lia.
 Require Import UBT.Sim.tree.
 Import ListNotations.
 

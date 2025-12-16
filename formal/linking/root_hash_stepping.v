@@ -62,9 +62,9 @@ Require RocqOfRust.M.
 Require Import RocqOfRust.links.M.
 Require Import RocqOfRust.simulations.M.
 
-From Coq Require Import List.
-From Coq Require Import ZArith.
-From Coq Require Import String.
+From Stdlib Require Import List.
+From Stdlib Require Import ZArith.
+From Stdlib Require Import String.
 Import ListNotations.
 
 Require Import UBT.Sim.tree.
@@ -195,6 +195,9 @@ Module TreeBuildStepping.
       - Therefore recursion terminates before hitting MAX_DEPTH panic
       - Fuel needed is O(cache_size * stem_bit_count)
   *)
+  
+(** Import stem_bit_count from tree.v *)
+  Import UBT.Sim.tree.
   
   Definition tree_build_fuel_bound (cache_size : nat) : nat :=
     cache_size * stem_bit_count + 100.

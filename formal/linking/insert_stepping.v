@@ -53,8 +53,8 @@ Require Import RocqOfRust.RocqOfRust.
 Require Import RocqOfRust.links.M.
 Require Import RocqOfRust.simulations.M.
 
-From Coq Require Import List.
-From Coq Require Import ZArith.
+From Stdlib Require Import List.
+From Stdlib Require Import ZArith.
 Import ListNotations.
 
 Require Import UBT.Sim.tree.
@@ -534,18 +534,18 @@ Module InsertDerivation.
   (** ******************************************************************)
   
   (** This theorem derives insert_executes using the stepping infrastructure.
-      It has the same signature as InsertLink.insert_executes but is proven
-      from InsertExec.insert_run_refines which uses insert_execution_compose.
+      It has the same signature as InsertLink.insert_executes and is proven
+      from interpreter.InsertExec.insert_run_refines which uses insert_execution_compose.
       
-      Status: Axiomatized due to type unification issues between
-      Run.State (ExecState.t) and State.t (interpreter state).
-      The underlying correctness is captured by InsertExec.insert_run_refines.
+      Status: THEOREM - proven using interpreter.v's InsertExec.insert_run_refines
       
-      TODO(CodeRabbit#61): Convert this Axiom to a Theorem by resolving the 
-      type unification issues. The proof should use RunFuelLink state conversion
-      lemmas (exec_to_state, state_to_exec) to bridge the state types.
+      The type unification issue was resolved: Run.State = ExecState.t, and
+      interpreter.v's InsertExec.insert_run_refines is proven using RunFuelLink
+      state conversion lemmas (exec_to_state, state_to_exec).
+      
+      Resolved: CodeRabbit#61, Issue #42
   *)
-  Axiom insert_executes_derived :
+  Theorem insert_executes_derived :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey) (v : Value),
     forall (rust_tree : Value.t) (s : Run.State),
       tree_refines H rust_tree sim_t ->
@@ -556,41 +556,41 @@ Module InsertDerivation.
         Run.run (InsertLink.rust_insert H [] [] [rust_tree; φ k; φ v]) s =
         (Outcome.Success rust_tree', s') /\
         tree_refines H rust_tree' (sim_tree_insert sim_t k v).
+  Proof.
+    intros H sim_t k v rust_tree s Href Hwf Hstem Hval.
+    exact (interpreter.InsertExec.insert_run_refines H sim_t k v rust_tree s Href Hwf Hstem Hval).
+  Qed.
 
   (** ******************************************************************)
   (** ** Axiom Dependency Chain                                         *)
   (** ******************************************************************)
   
-  (** The derivation uses this axiom chain:
+  (** The derivation uses this axiom/theorem chain:
       
-      insert_executes_derived (THEOREM)
+      insert_executes_derived (THEOREM - newly proven)
         |
-        +-- InsertExec.insert_run_refines (COROLLARY)
+        +-- interpreter.InsertExec.insert_run_refines (COROLLARY - proven in interpreter.v)
         |     |
         |     +-- OpExec.insert_execution_compose [AXIOM:INSERT-COMPOSE]
         |     |     |
         |     |     +-- entry_or_insert_combined (PROVEN)
         |     |     +-- subindexmap_insert_steps (PROVEN via pure)
-        |     |     +-- tree_rebuild_preserves_refines [AXIOM]
+        |     |     +-- tree_rebuild_preserves_refines (PROVEN via reflexivity)
         |     |
         |     +-- RunFuelLink.fuel_success_implies_run [AXIOM:FUEL-RUN-EQUIV]
         |
         +-- FieldStepping.read_stems_field (PROVEN)
         +-- InsertExec.sim_tree_insert_unfold (PROVEN)
         
-      Remaining Axioms:
+      Remaining Axioms (2):
       1. OpExec.insert_execution_compose - composes HashMap entry + set_value
-      2. InsertExec.tree_rebuild_preserves_refines - phi encoding preserved
-      3. RunFuelLink.fuel_success_implies_run - Fuel.Success implies Run.Success
+      2. RunFuelLink.fuel_success_implies_run - Fuel.Success implies Run.Success
       
-      These are the minimal axioms needed for insert_executes.
+      These are the minimal axioms bridging Fuel.run to Run.run semantics.
   *)
   
   Definition remaining_axioms : list string := [
     "OpExec.insert_execution_compose";
-    "InsertExec.tree_rebuild_preserves_refines";
-    "InsertExec.subindexmap_insert_steps";
-    "InsertExec.insert_run_refines";
     "RunFuelLink.fuel_success_implies_run"
   ].
   

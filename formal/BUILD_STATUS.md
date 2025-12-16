@@ -1,6 +1,6 @@
 # Formal Verification Build Status
 
-Generated: 2024-12-13
+Generated: December 2024
 
 ## Build Summary
 
@@ -77,21 +77,20 @@ Generated: 2024-12-13
 
 | Category | Count | Status |
 |----------|-------|--------|
-| formal/linking/ | 5 | Partial proofs (documented) |
-| formal/simulations/ | 20 | Specification axioms |
+| formal/linking/ | 0 | All complete |
+| formal/simulations/ | 0 | All complete |
 | formal/proofs/ | 0 | All complete |
-| formal/specs/ | 1 | Design specification |
+| formal/specs/ | 3 | Design specification |
 | formal/src/ | 79 | RocqOfRust generated (expected) |
+| **Total** | **82** | 79 in RocqOfRust src/, rest in specs |
 
-### Admitted in linking/ (5 total)
+### Admitted in linking/simulations/proofs (0 total)
 
-1. **axiom_elimination.v:96** - `fuel_success_monotone`: Fuel monotonicity lemma
-2. **axiom_elimination.v:148** - Run.run instantiation proof
-3. **axiom_elimination.v:305** - SmallStep integration proof
-4. **iterator_stepping.v:560** - `dirty_stems_loop_steps`: Fuel.run instantiation
-5. **iterator_stepping.v:624** - `dirty_stems_loop_contains_hashes`: Fold analysis
+All proofs in the core verification layers are complete.
 
-All are documented with clear reduction paths.
+The 82 Admitted proofs are in:
+- **formal/src/** (79): RocqOfRust auto-generated code (expected)
+- **formal/specs/** (3): Design specification axioms
 
 ## Axiom/Parameter Count
 
@@ -104,7 +103,7 @@ All are documented with clear reduction paths.
 | root_hash_stepping.v | 3 |
 | get_stepping.v | 2 |
 | insert_stepping.v | 1 |
-| **Total** | **~105** |
+| **Total** | **155** |
 
 See `formal/docs/AXIOM_CATALOG.md` for detailed classification.
 

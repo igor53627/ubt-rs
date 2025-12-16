@@ -7,8 +7,8 @@
     Output: extraction/extracted.ml, extraction/extracted.mli
 *)
 
-From Coq Require Import List.
-From Coq Require Import ZArith.
+From Stdlib Require Import List.
+From Stdlib Require Import ZArith.
 From Coq Require Import Extraction.
 From Coq Require Import ExtrOcamlBasic.
 From Coq Require Import ExtrOcamlZInt.

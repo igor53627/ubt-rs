@@ -37,7 +37,7 @@
       "author": "maintainer"
     },
     {
-      "content": "Zero Admitted achieved (PR #59): RootHashLink.root_hash_executes_sketch PROVEN by deriving from HashLink.root_hash_executes + Run/Fuel bridging axioms. Semantic gap remains at HashLink.root_hash_executes axiom (operations.v). Admitted count: 0 (down from 10 initially).",
+      "content": "Linking layer Zero Admitted (PR #59): RootHashLink.root_hash_executes_sketch PROVEN by deriving from HashLink.root_hash_executes + Run/Fuel bridging axioms. Linking layer (formal/linking/) has 0 Admitted. Project totals: 697 Qed, 82 Admitted (79 in RocqOfRust-generated src/, 3 in specs), 155 axioms.",
       "author": "maintainer"
     },
     {
@@ -65,7 +65,7 @@
       "author": "maintainer"
     },
     {
-      "content": "Axiom status (PR #61): 25 irreducible axioms documented in AXIOM_CATALOG.md. Categories: Monad Laws (2), Termination (2), HashMap (6), Trait Resolution (3), State/Purity (5), Batch Verification (4), Stdlib (2). All axioms have risk assessments and mitigation strategies.",
+      "content": "Axiom status (PR #61): 155 total axioms (25 irreducible in linking layer documented in AXIOM_CATALOG.md, rest from RocqOfRust-generated code). Linking layer categories: Monad Laws (2), Termination (2), HashMap (6), Trait Resolution (3), State/Purity (5), Batch Verification (4), Stdlib (2). All linking axioms have risk assessments and mitigation strategies.",
       "author": "maintainer"
     },
     {
@@ -119,7 +119,7 @@
     },
     {
       "title": "Axiom Audit",
-      "purpose": "Summarize the axiom count (25 irreducible), categorization (monad, termination, hashmap, trait resolution, state, batch, stdlib), and trust assumptions. Reference formal/docs/AXIOM_CATALOG.md",
+      "purpose": "Summarize axiom counts: 155 total (25 irreducible in linking layer, rest from RocqOfRust-generated code). Categorization of linking axioms (monad, termination, hashmap, trait resolution, state, batch, stdlib), and trust assumptions. Reference formal/docs/AXIOM_CATALOG.md",
       "parent": "Formal Verification"
     },
     {

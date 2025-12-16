@@ -18,10 +18,10 @@
 Require Import RocqOfRust.RocqOfRust.
 Require Import RocqOfRust.links.M.
 
-From Coq Require Import List.
-From Coq Require Import ZArith.
-From Coq Require Import String.
-From Coq Require Import Bool.
+From Stdlib Require Import List.
+From Stdlib Require Import ZArith.
+From Stdlib Require Import String.
+From Stdlib Require Import Bool.
 Import ListNotations.
 
 Open Scope Z_scope.

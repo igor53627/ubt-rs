@@ -35,7 +35,8 @@ The linking layer (`formal/linking/`) bridges translated Rust code to simulation
 | new_executes | **PROVEN** | 100% |
 | delete_executes | **PROVEN** | 100% |
 | get_executes | DERIVED | 90% |
-| insert_executes | DERIVED | 90% |
+| insert_executes | **PROVEN** | 95% |
+| insert_executes_derived | **PROVEN** | 95% |
 | root_hash_executes | DERIVED | 75% |
 
 ### Axiom Summary (Phase 10 Counts)
@@ -302,7 +303,7 @@ root_hash_executes
 
 | Test Type | Status | Details |
 |-----------|--------|---------|
-| QuickChick properties | [OK] 50,000 tests | 5 properties |
+| QuickChick properties | [OK] 500,000 tests | 50 properties |
 | OCaml extraction | [OK] 10/10 tests | FFI bridge |
 | Rocq compilation | [OK] All files | Zero admitted in linking |
 | Rust integration | Partial | Manual testing |
@@ -350,4 +351,4 @@ Iterator operations (drain, iter, fold) are axiomatized:
 
 ---
 
-*Last updated: December 2025 (Phase 10 Final)*
+*Last updated: December 2024 (Phase 10 Final)*

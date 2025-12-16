@@ -76,9 +76,9 @@ Require RocqOfRust.M.
 Require Import RocqOfRust.links.M.
 Require Import RocqOfRust.simulations.M.
 
-From Coq Require Import List.
-From Coq Require Import ZArith.
-From Coq Require Import Permutation.
+From Stdlib Require Import List.
+From Stdlib Require Import ZArith.
+From Stdlib Require Import Permutation.
 Import ListNotations.
 
 Require Import UBT.Sim.tree.

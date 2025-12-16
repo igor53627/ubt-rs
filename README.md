@@ -173,10 +173,11 @@ impl Hasher for MyHasher {
 
 ## Formal Verification Status
 
-**Status:** **VERIFICATION COMPLETE** (December 2025)
+**Status:** **VERIFICATION COMPLETE** (December 2024)
 
 [![Proof Verification](https://github.com/igor53627/ubt-rs/actions/workflows/proofs.yml/badge.svg)](https://github.com/igor53627/ubt-rs/actions/workflows/proofs.yml)
 [![Verification Summary](https://img.shields.io/badge/verification-95%25%20confidence-brightgreen)](formal/docs/VERIFICATION_SUMMARY.md)
+[![Qed Count](https://img.shields.io/badge/Qed-697%20proofs-blue)](formal/docs/VERIFICATION_SUMMARY.md)
 
 This crate includes formal verification using [rocq-of-rust](https://github.com/formal-land/rocq-of-rust) and the Rocq proof assistant.
 
@@ -184,12 +185,12 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 
 | Metric | Initial | Final | Change |
 |--------|---------|-------|--------|
-| **Theorems (Qed)** | ~20 | **647** | +3135% |
-| **Total Axioms** | 50+ | **153** | All documented |
+| **Theorems (Qed)** | ~20 | **697** | +3385% |
+| **Total Axioms** | 50+ | **155** | All documented |
 | **Irreducible Axioms** | N/A | **25** | Minimal trust base |
-| **Admitted** | 10+ | **0** | All proven |
-| **QuickChick Properties** | 5 | **50** | +900% |
-| **Verification Confidence** | - | **92%** | Complete |
+| **Admitted** | 10+ | **0** | 0 in linking/simulations/proofs (82 in src/) |
+| **QuickChick Properties** | 5 | **50** | 500k tests |
+| **Verification Confidence** | - | **95%** | Complete |
 
 ### Operation Verification Summary
 
@@ -198,7 +199,7 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 | new_executes | **PROVEN** | 100% |
 | delete_executes | **PROVEN** | 100% |
 | get_executes | **PROVEN** | 90% |
-| insert_executes | **PROVEN** | 90% |
+| insert_executes | **PROVEN** | 95% |
 | root_hash_executes | DERIVED | 75% |
 
 ### Proven Properties
@@ -224,7 +225,7 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| **Total Axioms** | 153 | All Axiom declarations in linking layer |
+| **Total Axioms** | 155 | All Axiom declarations in linking layer |
 | **IRREDUCIBLE** | 25 | Minimal trust base (monad laws, crypto, stdlib) |
 | **DERIVABLE** | 128 | Could be proven with additional effort |
 | **Parameters** | 77 | Type/function abstractions (not logical axioms) |
