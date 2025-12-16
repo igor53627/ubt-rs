@@ -20,8 +20,17 @@ case "$1" in
   proofs)
     ssh "$REMOTE_HOST" "cd ~/$REMOTE_PATH/formal && eval \"\$(opam env --switch=rocq-9)\" && make proofs-core"
     ;;
+  linking)
+    ssh "$REMOTE_HOST" "cd ~/$REMOTE_PATH/formal && eval \"\$(opam env --switch=rocq-9)\" && make linking"
+    ;;
   quickchick)
     ssh "$REMOTE_HOST" "cd ~/$REMOTE_PATH/formal && eval \"\$(opam env --switch=rocq-9)\" && make quickchick-ci"
+    ;;
+  extract)
+    ssh "$REMOTE_HOST" "cd ~/$REMOTE_PATH/formal && eval \"\$(opam env --switch=rocq-9)\" && make extract"
+    ;;
+  extract-test)
+    ssh "$REMOTE_HOST" "cd ~/$REMOTE_PATH/formal && eval \"\$(opam env --switch=rocq-9)\" && make extract-test"
     ;;
   sync)
     SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -29,15 +38,17 @@ case "$1" in
     rsync -av --exclude=target --exclude=.git "$SRC_DIR/" "$REMOTE_HOST:~/$REMOTE_PATH/"
     ;;
   *)
-    echo "Usage: $0 {build|test|bench|proofs|quickchick|sync}"
+    echo "Usage: $0 {build|test|bench|proofs|quickchick|extract|extract-test|sync}"
     echo ""
     echo "Commands:"
-    echo "  build      - Run cargo build"
-    echo "  test       - Run cargo test"
-    echo "  bench      - Run cargo bench"
-    echo "  proofs     - Build formal proofs (Rocq/Coq)"
-    echo "  quickchick - Run QuickChick property tests"
-    echo "  sync       - Sync local files to remote"
+    echo "  build        - Run cargo build"
+    echo "  test         - Run cargo test"
+    echo "  bench        - Run cargo bench"
+    echo "  proofs       - Build formal proofs (Rocq/Coq)"
+    echo "  quickchick   - Run QuickChick property tests"
+    echo "  extract      - Extract Rocq proofs to OCaml"
+    echo "  extract-test - Run OCaml extraction tests"
+    echo "  sync         - Sync local files to remote"
     echo ""
     echo "Environment variables:"
     echo "  REMOTE_HOST - SSH host (default: ubuntu-64@orb)"

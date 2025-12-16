@@ -18,8 +18,8 @@
     - Merkle trees: Merkle, "A Digital Signature Based on a Conventional Encryption Function" (1987)
 *)
 
-Require Import Coq.Lists.List.
-Require Import Coq.ZArith.ZArith.
+From Stdlib Require Import List.
+From Stdlib Require Import ZArith.
 Import ListNotations.
 
 Open Scope Z_scope.

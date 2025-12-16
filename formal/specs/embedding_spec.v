@@ -4,9 +4,9 @@
     Based on EIP-7864 tree embedding rules.
 *)
 
-Require Import Coq.Lists.List.
-Require Import Coq.ZArith.ZArith.
-Require Import Coq.micromega.Lia.
+From Stdlib Require Import List.
+From Stdlib Require Import ZArith.
+From Stdlib Require Import Lia.
 Import ListNotations.
 
 (** ** Constants *)

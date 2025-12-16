@@ -19,11 +19,11 @@
     rather than ordering guarantees.
 *)
 
-Require Import Coq.Lists.List.
-Require Import Coq.ZArith.ZArith.
-Require Import Coq.Bool.Bool.
-Require Import Coq.micromega.Lia.
-Require Import Coq.Sorting.Permutation.
+From Stdlib Require Import List.
+From Stdlib Require Import ZArith.
+From Stdlib Require Import Bool.
+From Stdlib Require Import Lia.
+From Stdlib Require Import Permutation.
 Require Import UBT.Sim.tree.
 Import ListNotations.
 
@@ -122,6 +122,54 @@ Proof.
         exists a. split; [right; auto | auto].
   - intros [a [Hin Heq]]. subst.
     apply in_map. exact Hin.
+Qed.
+
+(** ** Helper Lemmas for Stems and Submaps *)
+
+(** When (s, m) is in stems with NoDup, stems_get s returns Some m *)
+Lemma stems_get_in_nodup : forall (stems : StemMap) (s : Stem) (m : SubIndexMap),
+  stems_nodup stems ->
+  In (s, m) stems ->
+  stems_get stems s = Some m.
+Proof.
+  intros stems s m Hnd Hin.
+  unfold stems_get.
+  induction stems as [|[s' m'] rest IH].
+  - destruct Hin.
+  - simpl. destruct (stem_eq s' s) eqn:E.
+    + destruct Hin as [Heq | Hin].
+      * injection Heq as Hs Hm. subst. reflexivity.
+      * simpl in Hnd. inversion Hnd as [|? ? Hnotin Hnd']. subst.
+        exfalso. apply Hnotin.
+        apply stem_eq_true in E. subst s'.
+        apply in_map_iff. exists (s, m). auto.
+    + destruct Hin as [Heq | Hin].
+      * injection Heq as Hs Hm. subst.
+        rewrite stem_eq_refl in E. discriminate.
+      * simpl in Hnd. inversion Hnd. apply IH; auto.
+Qed.
+
+(** When (idx, val) is in submap with NoDup, sim_get idx returns Some val *)
+Lemma sim_get_in_nodup : forall (m : SubIndexMap) (idx : SubIndex) (val : Value),
+  submap_nodup m ->
+  In (idx, val) m ->
+  sim_get m idx = Some val.
+Proof.
+  intros m idx val Hnd Hin.
+  unfold sim_get.
+  induction m as [|[i v] rest IH].
+  - destruct Hin.
+  - simpl. destruct (Z.eqb i idx) eqn:E.
+    + destruct Hin as [Heq | Hin].
+      * injection Heq as Hi Hv. subst. reflexivity.
+      * simpl in Hnd. inversion Hnd as [|? ? Hnotin Hnd']. subst.
+        exfalso. apply Hnotin.
+        apply Z.eqb_eq in E. subst i.
+        apply in_map_iff. exists (idx, val). auto.
+    + destruct Hin as [Heq | Hin].
+      * injection Heq as Hi Hv. subst.
+        rewrite Z.eqb_refl in E. discriminate.
+      * simpl in Hnd. inversion Hnd. apply IH; auto.
 Qed.
 
 (** ** Key Completeness Theorem *)
@@ -367,7 +415,6 @@ Theorem entries_match_get_strong : forall (t : SimTree) (k : TreeKey) (v : Value
   In (k, v) (sim_tree_entries t) ->
   sim_tree_get t k = Some v.
 Proof.
-  (* Complex proof requiring careful IH management - simplified *)
   intros t k v [Hstems Hsubmaps] Hin.
   unfold sim_tree_entries in Hin.
   apply In_flat_map in Hin.
@@ -382,8 +429,13 @@ Proof.
   subst k v.
   simpl.
   unfold sim_tree_get. simpl.
-  (* The full proof requires careful induction - admit for now *)
-Admitted.
+  assert (Hstem_in_copy := Hstem_in).
+  rewrite (stems_get_in_nodup (st_stems t) stem submap Hstems Hstem_in).
+  unfold all_submaps_nodup in Hsubmaps.
+  rewrite Forall_forall in Hsubmaps.
+  apply Hsubmaps in Hstem_in_copy. simpl in Hstem_in_copy.
+  apply sim_get_in_nodup; auto.
+Qed.
 
 (** [AXIOM:ITERATOR] Every entry in iteration matches individual get.
     
@@ -401,12 +453,30 @@ Proof. exact entries_match_get_axiom. Qed.
 
 (** ** Fold Properties *)
 
+(** Helper: fold_left with entry-to-cons reverses list *)
+Lemma fold_left_entry_cons_rev_gen : forall (l : list Entry) (acc : list Entry),
+  fold_left (fun a (entry : Entry) => (fst entry, snd entry) :: a) l acc = rev l ++ acc.
+Proof.
+  induction l as [|x rest IH]; intros acc.
+  - reflexivity.
+  - simpl. rewrite IH. rewrite <- app_assoc. simpl.
+    destruct x as [k v]. reflexivity.
+Qed.
+
 (** Fold with cons is equivalent to entries *)
 Lemma fold_cons_entries : forall (t : SimTree),
   sim_tree_fold (fun acc k v => (k, v) :: acc) [] t = rev (sim_tree_entries t).
 Proof.
-  (* Straightforward by induction on entries - admit for now *)
-Admitted.
+  intros t.
+  unfold sim_tree_fold.
+  set (entries := sim_tree_entries t).
+  assert (H: fold_left (fun acc entry => (fst entry, snd entry) :: acc) entries [] = 
+             rev entries ++ []).
+  { apply fold_left_entry_cons_rev_gen. }
+  rewrite H.
+  rewrite app_nil_r.
+  reflexivity.
+Qed.
 
 (** ** Fold Order Independence for Commutative Operations *)
 
@@ -509,6 +579,28 @@ Theorem key_in_iff_get_some : forall (t : SimTree) (k : TreeKey),
   In k (sim_tree_keys t) <-> exists v, sim_tree_get t k = Some v.
 Proof. exact key_in_iff_get_some_axiom. Qed.
 
+(** Helper: find returning Some implies In *)
+Lemma find_some_in : forall {A : Type} (f : A -> bool) (l : list A) (x : A),
+  find f l = Some x -> In x l.
+Proof.
+  induction l as [|a rest IH]; intros x Hfind.
+  - discriminate.
+  - simpl in Hfind. destruct (f a) eqn:E.
+    + injection Hfind as Heq. subst. left. reflexivity.
+    + right. apply IH. exact Hfind.
+Qed.
+
+(** Helper: find returning Some implies predicate true *)
+Lemma find_some_true : forall {A : Type} (f : A -> bool) (l : list A) (x : A),
+  find f l = Some x -> f x = true.
+Proof.
+  induction l as [|a rest IH]; intros x Hfind.
+  - discriminate.
+  - simpl in Hfind. destruct (f a) eqn:E.
+    + injection Hfind as Heq. subst. exact E.
+    + apply IH. exact Hfind.
+Qed.
+
 (** Full characterization of entries *)
 Theorem entry_in_iff_get : forall (t : SimTree) (k : TreeKey) (v : Value),
   wf_tree t ->
@@ -517,6 +609,29 @@ Proof.
   intros t k v Hwf.
   split.
   - apply entries_match_get.
-  - (* Complex proof requiring nested inductions - admit for now *)
-    intros Hget.
-Admitted.
+  - intros Hget.
+    unfold sim_tree_get in Hget.
+    destruct (stems_get (st_stems t) (tk_stem k)) as [submap|] eqn:Hstem; [|discriminate].
+    unfold sim_tree_entries.
+    apply In_flat_map.
+    unfold stems_get in Hstem.
+    destruct (find (fun p => stem_eq (fst p) (tk_stem k)) (st_stems t)) as [[s m]|] eqn:Hfind;
+      [|discriminate].
+    injection Hstem as Hm. subst m.
+    exists (s, submap). split.
+    + apply find_some_in in Hfind. exact Hfind.
+    + simpl. unfold expand_stem_entries.
+      apply In_map_iff.
+      unfold sim_get in Hget.
+      destruct (find (fun p => Z.eqb (fst p) (tk_subindex k)) submap) as [[idx val]|] eqn:Hfind2;
+        [|discriminate].
+      injection Hget as Hv. subst val.
+      pose proof (find_some_in _ _ _ Hfind2) as Hin2.
+      pose proof (find_some_true _ _ _ Hfind2) as Hidx_eq. simpl in Hidx_eq.
+      apply Z.eqb_eq in Hidx_eq.
+      pose proof (find_some_true _ _ _ Hfind) as Hstem_eq. simpl in Hstem_eq.
+      apply stem_eq_true in Hstem_eq.
+      exists (idx, v). split.
+      * exact Hin2.
+      * subst s idx. destruct k as [kstem kidx]; reflexivity.
+Qed.

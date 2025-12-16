@@ -50,12 +50,13 @@ Require Import RocqOfRust.RocqOfRust.
 Require Import RocqOfRust.links.M.
 Require Import RocqOfRust.simulations.M.
 
-Require Import Coq.Lists.List.
-Require Import Coq.ZArith.ZArith.
+From Stdlib Require Import List.
+From Stdlib Require Import ZArith.
 Import ListNotations.
 
 Require Import UBT.Sim.tree.
 Require Import UBT.Linking.types.
+Require Import UBT.Linking.ubt_execution.
 
 Require src.tree.
 
@@ -76,74 +77,20 @@ Import Notations.
     pure functional results.
 *)
 
-(** ** Execution Outcomes *)
+(** ** Execution Outcomes and State
+    
+    These are now imported from ubt_execution.v to break the dependency
+    cycle with interpreter.v, allowing Run.run to be defined in terms
+    of Fuel.run.
+*)
 
-Module Outcome.
-  (** Result of running a monadic operation *)
-  Inductive t (A : Set) : Set :=
-  | Success : A -> t A
-  | Panic : {Error : Set @ Error} -> t A
-  | Diverge : t A.
+Module Outcome := ubt_execution.Outcome.
+Module ExecState := ubt_execution.ExecState.
 
-  Arguments Success {A}.
-  Arguments Panic {A}.
-  Arguments Diverge {A}.
-
-  (** Predicate: computation terminates with a value *)
-  Definition terminates {A : Set} (outcome : t A) : Prop :=
-    match outcome with
-    | Success _ => True
-    | _ => False
-    end.
-  
-  (** Predicate: computation does not panic *)
-  Definition no_panic {A : Set} (outcome : t A) : Prop :=
-    match outcome with
-    | Panic _ => False
-    | _ => True
-    end.
-  
-  (** Extract value from successful outcome *)
-  Definition get_value {A : Set} (outcome : t A) (H : terminates outcome) : A :=
-    match outcome as o return terminates o -> A with
-    | Success v => fun _ => v
-    | Panic _ => fun Hf => match Hf with end
-    | Diverge => fun Hf => match Hf with end
-    end H.
-
-End Outcome.
-
-(** ** Execution State (Memory Model) *)
-
-Module ExecState.
-  (** Abstract execution state capturing heap allocations.
-      In RocqOfRust, the M monad threads through mutable state
-      via CallPrimitive operations like StateAlloc, StateRead, StateWrite. *)
-  Record t : Set := mk {
-    next_addr : Z;
-    heap : list (Z * Value.t)
-  }.
-  
-  Definition empty : t := mk 0 [].
-  
-  (** Allocate a new value on the heap *)
-  Definition alloc (s : t) (v : Value.t) : t * Z :=
-    let addr := next_addr s in
-    (mk (addr + 1) ((addr, v) :: heap s), addr).
-  
-  (** Read a value from the heap *)
-  Definition read (s : t) (addr : Z) : option Value.t :=
-    match find (fun p => Z.eqb (fst p) addr) (heap s) with
-    | Some (_, v) => Some v
-    | None => None
-    end.
-  
-  (** Write a value to the heap *)
-  Definition write (s : t) (addr : Z) (v : Value.t) : t :=
-    mk (next_addr s) 
-        ((addr, v) :: filter (fun p => negb (Z.eqb (fst p) addr)) (heap s)).
-
-End ExecState.
+(** Helper: Success implies no_panic *)
+Lemma success_implies_no_panic : forall {A : Set} (v : A),
+  Outcome.no_panic (Outcome.Success v).
+Proof. intros. unfold Outcome.no_panic. exact I. Qed.
 
 (** ** Step-by-Step Evaluation Relation
     
@@ -1110,23 +1057,33 @@ Module PanicFreedom.
     vv_wf : wf_value v
   }.
   
-  (** [AXIOM:PANIC] Get never panics on valid inputs.
-      Status: Axiomatized - requires panic path analysis.
-      Risk: Medium - HashMap.get may have edge cases.
-      Mitigation: Manual review of all unwrap/expect calls in get path. *)
-  Axiom get_no_panic :
+  (** [PROVEN] Get never panics on valid inputs.
+      
+      Proof strategy: From get_executes we know Run.run returns Success,
+      and Success implies no_panic by definition.
+      
+      Converted from axiom: Issue low-hanging-axioms *)
+  Theorem get_no_panic :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey),
     forall (rust_tree : Value.t) (s : Run.State),
       ValidInput H sim_t ->
       ValidKey k ->
       tree_refines H rust_tree sim_t ->
       Outcome.no_panic (fst (Run.run (GetLink.rust_get H [] [] [rust_tree; φ k]) s)).
+  Proof.
+    intros H sim_t k rust_tree s [Hwf] [Hstem _] Href.
+    destruct (GetLink.get_executes H sim_t k rust_tree s Href Hwf Hstem) as [s' Hrun].
+    rewrite Hrun. simpl.
+    exact I.
+  Qed.
   
-  (** [AXIOM:PANIC] Insert never panics on valid inputs.
-      Status: Axiomatized - requires panic path analysis.
-      Risk: Medium - HashMap mutation may have edge cases.
-      Mitigation: Manual review of entry/or_insert_with, set_value paths. *)
-  Axiom insert_no_panic :
+  (** [PROVEN] Insert never panics on valid inputs.
+      
+      Proof strategy: From insert_executes we know Run.run returns Success,
+      and Success implies no_panic by definition.
+      
+      Converted from axiom: Issue low-hanging-axioms *)
+  Theorem insert_no_panic :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey) (v : Value),
     forall (rust_tree : Value.t) (s : Run.State),
       ValidInput H sim_t ->
@@ -1134,29 +1091,53 @@ Module PanicFreedom.
       ValidValue v ->
       tree_refines H rust_tree sim_t ->
       Outcome.no_panic (fst (Run.run (InsertLink.rust_insert H [] [] [rust_tree; φ k; φ v]) s)).
+  Proof.
+    intros H sim_t k v rust_tree s [Hwf] [Hstem _] [Hwfv] Href.
+    destruct (InsertLink.insert_executes H sim_t k v rust_tree s Href Hwf Hstem Hwfv) 
+      as [rust_tree' [s' [Hrun _]]].
+    rewrite Hrun. simpl.
+    exact I.
+  Qed.
   
-  (** [AXIOM:PANIC] Delete never panics on valid inputs.
-      Status: Axiomatized - reduces to insert_no_panic with zero value.
-      Risk: Low - follows from insert_no_panic.
-      Mitigation: Verified reduction to insert with zero32. *)
-  Axiom delete_no_panic :
+  (** [PROVEN] Delete never panics on valid inputs.
+      
+      Proof strategy: delete = insert with zero32, so this follows from
+      delete_executes returning Success.
+      
+      Converted from axiom: Issue low-hanging-axioms *)
+  Theorem delete_no_panic :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey),
     forall (rust_tree : Value.t) (s : Run.State),
       ValidInput H sim_t ->
       ValidKey k ->
       tree_refines H rust_tree sim_t ->
       Outcome.no_panic (fst (Run.run (DeleteLink.rust_delete H rust_tree (φ k)) s)).
+  Proof.
+    intros H sim_t k rust_tree s [Hwf] [Hstem _] Href.
+    destruct (DeleteLink.delete_executes H sim_t k rust_tree s Href Hwf Hstem) 
+      as [rust_tree' [s' [Hrun _]]].
+    rewrite Hrun. simpl.
+    exact I.
+  Qed.
   
-  (** [AXIOM:PANIC] Root hash never panics on valid inputs.
-      Status: Axiomatized - requires panic path analysis.
-      Risk: Low - read-only tree traversal.
-      Mitigation: Manual review of Merkle hash computation path. *)
-  Axiom root_hash_no_panic :
+  (** [PROVEN] Root hash never panics on valid inputs.
+      
+      Proof strategy: From root_hash_executes we know Run.run returns Success,
+      and Success implies no_panic by definition.
+      
+      Converted from axiom: Issue low-hanging-axioms *)
+  Theorem root_hash_no_panic :
     forall (H : Ty.t) (sim_t : SimTree),
     forall (rust_tree : Value.t) (s : Run.State),
       ValidInput H sim_t ->
       tree_refines H rust_tree sim_t ->
       Outcome.no_panic (fst (Run.run (HashLink.rust_root_hash H [] [] [rust_tree]) s)).
+  Proof.
+    intros H sim_t rust_tree s [Hwf] Href.
+    destruct (HashLink.root_hash_executes H sim_t rust_tree s Href Hwf) as [s' Hrun].
+    rewrite Hrun. simpl.
+    exact I.
+  Qed.
 
 End PanicFreedom.
 
@@ -2013,7 +1994,12 @@ Module Limitations.
   (** Marker that identifies axiomatized theorems for tracking *)
   Definition is_axiomatized (name : string) : Prop := True.
   
-  (** Issue #43: DeleteLink.delete_executes removed - now a proven theorem *)
+  (** Issue #43: DeleteLink.delete_executes removed - now a proven theorem
+      Low-hanging axioms converted to theorems:
+      - PanicFreedom.get_no_panic - PROVEN via get_executes
+      - PanicFreedom.insert_no_panic - PROVEN via insert_executes
+      - PanicFreedom.delete_no_panic - PROVEN via delete_executes
+      - PanicFreedom.root_hash_no_panic - PROVEN via root_hash_executes *)
   Definition axiomatized_theorems : list string := [
     "Run.run_pure";
     "Run.run_bind";
@@ -2023,10 +2009,10 @@ Module Limitations.
     (* "DeleteLink.delete_executes" - PROVEN via insert_executes (Issue #43) *)
     "NewLink.new_executes";
     "HashLink.root_hash_executes";
-    "PanicFreedom.get_no_panic";
-    "PanicFreedom.insert_no_panic";
-    "PanicFreedom.delete_no_panic";
-    "PanicFreedom.root_hash_no_panic";
+    (* "PanicFreedom.get_no_panic" - PROVEN via get_executes *)
+    (* "PanicFreedom.insert_no_panic" - PROVEN via insert_executes *)
+    (* "PanicFreedom.delete_no_panic" - PROVEN via delete_executes *)
+    (* "PanicFreedom.root_hash_no_panic" - PROVEN via root_hash_executes *)
     "BatchVerifyLink.rust_verify_batch_inclusion_executes";
     "BatchVerifyLink.rust_verify_multiproof_executes";
     "BatchVerifyLink.rust_verify_shared_executes"
