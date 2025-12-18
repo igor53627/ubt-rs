@@ -2,7 +2,7 @@
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/igor53627/ubt-rs)
 [![Proof Verification](https://github.com/igor53627/ubt-rs/actions/workflows/proofs.yml/badge.svg)](https://github.com/igor53627/ubt-rs/actions/workflows/proofs.yml)
-[![Proof Lint](https://github.com/igor53627/ubt-rs/actions/workflows/lint-proofs.yml/badge.svg)](https://github.com/igor53627/ubt-rs/actions/workflows/lint-proofs.yml)
+[![Proof Lint](https://github.com/igor53627/ubt-rs/actions/workflows/lint.yml/badge.svg)](https://github.com/igor53627/ubt-rs/actions/workflows/lint.yml)
 [![Docs Coverage](https://img.shields.io/badge/docs-19%20files-blue)](formal/docs/)
 
 A Rust implementation of [EIP-7864: Ethereum state using a unified binary tree](https://eips.ethereum.org/EIPS/eip-7864).
