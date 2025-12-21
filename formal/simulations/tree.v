@@ -26,6 +26,7 @@ From Stdlib Require Import FMapList.
 From Stdlib Require Import OrderedTypeEx.
 From Stdlib Require Import Bool.
 From Stdlib Require Import Lia.
+From Stdlib Require Import Sorting.Permutation.
 Import ListNotations.
 
 Open Scope Z_scope.
@@ -139,6 +140,49 @@ Proof.
     apply Z.eqb_eq in Heq. subst x2.
     f_equal. apply IH; [exact Hrest | injection Hlen; auto].
 Qed.
+
+(** ** Bytes32 Equality *)
+
+(** Decidable equality for Bytes32 (list Z) *)
+Definition bytes32_eqb (b1 b2 : Bytes32) : bool :=
+  forallb (fun p => Z.eqb (fst p) (snd p)) (combine b1 b2) &&
+  Nat.eqb (length b1) (length b2).
+
+(** bytes32_eqb reflects equality *)
+Lemma bytes32_eqb_eq : forall b1 b2,
+  bytes32_eqb b1 b2 = true <-> b1 = b2.
+Proof.
+  intros b1 b2.
+  unfold bytes32_eqb.
+  split.
+  - intros H.
+    apply Bool.andb_true_iff in H. destruct H as [Hfb Hlen].
+    apply Nat.eqb_eq in Hlen.
+    apply forallb_combine_eq; assumption.
+  - intros H. subst.
+    apply Bool.andb_true_iff. split.
+    + clear. induction b2 as [|x rest IH].
+      * reflexivity.
+      * simpl. rewrite Z.eqb_refl. exact IH.
+    + apply Nat.eqb_refl.
+Qed.
+
+(** bytes32_eqb is reflexive *)
+Lemma bytes32_eqb_refl : forall b, bytes32_eqb b b = true.
+Proof.
+  intros b. apply bytes32_eqb_eq. reflexivity.
+Qed.
+
+(** Decidability for Bytes32 equality *)
+Definition bytes32_eq_dec : forall b1 b2 : Bytes32, {b1 = b2} + {b1 <> b2}.
+Proof.
+  intros b1 b2.
+  destruct (bytes32_eqb b1 b2) eqn:H.
+  - left. apply bytes32_eqb_eq. exact H.
+  - right. intros Heq. subst. rewrite bytes32_eqb_refl in H. discriminate.
+Defined.
+
+(** ** Stem Equality Lemmas (continued) *)
 
 (** Stem equality implies propositional equality for same-length stems *)
 Lemma stem_eq_true_len : forall s1 s2, 
@@ -1208,6 +1252,130 @@ Proof.
   intros. constructor; assumption.
 Qed.
 
+(** ** Permutation Lemmas for Map Lookups
+    
+    When maps have NoDup (no duplicate keys), find results are invariant
+    under permutation. This is used to show that permuted maps are
+    semantically equivalent for lookup operations.
+*)
+
+(** Helper: find respects permutation when predicate has at most one match.
+    This is proven by induction on the Permutation derivation. *)
+Lemma find_permutation_unique :
+  forall (A : Type) (f : A -> bool) (l1 l2 : list A),
+    Permutation l1 l2 ->
+    (forall x y, In x l1 -> In y l1 -> f x = true -> f y = true -> x = y) ->
+    find f l1 = find f l2.
+Proof.
+  intros A f l1 l2 Hperm Huniq.
+  induction Hperm.
+  - reflexivity.
+  - simpl. destruct (f x) eqn:Hfx.
+    + reflexivity.
+    + apply IHHperm. intros. apply Huniq; simpl; auto.
+  - simpl. destruct (f x) eqn:Hfx; destruct (f y) eqn:Hfy.
+    + assert (x = y) by (apply Huniq; simpl; auto).
+      subst. reflexivity.
+    + reflexivity.
+    + reflexivity.
+    + reflexivity.
+  - transitivity (find f l').
+    + apply IHHperm1. exact Huniq.
+    + apply IHHperm2. intros x0 y0 Hx Hy Hfx0 Hfy0.
+      apply Huniq.
+      * apply (Permutation_in _ (Permutation_sym Hperm1)). exact Hx.
+      * apply (Permutation_in _ (Permutation_sym Hperm1)). exact Hy.
+      * exact Hfx0.
+      * exact Hfy0.
+Qed.
+
+(** NoDup implies uniqueness of matching elements for Z.eqb on fst *)
+Lemma nodup_implies_unique_match_subindex :
+  forall (m : SubIndexMap) (idx : SubIndex),
+    submap_nodup m ->
+    forall x y, In x m -> In y m -> 
+      Z.eqb (fst x) idx = true -> Z.eqb (fst y) idx = true -> x = y.
+Proof.
+  intros m idx Hnd x y Hx Hy Hfx Hfy.
+  unfold submap_nodup in Hnd.
+  apply Z.eqb_eq in Hfx.
+  apply Z.eqb_eq in Hfy.
+  destruct x as [ix vx], y as [iy vy]. simpl in *.
+  subst ix iy.
+  induction m as [|[i v] rest IH].
+  - destruct Hx.
+  - simpl in Hnd. inversion Hnd. subst.
+    simpl in Hx, Hy.
+    destruct Hx as [Hx|Hx]; destruct Hy as [Hy|Hy].
+    + inversion Hx; subst. inversion Hy; subst. reflexivity.
+    + inversion Hx; subst. exfalso. apply H1.
+      rewrite In_map_iff. exists (idx, vy). simpl. auto.
+    + inversion Hy; subst. exfalso. apply H1.
+      rewrite In_map_iff. exists (idx, vx). simpl. auto.
+    + apply IH; assumption.
+Qed.
+
+(** NoDup implies uniqueness of matching elements for stem_eq on fst.
+    Uses stem_eq_true axiom (global well-formedness assumed). *)
+Lemma nodup_implies_unique_match_stem :
+  forall (m : StemMap) (s : Stem),
+    stems_nodup m ->
+    forall x y, In x m -> In y m -> 
+      stem_eq (fst x) s = true -> stem_eq (fst y) s = true -> x = y.
+Proof.
+  intros m s Hnd x y Hx Hy Hfx Hfy.
+  unfold stems_nodup in Hnd.
+  destruct x as [sx vx], y as [sy vy]. simpl in *.
+  assert (Heq: sx = sy).
+  { apply stem_eq_true in Hfx. apply stem_eq_true in Hfy. subst. reflexivity. }
+  subst sy.
+  induction m as [|[si vi] rest IH].
+  - destruct Hx.
+  - simpl in Hnd. inversion Hnd. subst.
+    simpl in Hx, Hy.
+    destruct Hx as [Hx|Hx]; destruct Hy as [Hy|Hy].
+    + inversion Hx; subst. inversion Hy; subst. reflexivity.
+    + inversion Hx; subst.
+      exfalso. apply H1. rewrite In_map_iff. exists (sx, vy). simpl. auto.
+    + inversion Hy; subst.
+      exfalso. apply H1. rewrite In_map_iff. exists (sx, vx). simpl. auto.
+    + apply IH; assumption.
+Qed.
+
+(** sim_get respects Permutation when map has NoDup *)
+Lemma sim_get_permutation :
+  forall (m1 m2 : SubIndexMap) (idx : SubIndex),
+    Permutation m1 m2 ->
+    submap_nodup m1 ->
+    sim_get m1 idx = sim_get m2 idx.
+Proof.
+  intros m1 m2 idx Hperm Hnd.
+  unfold sim_get.
+  assert (Hfind: find (fun p => Z.eqb (fst p) idx) m1 = 
+                 find (fun p => Z.eqb (fst p) idx) m2).
+  { apply find_permutation_unique.
+    - exact Hperm.
+    - apply nodup_implies_unique_match_subindex. exact Hnd. }
+  rewrite Hfind. reflexivity.
+Qed.
+
+(** stems_get respects Permutation when map has NoDup *)
+Lemma stems_get_permutation :
+  forall (m1 m2 : StemMap) (s : Stem),
+    Permutation m1 m2 ->
+    stems_nodup m1 ->
+    stems_get m1 s = stems_get m2 s.
+Proof.
+  intros m1 m2 s Hperm Hnd.
+  unfold stems_get.
+  assert (Hfind: find (fun p => stem_eq (fst p) s) m1 = 
+                 find (fun p => stem_eq (fst p) s) m2).
+  { apply find_permutation_unique.
+    - exact Hperm.
+    - apply nodup_implies_unique_match_stem. exact Hnd. }
+  rewrite Hfind. reflexivity.
+Qed.
+
 (** ** Merkle Proof Types *)
 
 (** Direction in Merkle tree traversal *)
@@ -1270,6 +1438,63 @@ Definition verify_exclusion_proof (proof : ExclusionProof) (root : Bytes32) : Pr
   let zero_hash := zero32 in
   let stem_hash := hash_stem (tk_stem (ep_key proof)) zero_hash in
   compute_root_from_witness stem_hash (ep_tree_proof proof) = root.
+
+(** ** Decidability for Proof Verification *)
+
+(** Boolean version of inclusion proof verification *)
+Definition verify_inclusion_proof_b (proof : InclusionProof) (root : Bytes32) : bool :=
+  let leaf_hash := hash_value (ip_value proof) in
+  let stem_root := compute_root_from_witness leaf_hash (ip_stem_proof proof) in
+  let stem_hash := hash_stem (tk_stem (ip_key proof)) stem_root in
+  bytes32_eqb (compute_root_from_witness stem_hash (ip_tree_proof proof)) root.
+
+(** Boolean version of exclusion proof verification *)
+Definition verify_exclusion_proof_b (proof : ExclusionProof) (root : Bytes32) : bool :=
+  let zero_hash := zero32 in
+  let stem_hash := hash_stem (tk_stem (ep_key proof)) zero_hash in
+  bytes32_eqb (compute_root_from_witness stem_hash (ep_tree_proof proof)) root.
+
+(** verify_inclusion_proof_b reflects verify_inclusion_proof *)
+Lemma verify_inclusion_proof_b_spec : forall proof root,
+  verify_inclusion_proof_b proof root = true <-> verify_inclusion_proof proof root.
+Proof.
+  intros proof root.
+  unfold verify_inclusion_proof_b, verify_inclusion_proof.
+  apply bytes32_eqb_eq.
+Qed.
+
+(** verify_exclusion_proof_b reflects verify_exclusion_proof *)
+Lemma verify_exclusion_proof_b_spec : forall proof root,
+  verify_exclusion_proof_b proof root = true <-> verify_exclusion_proof proof root.
+Proof.
+  intros proof root.
+  unfold verify_exclusion_proof_b, verify_exclusion_proof.
+  apply bytes32_eqb_eq.
+Qed.
+
+(** Decidability for inclusion proof verification *)
+Definition verify_inclusion_proof_dec : forall proof root,
+  {verify_inclusion_proof proof root} + {~ verify_inclusion_proof proof root}.
+Proof.
+  intros proof root.
+  destruct (verify_inclusion_proof_b proof root) eqn:H.
+  - left. apply verify_inclusion_proof_b_spec. exact H.
+  - right. intros Hprop. 
+    apply verify_inclusion_proof_b_spec in Hprop.
+    rewrite H in Hprop. discriminate.
+Defined.
+
+(** Decidability for exclusion proof verification *)
+Definition verify_exclusion_proof_dec : forall proof root,
+  {verify_exclusion_proof proof root} + {~ verify_exclusion_proof proof root}.
+Proof.
+  intros proof root.
+  destruct (verify_exclusion_proof_b proof root) eqn:H.
+  - left. apply verify_exclusion_proof_b_spec. exact H.
+  - right. intros Hprop.
+    apply verify_exclusion_proof_b_spec in Hprop.
+    rewrite H in Hprop. discriminate.
+Defined.
 
 (** [AXIOM:SOUNDNESS] Inclusion proof soundness - verified proofs imply membership.
     Critical security property: if Merkle proof verifies against root, the
