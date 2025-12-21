@@ -30,8 +30,11 @@ thiserror = "2"
 # Hex encoding for debug output
 hex = "0.4"
 
-[dev-dependencies]
+# For simulation testing binary
 rand = "0.8"
+num_cpus = "1.16"
+
+[dev-dependencies]
 proptest = "1.4"
 criterion = "0.5"
 
@@ -54,5 +57,9 @@ harness = false
 [[bench]]
 name = "incremental_vs_rebuild"
 harness = false
+
+[[bin]]
+name = "simulate"
+path = "src/bin/simulate.rs"
 
 

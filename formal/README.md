@@ -12,7 +12,7 @@ This directory contains formal verification artifacts for the Unified Binary Tre
 | Simulations | Complete | Idiomatic Rocq tree operations |
 | Security Proofs | Complete | Game-based security (EUF-MPA, accumulator) |
 | Proofs | Complete | Simulation-level proofs |
-| QuickChick Tests | Passing | 5 properties, 50k total tests |
+| QuickChick Tests | Passing | 22 CI / 50 total properties, 500k tests |
 | Translation | Compiles | rocq-of-rust output (24,556 lines, 8 files) |
 | Linking | Complete | Translation <-> Simulation equivalence |
 | FFI Bridge | Created | OCaml extraction <-> Rust UBT (10/10 tests) |
@@ -21,9 +21,12 @@ This directory contains formal verification artifacts for the Unified Binary Tre
 
 | Metric | Count |
 |--------|-------|
-| Total axioms | **84** |
-| Parameters | **26** |
+| Total axioms | **155** |
+| Irreducible axioms | **25** |
+| Parameters | **77** |
 | Admitted proofs | **0** (all closed) |
+
+See [docs/VERIFICATION_SUMMARY.md](docs/VERIFICATION_SUMMARY.md) for current metrics.
 
 ### Proven Properties
 
@@ -195,7 +198,7 @@ All verification goals achieved (December 2024):
 
 - [Verification Scope](docs/VERIFICATION_SCOPE.md) - What is and isn't formally verified
 - [Verification Status](docs/VERIFICATION_STATUS.md) - Current proof status
-- [Axiom Audit](docs/axiom_audit.md) - Detailed audit of all 84 axioms
+- [Axiom Audit](docs/axiom_audit.md) - Detailed audit of all 155 axioms
 - [Theorems Reference](docs/THEOREMS.md) - Complete theorem documentation including security proofs
 - [Linking Layer Setup](docs/LINKING_LAYER_SETUP.md) - RocqOfRust setup and linking layer
 - [Spec-Rust Linkage](docs/SPEC_RUST_LINKAGE.md) - Type/operation mapping

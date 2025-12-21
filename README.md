@@ -114,8 +114,8 @@ tree.root_hash(); // Full rebuild
 tree.enable_incremental_mode();
 tree.root_hash(); // Populates intermediate node cache
 
-// Future updates only recompute affected paths: O(D*C) vs O(S log S)
-// where D=248 (tree depth) and C=changed stems per block
+// Future updates reuse cached intermediate hashes: O(D*C) hashing work
+// (root_hash() still does O(S log S) stem sort; D=248, C=changed stems)
 tree.insert(TreeKey::from_bytes(B256::repeat_byte(0x02)), B256::repeat_byte(0x43));
 tree.root_hash(); // Only recomputes paths to changed stems
 ```
@@ -152,7 +152,7 @@ To disable default features:
 
 ```toml
 [dependencies]
-ubt = { version = "0.1", default-features = false }
+ubt = { version = "0.2", default-features = false }
 ```
 
 ## Hash Function
@@ -204,22 +204,24 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 
 ### Proven Properties
 
-| Theorem | Status |
-|---------|--------|
-| Empty tree has zero hash | Proven |
-| Hash is deterministic | Proven |
-| Get from empty returns None | Proven |
-| Get after insert returns value | Proven |
-| Insert doesn't affect other keys | Proven |
-| Delete removes value | Proven |
-| Keys with same stem share subtree | Proven |
-| Insert preserves well-formedness | Proven |
-| Order independence (all cases) | Proven |
-| Inclusion proof soundness | Proven |
-| Exclusion proof soundness | Proven |
-| Batch verification soundness | Proven |
-| EUF-MPA security | Proven |
-| Accumulator soundness | Proven |
+| Theorem | Status | Scope |
+|---------|--------|-------|
+| Empty tree has zero hash | Proven | Rust API |
+| Hash is deterministic | Proven | Rust API |
+| Get from empty returns None | Proven | Rust API |
+| Get after insert returns value | Proven | Rust API |
+| Insert doesn't affect other keys | Proven | Rust API |
+| Delete removes value | Proven | Rust API |
+| Keys with same stem share subtree | Proven | Rust API |
+| Insert preserves well-formedness | Proven | Rust API |
+| Order independence (all cases) | Proven | Rust API |
+| Inclusion proof soundness | Proven | Formal model |
+| Exclusion proof soundness | Proven | Formal model |
+| Batch verification soundness | Proven | Formal model |
+| EUF-MPA security | Proven | Formal model |
+| Accumulator soundness | Proven | Formal model |
+
+**Note:** Properties marked "Formal model" are proven in the Rocq formal verification but the corresponding Rust APIs (batch verification, accumulators) are not yet exposed.
 
 ### Axiom Classification
 
