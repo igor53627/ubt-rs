@@ -1611,6 +1611,18 @@ Phase 10 completes the formal verification effort with final metrics:
   - Use RunFuelLink.run_fuel_implies_run_v2 for fuel-to-run connection
   - Reduces Admitted count from 2 to 1
 
+- **Zero Admitted Proofs Achieved** (PR #59, Issue #53)
+  - RootHashLink.root_hash_executes_sketch PROVEN (was last remaining Admitted)
+  - Proof derives from HashLink.root_hash_executes + Run/Fuel bridging axioms
+  - Does NOT require implementing full closure/trait stepping
+  - Semantic gap remains at HashLink.root_hash_executes axiom (operations.v)
+  - Admitted count: 0 (down from 10 initially, 1 before this PR)
+
+- **Remove Redundant Admitted** (PR #58, Issue #51)
+  - FuelExec.run_fuel_implies_run removed (was duplicate of RunFuelLink.run_fuel_implies_run_v2)
+  - Use RunFuelLink.run_fuel_implies_run_v2 for fuel-to-run connection
+  - Reduces Admitted count from 2 to 1
+
 - **Monad Bind Axiom** (PR #57, Issues #49, #54)
   - Laws.let_sequence promoted to explicit [AXIOM:MONAD-BIND]
   - Standard monad law: running m then f equals running (M.let_ m f)
