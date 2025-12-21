@@ -20,11 +20,11 @@
     - IPA: Bünz et al. (2020) - Bulletproofs with Inner Product Arguments
 *)
 
-Require Import Coq.Lists.List.
-Require Import Coq.ZArith.ZArith.
+From Stdlib Require Import List.
+From Stdlib Require Import ZArith.
 Require Import UBT.Sim.tree.
 Require Import UBT.Sim.verkle.
-Require Import Coq.micromega.Lia.
+From Stdlib Require Import Lia.
 Import ListNotations.
 
 Open Scope Z_scope.

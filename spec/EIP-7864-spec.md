@@ -251,7 +251,7 @@ $$
 \text{CodeChunkKey}(a, c) = \text{TreeKey}(a, \kappa_c)
 $$
 
-Where $\kappa_c[24:32] = \text{LE}_8(128 + c)$ (little-endian).
+Where $\kappa_c[23:31] = \text{BE}_8(\text{stem\_index})$ (big-endian) and $\kappa_c[31] = \text{subindex}$.
 
 ---
 

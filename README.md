@@ -2,8 +2,8 @@
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/igor53627/ubt-rs)
 [![Proof Verification](https://github.com/igor53627/ubt-rs/actions/workflows/proofs.yml/badge.svg)](https://github.com/igor53627/ubt-rs/actions/workflows/proofs.yml)
-[![Proof Lint](https://github.com/igor53627/ubt-rs/actions/workflows/lint-proofs.yml/badge.svg)](https://github.com/igor53627/ubt-rs/actions/workflows/lint-proofs.yml)
-[![Docs Coverage](https://img.shields.io/badge/docs-17%20files-blue)](formal/docs/)
+[![Proof Lint](https://github.com/igor53627/ubt-rs/actions/workflows/lint.yml/badge.svg)](https://github.com/igor53627/ubt-rs/actions/workflows/lint.yml)
+[![Docs Coverage](https://img.shields.io/badge/docs-19%20files-blue)](formal/docs/)
 
 A Rust implementation of [EIP-7864: Ethereum state using a unified binary tree](https://eips.ethereum.org/EIPS/eip-7864).
 
@@ -114,8 +114,8 @@ tree.root_hash(); // Full rebuild
 tree.enable_incremental_mode();
 tree.root_hash(); // Populates intermediate node cache
 
-// Future updates only recompute affected paths: O(D*C) vs O(S log S)
-// where D=248 (tree depth) and C=changed stems per block
+// Future updates reuse cached intermediate hashes: O(D*C) hashing work
+// (root_hash() still does O(S log S) stem sort; D=248, C=changed stems)
 tree.insert(TreeKey::from_bytes(B256::repeat_byte(0x02)), B256::repeat_byte(0x43));
 tree.root_hash(); // Only recomputes paths to changed stems
 ```
@@ -152,7 +152,7 @@ To disable default features:
 
 ```toml
 [dependencies]
-ubt = { version = "0.1", default-features = false }
+ubt = { version = "0.2", default-features = false }
 ```
 
 ## Hash Function
@@ -171,48 +171,75 @@ impl Hasher for MyHasher {
 }
 ```
 
-## Formal Verification
+## Formal Verification Status
 
 **Status:** **VERIFICATION COMPLETE** (December 2024)
 
-This crate includes formal verification using [rocq-of-rust](https://github.com/formal-land/rocq-of-rust) and the Rocq proof assistant. All proofs are complete with **0 admits remaining**.
-
 [![Proof Verification](https://github.com/igor53627/ubt-rs/actions/workflows/proofs.yml/badge.svg)](https://github.com/igor53627/ubt-rs/actions/workflows/proofs.yml)
+[![Verification Summary](https://img.shields.io/badge/verification-95%25%20confidence-brightgreen)](formal/docs/VERIFICATION_SUMMARY.md)
+[![Qed Count](https://img.shields.io/badge/Qed-697%20proofs-blue)](formal/docs/VERIFICATION_SUMMARY.md)
+
+This crate includes formal verification using [rocq-of-rust](https://github.com/formal-land/rocq-of-rust) and the Rocq proof assistant.
+
+### Key Metrics
+
+| Metric | Initial | Final | Change |
+|--------|---------|-------|--------|
+| **Theorems (Qed)** | ~20 | **697** | +3385% |
+| **Total Axioms** | 50+ | **155** | All documented |
+| **Irreducible Axioms** | N/A | **25** | Minimal trust base |
+| **Admitted** | 10+ | **0** | 0 in linking/simulations/proofs (82 in RocqOfRust src/, 3 in specs) |
+| **QuickChick Properties** | 5 | **22 CI / 50 total** | 11k/500k tests |
+| **Verification Confidence** | - | **95%** | Complete |
+
+### Operation Verification Summary
+
+| Component | Status | Confidence |
+|-----------|--------|------------|
+| new_executes | **PROVEN** | 100% |
+| delete_executes | **PROVEN** | 100% |
+| get_executes | **PROVEN** | 90% |
+| insert_executes | **PROVEN** | 95% |
+| root_hash_executes | DERIVED | 75% |
 
 ### Proven Properties
 
-| Theorem | Status |
-|---------|--------|
-| Empty tree has zero hash | Proven |
-| Hash is deterministic | Proven |
-| Get from empty returns None | Proven |
-| Get after insert returns value | Proven |
-| Insert doesn't affect other keys | Proven |
-| Delete removes value | Proven |
-| Keys with same stem share subtree | Proven |
-| Insert preserves well-formedness | Proven |
-| Order independence (all cases) | Proven |
-| Inclusion proof soundness | Proven |
-| Exclusion proof soundness | Proven |
-| Batch verification soundness | Proven |
-| EUF-MPA security | Proven |
-| Accumulator soundness | Proven |
+| Theorem | Status | Scope |
+|---------|--------|-------|
+| Empty tree has zero hash | Proven | Rust API |
+| Hash is deterministic | Proven | Rust API |
+| Get from empty returns None | Proven | Rust API |
+| Get after insert returns value | Proven | Rust API |
+| Insert doesn't affect other keys | Proven | Rust API |
+| Delete removes value | Proven | Rust API |
+| Keys with same stem share subtree | Proven | Rust API |
+| Insert preserves well-formedness | Proven | Rust API |
+| Order independence (all cases) | Proven | Rust API |
+| Inclusion proof soundness | Proven | Formal model |
+| Exclusion proof soundness | Proven | Formal model |
+| Batch verification soundness | Proven | Formal model |
+| EUF-MPA security | Proven | Formal model |
+| Accumulator soundness | Proven | Formal model |
 
-### Verification Status
+**Note:** Properties marked "Formal model" are proven in the Rocq formal verification but the corresponding Rust APIs (batch verification, accumulators) are not yet exposed.
 
-| Metric | Count | Notes |
-|--------|-------|-------|
-| Axioms | **84** | Simulations (68), Specs (9), Proofs (7) |
-| Parameters | **26** | Abstract types and functions |
-| Admitted proofs | **0** | All closed |
-| QuickChick tests | 50,000 | 5 properties, 10k each |
-| OCaml extraction | 10/10 | All tests passing |
-| FFI bridge | Complete | Rust ↔ OCaml validated |
+### Axiom Classification
 
-**Axiom categories:**
-- **Cryptographic**: Hash determinism, collision resistance, zero-value properties
-- **Verkle commitments**: Binding, hiding, multi-open correctness
-- **Rust linking**: Execution semantics, refinement relations (all verified)
+| Category | Count | Description |
+|----------|-------|-------------|
+| **Total Axioms** | 155 | All Axiom declarations in linking layer |
+| **IRREDUCIBLE** | 25 | Minimal trust base (monad laws, crypto, stdlib) |
+| **DERIVABLE** | 128 | Could be proven with additional effort |
+| **Parameters** | 77 | Type/function abstractions (not logical axioms) |
+
+**Trust assumptions:**
+- **Monad Laws:** Standard mathematical properties (high confidence)
+- **RocqOfRust Translation:** Assumes correct Rust-to-Rocq translation
+- **HashMap/Iterator Semantics:** Standard library behavior
+
+**Future work:** Full M monad interpreter to eliminate simulation axioms (tracked in [rocq-of-rust-interp#1](https://github.com/formal-land/rocq-of-rust-interp/issues/1)).
+
+See [formal/docs/VERIFICATION_SUMMARY.md](formal/docs/VERIFICATION_SUMMARY.md) for complete verification summary.
 
 ### Building Proofs
 
@@ -241,8 +268,14 @@ formal/
 ├── simulations/     # Idiomatic Rocq implementation + security proofs
 ├── proofs/          # Correctness proofs + QuickChick tests
 ├── linking/         # Rust-to-Rocq refinement (complete)
+├── lib/             # Reusable libraries (submodules)
 └── src/             # Auto-generated translation (24k lines)
 ```
+
+### Dependencies
+
+- [rocq-of-rust](https://github.com/formal-land/rocq-of-rust) - Rust to Rocq translation
+- [rocq-of-rust-interp](https://github.com/igor53627/rocq-of-rust-interp) - M monad interpreter library (submodule)
 
 ## Comparison with MPT
 

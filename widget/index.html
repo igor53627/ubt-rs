@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UBT Block Visualizer - Sepolia</title>
+  <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+  <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
+  <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: #080810;
+      color: #fff;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .header {
+      background: linear-gradient(135deg, #12121a 0%, #1a1a2e 100%);
+      padding: 12px 24px;
+      border-bottom: 1px solid #2a2a3a;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+    }
+    .header h1 { font-size: 1.1rem; font-weight: 600; color: #ddd; }
+    .header h1 span { color: #8b5cf6; }
+    .block-nav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .block-nav button {
+      background: #1a1a2a;
+      border: 1px solid #2a2a4a;
+      color: #aaa;
+      padding: 6px 14px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.15s;
+    }
+    .block-nav button:hover:not(:disabled) { background: #2a2a4a; color: #fff; }
+    .block-nav button:disabled { opacity: 0.3; cursor: not-allowed; }
+    .block-display {
+      background: #0a0a12;
+      padding: 4px 14px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.95rem;
+      text-align: center;
+    }
+    .block-display small { color: #8b5cf6; font-size: 0.6rem; }
+    .header-right {
+      display: flex;
+      gap: 16px;
+      font-size: 0.75rem;
+      color: #666;
+    }
+    .header-right span { color: #4da6ff; font-family: monospace; }
+    
+    .container { display: flex; height: calc(100vh - 56px); }
+    
+    #cy { flex: 1; background: radial-gradient(ellipse at center, #0d0d15 0%, #080810 100%); }
+    
+    .sidebar {
+      width: 300px;
+      background: #0c0c14;
+      border-left: 1px solid #1a1a2a;
+      padding: 14px;
+      overflow-y: auto;
+    }
+    
+    .section { margin-bottom: 16px; }
+    .section h3 {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      color: #555;
+      margin-bottom: 8px;
+      letter-spacing: 0.5px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 5px;
+      font-size: 0.75rem;
+      color: #888;
+    }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+    }
+    .legend-dot.internal { background: #2a2a3a; border: 1px solid #666; }
+    .legend-dot.stem { background: #1a3a5c; border: 1px solid #4da6ff; }
+    .legend-dot.leaf { background: #5c3a1a; border: 1px solid #ffaa4d; }
+    .legend-dot.empty { background: #1a1a1a; border: 1px solid #333; }
+    
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      border-bottom: 1px solid #151520;
+      font-size: 0.75rem;
+      color: #666;
+    }
+    .stat-value { color: #4da6ff; font-family: monospace; }
+    
+    .addr-item {
+      padding: 6px 8px;
+      background: #12121a;
+      border-radius: 4px;
+      margin-bottom: 4px;
+      font-size: 0.7rem;
+      font-family: monospace;
+      color: #888;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .addr-item:hover { background: #1a1a2a; color: #fff; }
+    .addr-item .label { color: #4da6ff; font-size: 0.6rem; display: block; }
+    
+    .node-info {
+      background: #12121a;
+      border-radius: 4px;
+      padding: 10px;
+      display: none;
+    }
+    .node-info.active { display: block; }
+    .node-info h4 { color: #4da6ff; font-size: 0.8rem; margin-bottom: 6px; }
+    .info-row { font-size: 0.7rem; margin-bottom: 3px; }
+    .info-row .label { color: #555; }
+    .info-row .value { color: #aaa; font-family: monospace; word-break: break-all; }
+    
+    .leaf-legend { }
+    .leaf-item {
+      display: grid;
+      grid-template-columns: 55px 50px 1fr;
+      gap: 4px;
+      padding: 4px 0;
+      border-bottom: 1px solid #151520;
+      font-size: 0.7rem;
+      align-items: center;
+    }
+    .leaf-item .idx { color: #ffaa4d; font-family: monospace; }
+    .leaf-item .name { color: #fff; }
+    .leaf-item .desc { color: #555; font-size: 0.6rem; }
+    
+    .controls {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      display: flex;
+      gap: 6px;
+    }
+    .controls button {
+      background: #1a1a2a;
+      border: 1px solid #2a2a4a;
+      color: #888;
+      padding: 6px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11px;
+    }
+    .controls button:hover { background: #2a2a4a; color: #fff; }
+    
+    .loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #4da6ff;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>UBT State Tree <span>Sepolia</span></h1>
+    <div class="block-nav">
+      <button id="prevBtn">&larr;</button>
+      <div class="block-display">
+        <small>BLOCK</small><br>
+        <span id="blockNum">#9,841,318</span>
+      </div>
+      <button id="nextBtn">&rarr;</button>
+    </div>
+    <div class="header-right">
+      <div>State Root: <span id="stateRoot">0xf9ed...3af0</span></div>
+      <div>Txs: <span id="txCount">112</span></div>
+    </div>
+  </div>
+  
+  <div class="container">
+    <div id="cy">
+      <div class="loading" id="loading">Loading block data...</div>
+    </div>
+    
+    <div class="sidebar">
+      <div class="section">
+        <h3>Node Types</h3>
+        <div class="legend-item"><div class="legend-dot internal"></div>Internal (binary branch)</div>
+        <div class="legend-item"><div class="legend-dot stem"></div>Stem (account root)</div>
+        <div class="legend-item"><div class="legend-dot leaf"></div>Leaf (32-byte value)</div>
+        <div class="legend-item"><div class="legend-dot empty"></div>Empty (hash=0)</div>
+      </div>
+      
+      <div class="section">
+        <h3>Leaf Subindexes (EIP-7864)</h3>
+        <div class="leaf-legend">
+          <div class="leaf-item">
+            <span class="idx">0x00</span>
+            <span class="name">basic</span>
+            <span class="desc">version, nonce, balance, code_size</span>
+          </div>
+          <div class="leaf-item">
+            <span class="idx">0x01</span>
+            <span class="name">code</span>
+            <span class="desc">keccak256 hash of contract bytecode</span>
+          </div>
+          <div class="leaf-item">
+            <span class="idx">0x02-3F</span>
+            <span class="name">chunks</span>
+            <span class="desc">contract code chunks (31 bytes each)</span>
+          </div>
+          <div class="leaf-item">
+            <span class="idx">0x40-FF</span>
+            <span class="name">storage</span>
+            <span class="desc">contract storage slots 0-191</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="section">
+        <h3>Block Info</h3>
+        <div class="stat-row"><span>Block</span><span class="stat-value" id="infoBlock">9841318</span></div>
+        <div class="stat-row"><span>Transactions</span><span class="stat-value" id="infoTxs">112</span></div>
+        <div class="stat-row"><span>Gas Used</span><span class="stat-value" id="infoGas">20,703,147</span></div>
+        <div class="stat-row"><span>Accounts</span><span class="stat-value" id="infoAccounts">-</span></div>
+      </div>
+      
+      <div class="section">
+        <h3>Touched Accounts</h3>
+        <div id="accountsList"></div>
+      </div>
+      
+      <div class="section">
+        <h3>Selected</h3>
+        <div class="node-info" id="nodeInfo">
+          <h4 id="nodeName">-</h4>
+          <div class="info-row"><span class="label">Type: </span><span class="value" id="nodeType">-</span></div>
+          <div class="info-row"><span class="label">Address: </span><span class="value" id="nodeAddr">-</span></div>
+          <div class="info-row"><span class="label">Value: </span><span class="value" id="nodeValue">-</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="controls">
+    <button id="fitBtn">Fit</button>
+    <button id="resetBtn">Reset</button>
+    <button id="fetchBtn">Fetch Latest</button>
+  </div>
+
+  <script>
+    const RPC_URL = 'https://ethereum-sepolia-rpc.publicnode.com';
+    
+    let cy;
+    let currentBlock = 0x962aa6; // 9841318
+    let blockData = null;
+    
+    const cyStyle = [
+      {
+        selector: 'node',
+        style: {
+          'label': 'data(label)',
+          'text-valign': 'center',
+          'text-halign': 'center',
+          'font-size': '8px',
+          'font-family': 'Monaco, Consolas, monospace',
+          'color': '#ccc',
+          'text-wrap': 'wrap',
+          'text-max-width': '80px',
+        }
+      },
+      {
+        selector: 'node[type="root"]',
+        style: {
+          'background-color': '#1a1a2e',
+          'border-width': 2,
+          'border-color': '#8b5cf6',
+          'width': 100,
+          'height': 45,
+          'shape': 'round-rectangle',
+          'color': '#8b5cf6',
+        }
+      },
+      {
+        selector: 'node[type="internal"]',
+        style: {
+          'background-color': '#1a1a2a',
+          'border-width': 1,
+          'border-color': '#444',
+          'width': 20,
+          'height': 20,
+          'shape': 'ellipse',
+          'label': '',
+        }
+      },
+      {
+        selector: 'node[type="stem"]',
+        style: {
+          'background-color': '#1a3a5c',
+          'border-width': 2,
+          'border-color': '#4da6ff',
+          'width': 90,
+          'height': 40,
+          'shape': 'round-rectangle',
+        }
+      },
+      {
+        selector: 'node[type="leaf"]',
+        style: {
+          'background-color': '#5c3a1a',
+          'border-width': 1.5,
+          'border-color': '#ffaa4d',
+          'width': 45,
+          'height': 25,
+          'shape': 'round-rectangle',
+          'font-size': '7px',
+        }
+      },
+      {
+        selector: 'node[type="empty"]',
+        style: {
+          'background-color': '#151518',
+          'border-width': 1,
+          'border-color': '#2a2a2a',
+          'width': 16,
+          'height': 16,
+          'shape': 'ellipse',
+          'label': '',
+        }
+      },
+      {
+        selector: 'node[hasValue]',
+        style: {
+          'border-color': '#22c55e',
+          'border-width': 2,
+        }
+      },
+      {
+        selector: 'edge',
+        style: {
+          'width': 1.5,
+          'line-color': '#2a2a3a',
+          'curve-style': 'taxi',
+          'taxi-direction': 'downward',
+          'taxi-turn': '15px',
+        }
+      },
+      {
+        selector: 'node:selected',
+        style: { 'border-color': '#fff', 'border-width': 3 }
+      }
+    ];
+    
+    async function fetchBlock(blockNum) {
+      const hex = '0x' + blockNum.toString(16);
+      const res = await fetch(RPC_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'eth_getBlockByNumber',
+          params: [hex, true],
+          id: 1
+        })
+      });
+      const json = await res.json();
+      return json.result;
+    }
+    
+    function shortenAddr(addr) {
+      if (!addr) return '—';
+      return addr.slice(0, 6) + '...' + addr.slice(-4);
+    }
+    
+    function hexToEth(hex) {
+      if (!hex || hex === '0x0') return '0';
+      const wei = BigInt(hex);
+      const eth = Number(wei) / 1e18;
+      if (eth < 0.0001) return '<0.0001';
+      return eth.toFixed(4);
+    }
+    
+    function buildTree(block) {
+      const nodes = [];
+      const edges = [];
+      let nodeId = 0;
+      const makeId = () => `n${nodeId++}`;
+      
+      // Extract unique accounts from transactions
+      const accounts = new Map();
+      block.transactions.forEach(tx => {
+        if (tx.from && !accounts.has(tx.from)) {
+          accounts.set(tx.from, { addr: tx.from, type: 'eoa', value: tx.value, txCount: 1 });
+        } else if (tx.from) {
+          accounts.get(tx.from).txCount++;
+        }
+        if (tx.to && !accounts.has(tx.to)) {
+          const isContract = tx.input && tx.input !== '0x' && tx.input.length > 10;
+          accounts.set(tx.to, { addr: tx.to, type: isContract ? 'contract' : 'eoa', value: '0x0' });
+        }
+      });
+      
+      // Limit to first 12 accounts for visualization
+      const accountList = Array.from(accounts.values()).slice(0, 12);
+      
+      // Root node
+      const rootId = makeId();
+      const stateRoot = block.stateRoot;
+      nodes.push({
+        data: { 
+          id: rootId, 
+          label: `STATE ROOT\n${shortenAddr(stateRoot)}`, 
+          type: 'root',
+          hash: stateRoot
+        }
+      });
+      
+      // Build binary tree structure
+      function buildLevel(items, parentId, depth = 0) {
+        if (items.length === 0) return;
+        
+        if (items.length === 1) {
+          addStem(items[0], parentId);
+          return;
+        }
+        
+        const leftId = makeId();
+        const rightId = makeId();
+        
+        nodes.push({ data: { id: leftId, type: 'internal' } });
+        nodes.push({ data: { id: rightId, type: 'internal' } });
+        
+        edges.push({ data: { source: parentId, target: leftId } });
+        edges.push({ data: { source: parentId, target: rightId } });
+        
+        const mid = Math.ceil(items.length / 2);
+        buildLevel(items.slice(0, mid), leftId, depth + 1);
+        buildLevel(items.slice(mid), rightId, depth + 1);
+        
+        // Add empty node if unbalanced
+        if (items.length === 2) {
+          const emptyId = makeId();
+          nodes.push({ data: { id: emptyId, type: 'empty' } });
+          edges.push({ data: { source: depth % 2 === 0 ? leftId : rightId, target: emptyId } });
+        }
+      }
+      
+      function addStem(acc, parentId) {
+        const stemId = makeId();
+        const label = `${acc.type === 'contract' ? '[C]' : '[E]'}\n${shortenAddr(acc.addr)}`;
+        const hasValue = acc.value && acc.value !== '0x0';
+        
+        nodes.push({
+          data: { 
+            id: stemId, 
+            label, 
+            type: 'stem',
+            addr: acc.addr,
+            accType: acc.type,
+            hasValue: hasValue || undefined,
+          }
+        });
+        
+        edges.push({ data: { source: parentId, target: stemId } });
+        
+        // Add leaves
+        const leaves = acc.type === 'contract' 
+          ? ['basic', 'code', 'storage']
+          : ['basic', 'code'];
+        
+        leaves.forEach((leaf, i) => {
+          const leafId = makeId();
+          nodes.push({
+            data: {
+              id: leafId,
+              label: leaf,
+              type: 'leaf',
+            }
+          });
+          edges.push({ data: { source: stemId, target: leafId } });
+        });
+      }
+      
+      // Build the tree
+      if (accountList.length > 0) {
+        const leftId = makeId();
+        const rightId = makeId();
+        
+        nodes.push({ data: { id: leftId, type: 'internal' } });
+        nodes.push({ data: { id: rightId, type: 'internal' } });
+        
+        edges.push({ data: { source: rootId, target: leftId } });
+        edges.push({ data: { source: rootId, target: rightId } });
+        
+        const mid = Math.ceil(accountList.length / 2);
+        buildLevel(accountList.slice(0, mid), leftId);
+        buildLevel(accountList.slice(mid), rightId);
+      }
+      
+      return { nodes, edges, accounts: accountList };
+    }
+    
+    function renderGraph(block) {
+      const { nodes, edges, accounts } = buildTree(block);
+      
+      cy.elements().remove();
+      cy.add(nodes);
+      cy.add(edges);
+      
+      cy.layout({
+        name: 'dagre',
+        rankDir: 'TB',
+        nodeSep: 20,
+        rankSep: 40,
+        ranker: 'tight-tree',
+      }).run();
+      
+      cy.fit(undefined, 30);
+      
+      // Update accounts list
+      const list = document.getElementById('accountsList');
+      list.innerHTML = accounts.slice(0, 8).map(acc => `
+        <div class="addr-item" data-addr="${acc.addr}">
+          <span class="label">${acc.type.toUpperCase()}</span>
+          ${shortenAddr(acc.addr)}
+        </div>
+      `).join('');
+      
+      document.getElementById('infoAccounts').textContent = accounts.length;
+    }
+    
+    function updateUI(block) {
+      const blockNum = parseInt(block.number, 16);
+      document.getElementById('blockNum').textContent = `#${blockNum.toLocaleString()}`;
+      document.getElementById('infoBlock').textContent = blockNum.toLocaleString();
+      document.getElementById('stateRoot').textContent = shortenAddr(block.stateRoot);
+      document.getElementById('txCount').textContent = block.transactions.length;
+      document.getElementById('infoTxs').textContent = block.transactions.length;
+      document.getElementById('infoGas').textContent = parseInt(block.gasUsed, 16).toLocaleString();
+      
+      renderGraph(block);
+      document.getElementById('loading').style.display = 'none';
+    }
+    
+    function showNodeInfo(node) {
+      const data = node.data();
+      if (data.type === 'internal' || data.type === 'empty') return;
+      
+      const info = document.getElementById('nodeInfo');
+      info.classList.add('active');
+      
+      document.getElementById('nodeName').textContent = data.label?.replace('\n', ' ') || data.id;
+      document.getElementById('nodeType').textContent = data.type + (data.accType ? ` (${data.accType})` : '');
+      document.getElementById('nodeAddr').textContent = data.addr || data.hash || '—';
+      document.getElementById('nodeValue').textContent = data.hasValue ? 'Has ETH' : '—';
+    }
+    
+    async function loadBlock(blockNum) {
+      document.getElementById('loading').style.display = 'block';
+      try {
+        const block = await fetchBlock(blockNum);
+        if (block) {
+          blockData = block;
+          currentBlock = blockNum;
+          updateUI(block);
+        }
+      } catch (e) {
+        console.error('Failed to fetch block:', e);
+        document.getElementById('loading').textContent = 'Failed to load block';
+      }
+    }
+    
+    document.addEventListener('DOMContentLoaded', () => {
+      cy = cytoscape({
+        container: document.getElementById('cy'),
+        style: cyStyle,
+        userZoomingEnabled: true,
+        userPanningEnabled: true,
+        boxSelectionEnabled: false,
+        autoungrabify: true,
+        autounselectify: false,
+        minZoom: 0.3,
+        maxZoom: 3,
+      });
+      
+      cy.on('tap', 'node', (e) => showNodeInfo(e.target));
+      
+      document.getElementById('prevBtn').onclick = () => loadBlock(currentBlock - 1);
+      document.getElementById('nextBtn').onclick = () => loadBlock(currentBlock + 1);
+      document.getElementById('fitBtn').onclick = () => cy.fit(undefined, 30);
+      document.getElementById('resetBtn').onclick = () => { cy.reset(); cy.fit(undefined, 30); };
+      
+      document.getElementById('fetchBtn').onclick = async () => {
+        const res = await fetch(RPC_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_blockNumber', params: [], id: 1 })
+        });
+        const json = await res.json();
+        loadBlock(parseInt(json.result, 16));
+      };
+      
+      document.onkeydown = (e) => {
+        if (e.key === 'ArrowLeft') document.getElementById('prevBtn').click();
+        if (e.key === 'ArrowRight') document.getElementById('nextBtn').click();
+      };
+      
+      // Load initial block
+      loadBlock(currentBlock);
+    });
+  </script>
+</body>
+</html>
