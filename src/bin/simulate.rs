@@ -51,8 +51,8 @@ fn main() {
     }
     println!();
 
-    if single_seed.is_some() {
-        run_single_seed(single_seed.unwrap(), ops);
+    if let Some(seed) = single_seed {
+        run_single_seed(seed, ops);
     } else {
         run_multi_seed(seed_start, seed_end, workers, ops, metrics_port);
     }
@@ -124,10 +124,13 @@ fn run_multi_seed(seed_start: u64, seed_end: u64, workers: usize, ops: u64, metr
     println!("Seeds completed: {}", result.stats.seeds_completed);
     println!("Seeds failed: {}", result.stats.seeds_failed);
     println!("Total operations: {}", result.stats.total_operations);
-    println!(
-        "Ops/sec: {:.0}",
-        result.stats.total_operations as f64 / result.duration.as_secs_f64()
-    );
+    let duration_secs = result.duration.as_secs_f64();
+    if duration_secs > 0.0 {
+        println!(
+            "Ops/sec: {:.0}",
+            result.stats.total_operations as f64 / duration_secs
+        );
+    }
     println!();
     println!("Chaos operations: {}", msnap.chaos_ops_total);
     println!("  Toggle incremental: {}", metrics.op_counters.chaos_toggle_incremental.load(std::sync::atomic::Ordering::Relaxed));

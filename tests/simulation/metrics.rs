@@ -293,11 +293,10 @@ impl Metrics {
     }
 
     pub fn worker_finished(&self) {
-        let prev = self.active_workers.fetch_sub(1, Ordering::Relaxed);
-        debug_assert!(
-            prev > 0,
-            "worker_finished called more times than worker_started"
-        );
+        let prev = self.active_workers.load(Ordering::Relaxed);
+        if prev > 0 {
+            self.active_workers.fetch_sub(1, Ordering::Relaxed);
+        }
     }
 
     /// Get metrics in Prometheus text format.
@@ -502,7 +501,8 @@ pub mod server {
                     Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                         thread::sleep(Duration::from_millis(100));
                     }
-                    Err(_) => {
+                    Err(e) => {
+                        eprintln!("[METRICS] Connection error: {}", e);
                         thread::sleep(Duration::from_millis(100));
                     }
                 }

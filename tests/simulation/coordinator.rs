@@ -119,7 +119,7 @@ impl Coordinator {
 
     /// Signal shutdown to workers.
     pub fn shutdown(&self) {
-        self.shutdown.store(true, Ordering::Relaxed);
+        self.shutdown.store(true, Ordering::Release);
     }
 
     /// Run simulation with UBT adapter.
@@ -175,7 +175,7 @@ impl Coordinator {
         let interval = self.config.progress_interval;
 
         let progress_handle = thread::spawn(move || {
-            while !shutdown_for_progress.load(Ordering::Relaxed) {
+            while !shutdown_for_progress.load(Ordering::Acquire) {
                 thread::sleep(interval);
                 let snap = stats_for_progress.snapshot();
                 let pct = (snap.seeds_completed as f64 / total_seeds as f64) * 100.0;
@@ -235,7 +235,7 @@ fn worker_loop(
     metrics.worker_started();
 
     loop {
-        if shutdown.load(Ordering::Relaxed) {
+        if shutdown.load(Ordering::Acquire) {
             break;
         }
 

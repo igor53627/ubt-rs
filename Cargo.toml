@@ -35,10 +35,8 @@ rand = "0.8"
 num_cpus = "1.16"
 
 [dev-dependencies]
-rand = "0.8"
 proptest = "1.4"
 criterion = "0.5"
-num_cpus = "1.16"
 
 [features]
 ## Enables parallel stem hashing via rayon. Provides significant speedup for

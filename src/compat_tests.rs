@@ -1,7 +1,8 @@
 //! Compatibility tests with go-ethereum bintrie implementation.
 //!
-//! These tests use the same test vectors as go-ethereum's trie/bintrie/trie_test.go
-//! to ensure our implementation produces identical results.
+//! These tests reuse go-ethereum's trie/bintrie test vectors to ensure our
+//! stem layout and lookup behavior are compatible. Because we use BLAKE3
+//! instead of go-ethereum's hash, root hashes will differ.
 
 #[cfg(test)]
 mod tests {

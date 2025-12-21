@@ -10,7 +10,7 @@ Instead of writing specific tests for scenarios we imagine, we generate random o
 
 ## Architecture
 
-```
+```text
 +-----------------------------------------------------------------------+
 |                        Simulation Coordinator                          |
 |  (Spawns workers, aggregates stats, manages seeds)                     |
@@ -114,20 +114,6 @@ Key patterns:
 | Use `ctx.rng()`, not `rand::random()` | All randomness from seeded PRNG |
 | Fixed 32-byte keys/values | Match UBT's native types |
 
-## File Structure
-
-```
-tests/simulation/
-+-- mod.rs           # Module exports
-+-- DESIGN.md        # This document
-+-- context.rs       # WorkloadContext, deterministic RNG
-+-- coordinator.rs   # Multi-threaded coordinator
-+-- invariants.rs    # UbtReferenceModel, MerkleInvariantChecker
-+-- metrics.rs       # Prometheus metrics
-+-- ubt_adapter.rs   # TestableDatabase impl for UBT
-+-- workload.rs      # WorkloadRunner, WorkloadConfig
-```
-
 ## Observability
 
 ### Prometheus Metrics
@@ -223,7 +209,7 @@ prometheus --config.file=prometheus.yml
 
 ## File Structure
 
-```
+```text
 tests/simulation/
 +-- mod.rs           # Module exports
 +-- DESIGN.md        # This document
