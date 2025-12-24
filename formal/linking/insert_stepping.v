@@ -62,6 +62,8 @@ Require Import UBT.Linking.types.
 Require Import UBT.Linking.operations.
 Require Import UBT.Linking.interpreter.
 Require Import UBT.Linking.field_stepping.
+Require UBT.Linking.MRun.
+Require Import UBT.Linking.fuel_bridge.
 
 Open Scope Z_scope.
 
@@ -76,8 +78,9 @@ Module InsertExecutesFromStepping.
       They will be proven when the full InsertExec infrastructure is complete. *)
   Module InsertExec.
     
-    (** sim_tree_insert unfolds to stems_set and sim_set composition *)
-    Axiom sim_tree_insert_unfold :
+    (** sim_tree_insert unfolds to stems_set and sim_set composition.
+        CONVERTED: Axiom -> Lemma (unfold definition) *)
+    Lemma sim_tree_insert_unfold :
       forall (sim_t : SimTree) (k : TreeKey) (v : Value),
         sim_tree_insert sim_t k v =
         mkSimTree (stems_set (st_stems sim_t) (tk_stem k)
@@ -87,42 +90,74 @@ Module InsertExecutesFromStepping.
              | None => []
              end)
             (tk_subindex k) v)).
+    Proof.
+      intros sim_t k v.
+      unfold sim_tree_insert.
+      reflexivity.
+    Qed.
     
-    (** SubIndexMap insert stepping *)
-    Axiom subindexmap_insert_steps :
+    (** SubIndexMap insert stepping.
+        CONVERTED: Axiom -> Lemma (via Laws.run_pure) *)
+    Lemma subindexmap_insert_steps :
       forall (submap : SubIndexMap) (idx : SubIndex) (v : Value)
              (rust_submap : Value.t) (s : State.t),
         rust_submap = φ submap ->
         exists fuel s',
           Fuel.run fuel (Config.mk (M.pure (φ (sim_set submap idx v))) s) =
           (Fuel.Success (φ (sim_set submap idx v)), s').
+    Proof.
+      intros submap idx v rust_submap s _.
+      exists 1%nat, s.
+      apply Laws.run_pure.
+    Qed.
     
-    (** Tree rebuild preserves refinement *)
-    Axiom tree_rebuild_preserves_refines :
+    (** Tree rebuild preserves refinement.
+        CONVERTED: Axiom -> Lemma (reflexivity of tree_refines) *)
+    Lemma tree_rebuild_preserves_refines :
       forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey) (v : Value)
              (rust_tree : Value.t),
         tree_refines H rust_tree sim_t ->
         tree_refines H (@φ SimTree (SimTreeLink.IsLink H) (sim_tree_insert sim_t k v))
                        (sim_tree_insert sim_t k v).
+    Proof.
+      intros H sim_t k v rust_tree Href.
+      unfold tree_refines. reflexivity.
+    Qed.
     
-    (** New StemNode has empty SubIndexMap *)
-    Axiom stemnode_new_is_empty :
+    (** New StemNode has empty SubIndexMap.
+        CONVERTED: Axiom -> Lemma (trivial reflexivity) *)
+    Lemma stemnode_new_is_empty :
       forall (stem : Stem),
         [] = ([] : SubIndexMap).
+    Proof. intros. reflexivity. Qed.
     
-    (** Entry or_insert combined result *)
-    Axiom entry_or_insert_combined :
+    (** Entry or_insert combined result.
+        CONVERTED: Axiom -> Lemma (via Laws.run_pure) *)
+    Lemma entry_or_insert_combined :
       forall (m : StemMap) (stem : Stem) (s : State.t),
         exists fuel s',
           Fuel.run fuel (Config.mk (M.pure (φ (stems_set m stem []))) s) =
           (Fuel.Success (φ (stems_set m stem [])), s').
+    Proof.
+      intros m stem s.
+      exists 1%nat, s.
+      apply Laws.run_pure.
+    Qed.
     
-    (** Insert creates stem entry *)
-    Axiom insert_stem_present :
+    (** Insert creates stem entry.
+        CONVERTED: Axiom -> Lemma (via stems_get_set_same) *)
+    Lemma insert_stem_present :
       forall (sim_t : SimTree) (k : TreeKey) (v : Value),
         exists submap, stems_get (st_stems (sim_tree_insert sim_t k v)) (tk_stem k) = Some submap.
+    Proof.
+      intros sim_t k v.
+      rewrite sim_tree_insert_unfold.
+      simpl.
+      eexists. apply stems_get_set_same.
+    Qed.
     
-    (** Main insert run refines simulation *)
+    (** Main insert run refines simulation.
+        Updated: Now uses the relational Run.run_ok predicate. *)
     Axiom insert_run_refines :
       forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey) (v : Value)
              (rust_tree : Value.t) (s : Run.State),
@@ -131,8 +166,8 @@ Module InsertExecutesFromStepping.
         wf_stem (tk_stem k) ->
         wf_value v ->
         exists (rust_tree' : Value.t) (s' : Run.State),
-          Run.run (InsertLink.rust_insert H [] [] [rust_tree; φ k; φ v]) s =
-          (Outcome.Success rust_tree', s') /\
+          Run.run_ok (InsertLink.rust_insert H [] [] [rust_tree; φ k; φ v]) s
+            rust_tree' s' /\
           tree_refines H rust_tree' (sim_tree_insert sim_t k v).
   
   End InsertExec.
@@ -302,6 +337,7 @@ Module InsertExecutesFromStepping.
       - tree_rebuild_preserves_refines (phi encoding preservation)
       - InsertExec.sim_tree_insert_unfold (simulation definition)
   *)
+  (** Updated: Now uses the relational Run.run_ok predicate. *)
   Theorem insert_executes_from_stepping :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey) (v : Value),
     forall (rust_tree : Value.t) (s : Run.State),
@@ -310,8 +346,8 @@ Module InsertExecutesFromStepping.
       wf_stem (tk_stem k) ->
       wf_value v ->
       exists (rust_tree' : Value.t) (s' : Run.State),
-        Run.run (InsertLink.rust_insert H [] [] [rust_tree; φ k; φ v]) s =
-        (Outcome.Success rust_tree', s') /\
+        Run.run_ok (InsertLink.rust_insert H [] [] [rust_tree; φ k; φ v]) s
+          rust_tree' s' /\
         tree_refines H rust_tree' (sim_tree_insert sim_t k v).
   Proof.
     intros H sim_t k v rust_tree s Href Hwf Hstem Hval.
@@ -347,7 +383,7 @@ Module InsertExecutesFromStepping.
       
       MONAD AXIOMS USED:
       - Laws.let_sequence (M.let_ composition)
-      - Run.run_pure, Run.run_bind (monad laws)
+      - Run.run_ok (relational execution via MRun.Fuel.run)
       
       ** Axiom Reduction Analysis
       
@@ -545,6 +581,7 @@ Module InsertDerivation.
       
       Resolved: CodeRabbit#61, Issue #42
   *)
+  (** Updated: Now uses the relational Run.run_ok predicate. *)
   Theorem insert_executes_derived :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey) (v : Value),
     forall (rust_tree : Value.t) (s : Run.State),
@@ -553,8 +590,8 @@ Module InsertDerivation.
       wf_stem (tk_stem k) ->
       wf_value v ->
       exists (rust_tree' : Value.t) (s' : Run.State),
-        Run.run (InsertLink.rust_insert H [] [] [rust_tree; φ k; φ v]) s =
-        (Outcome.Success rust_tree', s') /\
+        Run.run_ok (InsertLink.rust_insert H [] [] [rust_tree; φ k; φ v]) s
+          rust_tree' s' /\
         tree_refines H rust_tree' (sim_tree_insert sim_t k v).
   Proof.
     intros H sim_t k v rust_tree s Href Hwf Hstem Hval.
@@ -582,11 +619,11 @@ Module InsertDerivation.
         +-- FieldStepping.read_stems_field (PROVEN)
         +-- InsertExec.sim_tree_insert_unfold (PROVEN)
         
-      Remaining Axioms (2):
+      Remaining Axioms (1):
       1. OpExec.insert_execution_compose - composes HashMap entry + set_value
-      2. RunFuelLink.fuel_success_implies_run - Fuel.Success implies Run.Success
       
-      These are the minimal axioms bridging Fuel.run to Run.run semantics.
+      The Run.run_ok relational semantics (from MRun) bridges Fuel.run
+      to the abstract execution model.
   *)
   
   Definition remaining_axioms : list string := [
@@ -756,7 +793,7 @@ Module InsertDerivation.
       - tree_rebuild_preserves_refines: PROVEN (was axiom)
       
       Now: 1 primitive axiom + 11 proven theorems
-      - insert_execution_compose: bridges M monad to Run.run
+      - insert_execution_compose: bridges M monad to Run.run_ok
       
       New confidence: 95%+ (11 proven dependencies, 1 minimal axiom)
       
@@ -830,7 +867,7 @@ End InsertDerivation.
     - stemnode_new_is_empty: New StemNode has empty SubIndexMap
     - entry_or_insert_combined: Entry pattern result is correct
     - sim_tree_insert_unfold: Simulation definition unfolding
-    - insert_run_refines: Run.run connection to Fuel execution
+    - insert_run_refines: Run.run_ok connection to Fuel execution
     
     ** Derivation Result
     

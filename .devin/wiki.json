@@ -77,7 +77,11 @@
       "author": "maintainer"
     },
     {
-      "content": "Session work (December 2024): 1) Created rocq-of-rust-interp#1 issue for full M monad interpreter. 2) Added 6 new QuickChick iterator properties (P32-P37). 3) Fixed CodeRabbit PR #61 feedback: test counts, trivial properties, wiki metrics, error handling. 4) All metrics aligned: 697 Qed, 155 Axioms, 0 Admitted in linking layer (82 total in src/specs). 5) Build verified: 22 CI QuickChick tests pass.",
+      "content": "Session work (December 2024): 1) Created rocq-of-rust-interp#1 issue for full M monad interpreter. 2) Added 6 new QuickChick iterator properties (P32-P37). 3) Fixed CodeRabbit PR #61 feedback: test counts, trivial properties, wiki metrics, error handling. 4) All metrics aligned: 641 Qed, 185 Axioms (45 in linking), 0 Admitted in linking layer (82 total in src/specs). 5) Build verified: 22 CI QuickChick tests pass.",
+      "author": "maintainer"
+    },
+    {
+      "content": "MRun and FuelBridge modules (PR #63 cont.): 1) MRun.v (389 lines) - relational execution semantics with Run.run_ok predicate, State/Config types, SmallStep evaluation, Fuel-bounded execution, proven Laws module. 2) fuel_bridge.v (187 lines) - bridges interpreter.Fuel to MRun.Fuel with state/config/outcome conversions and round-trip lemmas. 3) Updated *_stepping.v files to use Run.run_ok instead of Run.run function. 4) Converted 2 field_stepping axioms to theorems via M.pure pattern.",
       "author": "maintainer"
     }
   ],
@@ -123,7 +127,7 @@
     },
     {
       "title": "Axiom Audit",
-      "purpose": "Summarize axiom counts: 155 total (25 irreducible in linking layer, rest from RocqOfRust-generated code). Categorization of linking axioms (monad, termination, hashmap, trait resolution, state, batch, stdlib), and trust assumptions. Reference formal/docs/AXIOM_CATALOG.md",
+      "purpose": "Summarize axiom counts: 185 total (45 in linking layer, 25 irreducible; rest from RocqOfRust-generated code). Categorization of linking axioms (monad, termination, hashmap, trait resolution, state, batch, stdlib), and trust assumptions. Reference formal/docs/AXIOM_CATALOG.md",
       "parent": "Formal Verification"
     },
     {
@@ -178,6 +182,16 @@
     {
       "title": "Axiom Elimination",
       "purpose": "Document axiom_elimination.v: fuel_success_monotone, fuel_success_implies_run proofs, and the computation_bounded axiom for termination bounds",
+      "parent": "Linking Layer"
+    },
+    {
+      "title": "MRun Module",
+      "purpose": "Document MRun.v: Relational execution semantics for M monad with Run.run_ok predicate. State/Config types matching MInterpreter, SmallStep evaluation with extension points, Fuel-bounded execution, proven Laws module (run_pure, run_panic, fuel_monotonic, success_precludes_panic).",
+      "parent": "Linking Layer"
+    },
+    {
+      "title": "FuelBridge Module",
+      "purpose": "Document fuel_bridge.v: Bridge between interpreter.Fuel and MRun.Fuel. State/config/outcome conversion functions with proven round-trip lemmas. Key theorem: interpreter_fuel_to_run_ok connects Fuel.run success to Run.run_ok.",
       "parent": "Linking Layer"
     }
   ]

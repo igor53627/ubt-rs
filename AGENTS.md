@@ -2,21 +2,30 @@
 
 ## Build Server
 
-- **Remote Build**: `ubuntu-64@orb` - ARM64 Ubuntu build server for heavy compilation
-- **Access**: Requires SSH key configured for the `orb` host (internal build infrastructure)
+- **Primary Build**: `root@hsiao` - Primary build server with Rocq installed
+- **Fallback Build**: `ubuntu-64@orb` - ARM64 Ubuntu build server for Rust compilation
 - Prefer remote builds over local builds for Rust and Rocq/Coq compilation
 
 ## Commands
 
-Use the remote build script for all operations:
+### Rocq/Coq Builds (on hsiao)
 
+For linking layer and formal proofs:
+```bash
+rsync -av --exclude=target --exclude=.git . root@hsiao:~/ubt-rs/
+ssh root@hsiao "eval \"\$(opam env)\" && cd ~/ubt-rs/formal && make linking"
+```
+
+RocqOfRust path on hsiao: `~/pse/paradigm/rocq-of-rust/RocqOfRust`
+
+### Rust Builds (local or orb)
+
+Use the remote build script for Rust operations:
 ```bash
 ./scripts/remote-build.sh sync       # Sync local files to remote
 ./scripts/remote-build.sh build      # cargo build
 ./scripts/remote-build.sh test       # cargo test
 ./scripts/remote-build.sh bench      # cargo bench
-./scripts/remote-build.sh proofs     # make proofs-core (Rocq)
-./scripts/remote-build.sh quickchick # make quickchick-ci (property tests)
 ```
 
 Or configure custom host/path:

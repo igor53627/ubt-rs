@@ -268,8 +268,16 @@ impl AccountStem {
 }
 
 // Legacy exports for backwards compatibility
+#[deprecated(since = "0.2.0", note = "Use `get_basic_data_key` or `AccountStem::basic_data_key` instead")]
+#[allow(unused_imports)]
 pub use get_basic_data_key as account_stem_basic_data;
+
+#[deprecated(since = "0.2.0", note = "Use `get_code_chunk_key` or `AccountStem::code_chunk_key` instead")]
+#[allow(unused_imports)]
 pub use get_code_chunk_key as code_chunk_key;
+
+#[deprecated(since = "0.2.0", note = "Use `get_storage_slot_key_u256` or `AccountStem::storage_key` instead")]
+#[allow(unused_imports)]
 pub use get_storage_slot_key_u256 as storage_key;
 
 #[cfg(test)]

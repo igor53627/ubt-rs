@@ -243,9 +243,8 @@ Module ValueLink.
   Proof. eapply OfTy.Make with (A := Value); reflexivity. Defined.
   
   (** Value encoding is injective (Value = Bytes32).
-      Note: Due to Rocq 9 injection tactic changes, this is axiomatized.
-      The proof is straightforward structurally but the injection behavior
-      changed to extract all injectivity equations simultaneously. *)
+      Note: φ is opaque in RocqOfRust, requiring axiomatization. 
+      The proof would use Bytes32Link.bytes_to_array_injective. *)
   Axiom encoding_injective : forall v1 v2 : Value,
     @φ Value IsLink v1 = @φ Value IsLink v2 -> v1 = v2.
 End ValueLink.
@@ -677,7 +676,12 @@ End BoolLink.
 Module TypeCorrespondence.
 
   (** Bytes32 roundtrip: encoding is injective.
-      Note: Axiomatized due to Rocq 9 opaque φ issues. *)
+      Note: φ is opaque in RocqOfRust, requiring axiomatization.
+      
+      Risk: Very low - follows from bytes_to_array_injective which is proven.
+      The axiom only bridges opaque φ to explicit encoding.
+      
+      When RocqOfRust's φ becomes transparent, this can be proven directly. *)
   Axiom bytes32_encoding_injective : forall (v1 v2 : Bytes32),
     φ v1 = φ v2 -> v1 = v2.
   
@@ -695,7 +699,8 @@ Module TypeCorrespondence.
   Qed.
   
   (** Option encoding is disjoint: None ≠ Some.
-      Note: Axiomatized due to Rocq 9 opaque φ issues. *)
+      Note: φ is opaque in RocqOfRust, requiring axiomatization.
+      The constructors have different names so they should discriminate. *)
   Axiom option_encoding_disjoint : forall (A : Set) `{Link A} (v : A),
     φ (None : option A) <> φ (Some v).
   
@@ -738,7 +743,7 @@ Module TypeCorrespondence.
   Qed.
   
   (** Value encoding produces FixedBytes<32> structure.
-      Note: Axiomatized due to Rocq 9 opaque φ issues. *)
+      Note: φ is opaque in RocqOfRust, requiring axiomatization. *)
   Axiom value_encoding_structure : forall (v : Value),
     exists arr,
       φ v = Value.StructTuple "alloy_primitives::bits::fixed::FixedBytes"
@@ -759,16 +764,36 @@ Module TypeCorrespondence.
     Permutation m1 m2.
   
   (** Semantic equivalence implies lookup equivalence for SubIndexMap.
-      Note: Axiomatized due to Rocq 9 Permutation induction changes. *)
+      
+      Note: For well-formed maps (NoDup), this is proven as sim_get_permutation
+      in tree.v. The general axiom is kept for backward compatibility but
+      is not needed for well-formed trees.
+      
+      [AXIOM:PERMUTATION] - Can be avoided by using submap_nodup precondition.
+      See tree.v:sim_get_permutation for the proven version. *)
   Axiom subindexmap_equiv_lookup : forall m1 m2 idx,
     subindexmap_equiv m1 m2 ->
     sim_get m1 idx = sim_get m2 idx.
 
   (** Semantic equivalence implies lookup equivalence for StemMap.
-      Note: Axiomatized due to Rocq 9 Permutation induction changes. *)
+      
+      Note: For well-formed maps (NoDup), this is proven as stems_get_permutation
+      in tree.v. The general axiom is kept for backward compatibility but
+      is not needed for well-formed trees.
+      
+      [AXIOM:PERMUTATION] - Can be avoided by using stems_nodup precondition.
+      See tree.v:stems_get_permutation for the proven version. *)
   Axiom stemmap_equiv_lookup : forall m1 m2 s,
     stemmap_equiv m1 m2 ->
     stems_get m1 s = stems_get m2 s.
+  
+  (** ** NoDup-conditional alternatives (PROVEN in tree.v) *)
+  
+  (** When maps have unique keys (NoDup), permutation preserves lookup. *)
+  Definition subindexmap_equiv_lookup_nodup := sim_get_permutation.
+  
+  (** When maps have unique stems (NoDup), permutation preserves lookup. *)
+  Definition stemmap_equiv_lookup_nodup := stems_get_permutation.
   
   (** Injectivity up to permutation for SubIndexMap:
       Equal encodings imply equal maps (strict).
