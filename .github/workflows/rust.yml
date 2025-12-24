@@ -1,0 +1,85 @@
+name: Rust CI
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'benches/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/rust.yml'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'benches/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/rust.yml'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build
+        run: cargo build --all-features
+
+      - name: Run unit tests
+        run: cargo test --lib
+
+      - name: Run property tests
+        run: cargo test --test proptests
+        env:
+          PROPTEST_CASES: 256
+
+      - name: Run integration tests
+        run: cargo test --test integration_export
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Run clippy
+        run: cargo clippy --all-features -- -D warnings
+
+      - name: Build docs
+        run: cargo doc --no-deps
+
+      - name: Summary
+        run: |
+          echo "## Rust CI Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | [OK] |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests | [OK] |" >> $GITHUB_STEP_SUMMARY
+          echo "| Property Tests (256 cases) | [OK] |" >> $GITHUB_STEP_SUMMARY
+          echo "| Integration Tests | [OK] |" >> $GITHUB_STEP_SUMMARY
+          echo "| Formatting | [OK] |" >> $GITHUB_STEP_SUMMARY
+          echo "| Clippy | [OK] |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docs | [OK] |" >> $GITHUB_STEP_SUMMARY

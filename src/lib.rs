@@ -95,7 +95,7 @@ pub use hash::{Blake3Hasher, Hasher, Sha256Hasher};
 pub use key::{Stem, SubIndex, TreeKey, STEM_LEN, SUBINDEX_BITS};
 pub use node::{InternalNode, LeafNode, Node, StemNode};
 
-pub use code::{chunkify_code, CodeChunk};
+pub use code::{chunkify_code, dechunkify_code, CodeChunk};
 pub use embedding::{
     get_basic_data_key, get_binary_tree_key, get_code_chunk_key, get_code_hash_key,
     get_storage_slot_key, get_storage_slot_key_u256, AccountStem, BasicDataLeaf,
