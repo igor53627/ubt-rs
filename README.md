@@ -1,5 +1,7 @@
 # Unified Binary Tree (UBT)
 
+[![Crates.io](https://img.shields.io/crates/v/ubt.svg)](https://crates.io/crates/ubt)
+[![Documentation](https://docs.rs/ubt/badge.svg)](https://docs.rs/ubt)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/igor53627/ubt-rs)
 [![Proof Verification](https://github.com/igor53627/ubt-rs/actions/workflows/proofs.yml/badge.svg)](https://github.com/igor53627/ubt-rs/actions/workflows/proofs.yml)
 [![Proof Lint](https://github.com/igor53627/ubt-rs/actions/workflows/lint.yml/badge.svg)](https://github.com/igor53627/ubt-rs/actions/workflows/lint.yml)
