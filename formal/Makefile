@@ -157,14 +157,16 @@ linking/%.vo: linking/%.v
 
 # Explicit dependencies for linking layer
 linking/ubt_execution.vo: linking/types.vo
-linking/operations.vo: linking/types.vo linking/ubt_execution.vo
-linking/interpreter.vo: linking/operations.vo linking/types.vo linking/ubt_execution.vo
+linking/MRun.vo: linking/ubt_execution.vo
+linking/operations.vo: linking/types.vo linking/ubt_execution.vo linking/MRun.vo
+linking/interpreter.vo: linking/operations.vo linking/types.vo linking/ubt_execution.vo linking/MRun.vo
+linking/fuel_bridge.vo: linking/MRun.vo linking/interpreter.vo linking/ubt_execution.vo
 linking/axiom_elimination.vo: linking/interpreter.vo linking/operations.vo linking/types.vo
 linking/field_stepping.vo: linking/interpreter.vo linking/operations.vo linking/types.vo
-linking/get_stepping.vo: linking/interpreter.vo linking/types.vo linking/operations.vo linking/field_stepping.vo
+linking/get_stepping.vo: linking/interpreter.vo linking/types.vo linking/operations.vo linking/field_stepping.vo linking/MRun.vo linking/fuel_bridge.vo
 linking/iterator_stepping.vo: linking/interpreter.vo linking/types.vo linking/operations.vo simulations/iterator.vo
-linking/insert_stepping.vo: linking/interpreter.vo linking/types.vo linking/operations.vo linking/field_stepping.vo
-linking/root_hash_stepping.vo: linking/interpreter.vo linking/iterator_stepping.vo linking/types.vo linking/operations.vo linking/field_stepping.vo
+linking/insert_stepping.vo: linking/interpreter.vo linking/types.vo linking/operations.vo linking/field_stepping.vo linking/MRun.vo linking/fuel_bridge.vo
+linking/root_hash_stepping.vo: linking/interpreter.vo linking/iterator_stepping.vo linking/types.vo linking/operations.vo linking/field_stepping.vo linking/MRun.vo linking/fuel_bridge.vo
 linking/ubt_stepping.vo: linking/types.vo linking/operations.vo
 linking/hashmap_bridge.vo: simulations/tree.vo
 

@@ -127,6 +127,47 @@ Proof.
   exact Hstem.
 Qed.
 
+(** ** Bytes32 Equality *)
+
+(** Decidable equality for Bytes32 (list Z) *)
+Definition bytes32_eqb (b1 b2 : Bytes32) : bool :=
+  forallb (fun p => Z.eqb (fst p) (snd p)) (combine b1 b2) &&
+  Nat.eqb (length b1) (length b2).
+
+(** bytes32_eqb reflects equality *)
+Lemma bytes32_eqb_eq : forall b1 b2,
+  bytes32_eqb b1 b2 = true <-> b1 = b2.
+Proof.
+  intros b1 b2.
+  unfold bytes32_eqb.
+  split.
+  - intros H.
+    apply Bool.andb_true_iff in H. destruct H as [Hfb Hlen].
+    apply Nat.eqb_eq in Hlen.
+    apply forallb_combine_eq; assumption.
+  - intros H. subst.
+    apply Bool.andb_true_iff. split.
+    + clear. induction b2 as [|x rest IH].
+      * reflexivity.
+      * simpl. rewrite Z.eqb_refl. exact IH.
+    + apply Nat.eqb_refl.
+Qed.
+
+(** bytes32_eqb is reflexive *)
+Lemma bytes32_eqb_refl : forall b, bytes32_eqb b b = true.
+Proof.
+  intros b. apply bytes32_eqb_eq. reflexivity.
+Qed.
+
+(** Decidability for Bytes32 equality *)
+Definition bytes32_eq_dec : forall b1 b2 : Bytes32, {b1 = b2} + {b1 <> b2}.
+Proof.
+  intros b1 b2.
+  destruct (bytes32_eqb b1 b2) eqn:H.
+  - left. apply bytes32_eqb_eq. exact H.
+  - right. intros Heq. subst. rewrite bytes32_eqb_refl in H. discriminate.
+Defined.
+
 (** ** Zero Value Behavior *)
 (**
     These axioms specify how hash functions behave on zero inputs.

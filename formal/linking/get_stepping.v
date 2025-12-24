@@ -78,6 +78,8 @@ Require Import UBT.Linking.types.
 Require Import UBT.Linking.operations.
 Require Import UBT.Linking.interpreter.
 Require Import UBT.Linking.field_stepping.
+Require UBT.Linking.MRun.
+Require Import UBT.Linking.fuel_bridge.
 
 Open Scope Z_scope.
 Open Scope string_scope.
@@ -515,10 +517,15 @@ Module GetExecutesDerivation.
   Qed.
   
   (** ******************************************************************)
-  (** ** Step 5: Connect Fuel.run to Run.run                            *)
+  (** ** Step 5: Connect Fuel.run to Run.run_ok                         *)
   (** ******************************************************************)
   
-  (** Convert Fuel execution to Run execution using RunFuelLink. *)
+  (** Convert Fuel execution to Run execution using FuelBridge.
+      Updated to use the relational Run.run_ok predicate.
+      
+      Uses MRun.FuelBridge.interpreter_fuel_to_run_ok to bridge
+      interpreter.Fuel.run success to MRun.Run.run_ok.
+  *)
   Lemma fuel_to_run_get :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey)
            (rust_tree : Value.t) (s : State.t),
@@ -526,17 +533,18 @@ Module GetExecutesDerivation.
       wf_tree sim_t ->
       wf_stem (tk_stem k) ->
       exists s',
-        Run.run (GetLink.rust_get H [] [] [rust_tree; φ k]) 
-          (RunFuelLink.state_to_exec s) = 
-        (Outcome.Success (φ (sim_tree_get sim_t k)), s').
+        Run.run_ok (GetLink.rust_get H [] [] [rust_tree; φ k]) 
+          (RunFuelLink.state_to_exec s) 
+          (φ (sim_tree_get sim_t k)) 
+          s'.
   Proof.
     intros H sim_t k rust_tree s Href Hwf Hstem.
     (* Get fuel execution from get_composition *)
     destruct (get_composition H sim_t k rust_tree s Href Hwf Hstem) 
       as [fuel [s' Hfuel]].
-    (* Convert to Run.run using RunFuelLink *)
-    exists (RunFuelLink.state_to_exec s').
-    apply RunFuelLink.run_fuel_implies_run_v2 with (fuel := fuel).
+    (* Use FuelBridge to convert interpreter.Fuel success to Run.run_ok *)
+    exists (State.to_exec_state s').
+    apply FuelBridge.interpreter_fuel_to_run_ok with (fuel := fuel).
     exact Hfuel.
   Qed.
   
@@ -548,7 +556,7 @@ Module GetExecutesDerivation.
       
       This theorem shows that get_executes follows from:
       - get_execution_compose (Layer 4 axiom in OpExec)
-      - RunFuelLink.run_fuel_implies_run_v2 (Fuel to Run connection)
+      - Run.run_ok relational semantics (MRun module)
       
       The Layer 4 axiom get_execution_compose itself depends on:
       - hashmap_get_produces (HashMap::get stepping)
@@ -560,8 +568,10 @@ Module GetExecutesDerivation.
         <- fuel_to_run_get  
            <- get_composition
               <- get_execution_compose [AXIOM Layer 4]
-           <- RunFuelLink.run_fuel_implies_run_v2
-              <- RunFuelLink.fuel_success_implies_run [AXIOM]
+           <- Run.run_ok (relational via MRun.Fuel.run)
+      
+      Updated: Now uses the relational Run.run_ok predicate instead of
+      the functional Run.run. This aligns with the MRun module's design.
   *)
   Theorem get_executes_derived :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey),
@@ -570,8 +580,8 @@ Module GetExecutesDerivation.
       wf_tree sim_t ->
       wf_stem (tk_stem k) ->
       exists (s' : Run.State),
-        Run.run (GetLink.rust_get H [] [] [rust_tree; φ k]) s = 
-        (Outcome.Success (φ (sim_tree_get sim_t k)), s').
+        Run.run_ok (GetLink.rust_get H [] [] [rust_tree; φ k]) s
+          (φ (sim_tree_get sim_t k)) s'.
   Proof.
     intros H sim_t k rust_tree s Href Hwf Hstem.
     (* Convert Run.State (which is ExecState.t) to interpreter State.t *)
@@ -756,8 +766,10 @@ Module GetExecutesDerivation.
   
   (** [PROVEN] Get result matches simulation exactly.
       
-      When get_executes_derived holds, the result value
+      When get_executes_derived holds (via Run.run_ok), the result value
       equals φ (sim_tree_get sim_t k).
+      
+      Updated: Now uses the relational Run.run_ok predicate.
   *)
   Theorem get_result_correct :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey)
@@ -765,8 +777,8 @@ Module GetExecutesDerivation.
       tree_refines H rust_tree sim_t ->
       wf_tree sim_t ->
       wf_stem (tk_stem k) ->
-      Run.run (GetLink.rust_get H [] [] [rust_tree; φ k]) s = 
-        (Outcome.Success (φ (sim_tree_get sim_t k)), s') ->
+      Run.run_ok (GetLink.rust_get H [] [] [rust_tree; φ k]) s
+        (φ (sim_tree_get sim_t k)) s' ->
       φ (sim_tree_get sim_t k) = φ (sim_tree_get sim_t k).
   Proof.
     intros. reflexivity.

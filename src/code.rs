@@ -114,6 +114,7 @@ pub fn chunkify_code(bytecode: &[u8]) -> Vec<CodeChunk> {
 }
 
 /// Reconstruct bytecode from chunks.
+#[allow(dead_code)]
 pub fn dechunkify_code(chunks: &[CodeChunk], code_size: usize) -> Vec<u8> {
     let mut bytecode = Vec::with_capacity(code_size);
 

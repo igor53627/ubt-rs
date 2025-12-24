@@ -30,9 +30,9 @@ thiserror = "2"
 # Hex encoding for debug output
 hex = "0.4"
 
-# For simulation testing binary
-rand = "0.8"
-num_cpus = "1.16"
+# For simulation binary (optional)
+rand = { version = "0.8", optional = true }
+num_cpus = { version = "1.16", optional = true }
 
 [dev-dependencies]
 proptest = "1.4"
@@ -48,7 +48,10 @@ serde = ["dep:serde", "alloy-primitives/serde"]
 
 ## Enables parallel stem hashing using rayon's parallel iterators.
 ## When enabled, stem hashes are computed concurrently during root_hash() calls.
-parallel = ["rayon"]
+parallel = ["dep:rayon"]
+
+## Enables the simulation binary for stress testing.
+simulate = ["dep:rand", "dep:num_cpus"]
 
 [[bench]]
 name = "stem_vs_tree"
@@ -61,5 +64,6 @@ harness = false
 [[bin]]
 name = "simulate"
 path = "src/bin/simulate.rs"
+required-features = ["simulate"]
 
 
