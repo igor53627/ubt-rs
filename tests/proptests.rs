@@ -6,7 +6,7 @@
 use proptest::prelude::*;
 use ubt::{
     get_basic_data_key, get_code_chunk_key, get_storage_slot_key, Address, Blake3Hasher, Hasher,
-    Stem, StreamingTreeBuilder, TreeKey, UnifiedBinaryTree, B256, U256,
+    Stem, StreamingTreeBuilder, TreeKey, UnifiedBinaryTree, B256,
 };
 
 // ============================================================================
@@ -1166,7 +1166,6 @@ proptest! {
 // Embedding Properties (P51-P55) - EIP-7864 state embedding
 // ============================================================================
 
-#[allow(dead_code)]
 fn arb_address() -> impl Strategy<Value = Address> {
     prop::array::uniform20(any::<u8>()).prop_map(Address::from)
 }
@@ -1179,15 +1178,15 @@ proptest! {
     /// P51: get_storage_slot_key never panics for any slot value (including high byte 0xff)
     #[test]
     fn prop_storage_slot_key_never_panics(
-        addr_bytes in prop::array::uniform20(any::<u8>()),
+        addr in arb_address(),
         slot in arb_slot_bytes()
     ) {
-        let addr = Address::from(addr_bytes);
         // Should never panic for any slot value
         let key = get_storage_slot_key(&addr, &slot);
-        // Basic sanity: subindex should be slot[31] for main storage (slot >= 64)
-        let slot_u256 = U256::from_be_bytes(slot);
-        if slot_u256 >= U256::from(64) {
+        // Header slots: first 31 bytes are zero AND last byte < 64
+        let is_header_slot = slot[..31].iter().all(|&b| b == 0) && slot[31] < 64;
+        if !is_header_slot {
+            // Main storage: subindex = slot[31]
             prop_assert_eq!(key.subindex, slot[31]);
         }
     }
@@ -1195,10 +1194,9 @@ proptest! {
     /// P52: get_storage_slot_key is deterministic
     #[test]
     fn prop_storage_slot_key_deterministic(
-        addr_bytes in prop::array::uniform20(any::<u8>()),
+        addr in arb_address(),
         slot in arb_slot_bytes()
     ) {
-        let addr = Address::from(addr_bytes);
         let key1 = get_storage_slot_key(&addr, &slot);
         let key2 = get_storage_slot_key(&addr, &slot);
         prop_assert_eq!(key1, key2);
@@ -1207,12 +1205,11 @@ proptest! {
     /// P53: Different slots produce different keys (collision resistance)
     #[test]
     fn prop_storage_slot_key_collision_resistant(
-        addr_bytes in prop::array::uniform20(any::<u8>()),
+        addr in arb_address(),
         slot1 in arb_slot_bytes(),
         slot2 in arb_slot_bytes()
     ) {
         prop_assume!(slot1 != slot2);
-        let addr = Address::from(addr_bytes);
         let key1 = get_storage_slot_key(&addr, &slot1);
         let key2 = get_storage_slot_key(&addr, &slot2);
         prop_assert_ne!(key1, key2);
@@ -1221,13 +1218,11 @@ proptest! {
     /// P54: Different addresses produce different keys for same slot
     #[test]
     fn prop_storage_slot_key_address_isolation(
-        addr1_bytes in prop::array::uniform20(any::<u8>()),
-        addr2_bytes in prop::array::uniform20(any::<u8>()),
+        addr1 in arb_address(),
+        addr2 in arb_address(),
         slot in arb_slot_bytes()
     ) {
-        prop_assume!(addr1_bytes != addr2_bytes);
-        let addr1 = Address::from(addr1_bytes);
-        let addr2 = Address::from(addr2_bytes);
+        prop_assume!(addr1 != addr2);
         let key1 = get_storage_slot_key(&addr1, &slot);
         let key2 = get_storage_slot_key(&addr2, &slot);
         prop_assert_ne!(key1, key2);
@@ -1236,10 +1231,9 @@ proptest! {
     /// P55: get_basic_data_key and get_code_chunk_key never panic
     #[test]
     fn prop_embedding_keys_never_panic(
-        addr_bytes in prop::array::uniform20(any::<u8>()),
+        addr in arb_address(),
         chunk_num in 0u64..10000
     ) {
-        let addr = Address::from(addr_bytes);
         // Should never panic
         let _basic = get_basic_data_key(&addr);
         let _code = get_code_chunk_key(&addr, chunk_num);
@@ -1248,11 +1242,10 @@ proptest! {
     /// P56: Header storage slots (0-63) go in account stem
     #[test]
     fn prop_header_slots_share_stem(
-        addr_bytes in prop::array::uniform20(any::<u8>()),
+        addr in arb_address(),
         slot1 in 0u64..64,
         slot2 in 0u64..64
     ) {
-        let addr = Address::from(addr_bytes);
         let mut s1 = [0u8; 32];
         s1[31] = slot1 as u8;
         let mut s2 = [0u8; 32];
@@ -1268,14 +1261,14 @@ proptest! {
     /// P57: Main storage slots have correct subindex
     #[test]
     fn prop_main_storage_subindex(
-        addr_bytes in prop::array::uniform20(any::<u8>()),
+        addr in arb_address(),
         slot in arb_slot_bytes()
     ) {
-        let addr = Address::from(addr_bytes);
-        let slot_u256 = U256::from_be_bytes(slot);
         let key = get_storage_slot_key(&addr, &slot);
 
-        if slot_u256 < U256::from(64) {
+        // Header slots: first 31 bytes are zero AND last byte < 64
+        let is_header_slot = slot[..31].iter().all(|&b| b == 0) && slot[31] < 64;
+        if is_header_slot {
             // Header storage: subindex = 64 + slot
             prop_assert_eq!(key.subindex, 64 + slot[31]);
         } else {

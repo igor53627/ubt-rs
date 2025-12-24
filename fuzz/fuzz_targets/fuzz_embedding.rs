@@ -1,7 +1,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use ubt::{get_basic_data_key, get_code_chunk_key, get_storage_slot_key, Address, B256};
+use ubt::{get_basic_data_key, get_code_chunk_key, get_storage_slot_key, Address};
 
 /// Fuzz embedding functions with arbitrary inputs
 /// Tests that no address/slot combination causes panics
