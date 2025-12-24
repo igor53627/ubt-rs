@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2025-12-24
+
 ### Added
 - **Permutation lemmas for NoDup maps in simulations/tree.v (Issue #60)**
   - find_permutation_unique: find respects Permutation when predicate has at most one match (PROVEN)
