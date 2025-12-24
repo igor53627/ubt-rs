@@ -968,7 +968,7 @@ proptest! {
 // Oracle-Suggested Tests: Embedding/Code (P41-P42)
 // ============================================================================
 
-use ubt::{chunkify_code, BasicDataLeaf};
+use ubt::{chunkify_code, dechunkify_code, BasicDataLeaf, CodeChunk};
 
 proptest! {
     /// P41: BasicDataLeaf encode/decode roundtrip
@@ -993,6 +993,168 @@ proptest! {
         prop_assert_eq!(chunks1.len(), chunks2.len());
         for (c1, c2) in chunks1.iter().zip(chunks2.iter()) {
             prop_assert_eq!(c1.encode(), c2.encode());
+        }
+    }
+}
+
+// ============================================================================
+// Additional Oracle-Suggested Tests (P43-P50)
+// ============================================================================
+
+proptest! {
+    /// P43: Code chunkify/dechunkify roundtrip
+    #[test]
+    fn prop_code_chunk_roundtrip(code in prop::collection::vec(any::<u8>(), 0..1024)) {
+        let chunks = chunkify_code(&code);
+        let recovered = dechunkify_code(&chunks, code.len());
+        prop_assert_eq!(code, recovered);
+    }
+
+    /// P44: CodeChunk encode/decode roundtrip
+    #[test]
+    fn prop_code_chunk_encode_decode(
+        leading in 0u8..31,
+        data in prop::array::uniform31(any::<u8>())
+    ) {
+        let chunk = CodeChunk::new(leading, data);
+        let decoded = CodeChunk::decode(chunk.encode());
+        prop_assert_eq!(chunk.leading_pushdata, decoded.leading_pushdata);
+        prop_assert_eq!(chunk.data, decoded.data);
+    }
+
+    /// P45: Enable incremental mode mid-stream
+    #[test]
+    fn prop_incremental_enable_midstream(ops in arb_ops(40)) {
+        let mut full: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        let mut inc: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+
+        let mid = ops.len() / 2;
+
+        // Apply first half without incremental
+        for op in &ops[..mid] {
+            match op {
+                Op::Insert(k, v) => { full.insert(*k, *v); inc.insert(*k, *v); }
+                Op::Delete(k) => { full.delete(k); inc.delete(k); }
+            }
+        }
+
+        // Force rebuild before enabling incremental
+        let _ = full.root_hash();
+        let _ = inc.root_hash();
+
+        // Now enable incremental and continue
+        inc.enable_incremental_mode();
+        let _ = inc.root_hash();
+
+        for op in &ops[mid..] {
+            match op {
+                Op::Insert(k, v) => { full.insert(*k, *v); inc.insert(*k, *v); }
+                Op::Delete(k) => { full.delete(k); inc.delete(k); }
+            }
+        }
+
+        prop_assert_eq!(full.root_hash(), inc.root_hash());
+    }
+
+    /// P46: Mixing insert_batch with incremental mode
+    #[test]
+    fn prop_incremental_with_batch(
+        initial in arb_key_value_list(20),
+        batch in arb_key_value_list(20)
+    ) {
+        let mut full: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        let mut inc: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+
+        // Initial inserts
+        for (k, v) in &initial {
+            full.insert(*k, *v);
+            inc.insert(*k, *v);
+        }
+
+        let _ = full.root_hash();
+        let _ = inc.root_hash();
+        inc.enable_incremental_mode();
+        let _ = inc.root_hash();
+
+        // Full tree: individual inserts
+        for (k, v) in &batch {
+            full.insert(*k, *v);
+        }
+
+        // Incremental tree: batch insert
+        inc.insert_batch(batch.clone());
+
+        prop_assert_eq!(full.root_hash(), inc.root_hash());
+    }
+
+    /// P47: Incremental root hash stability
+    #[test]
+    fn prop_incremental_root_hash_stable(entries in arb_key_value_list(50)) {
+        let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        for (k, v) in &entries {
+            tree.insert(*k, *v);
+        }
+
+        tree.enable_incremental_mode();
+        let h1 = tree.root_hash();
+        let h2 = tree.root_hash();
+        let h3 = tree.root_hash();
+
+        prop_assert_eq!(h1, h2);
+        prop_assert_eq!(h2, h3);
+    }
+
+    /// P48: Constructor equivalence (new vs with_capacity)
+    #[test]
+    fn prop_constructors_equivalent(entries in arb_key_value_list(100)) {
+        let mut t1: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        let mut t2: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::with_capacity(1024);
+        let hasher = Blake3Hasher;
+        let mut t3: UnifiedBinaryTree<Blake3Hasher> =
+            UnifiedBinaryTree::with_hasher_and_capacity(hasher, 1024);
+
+        for (k, v) in &entries {
+            t1.insert(*k, *v);
+            t2.insert(*k, *v);
+            t3.insert(*k, *v);
+        }
+
+        prop_assert_eq!(t1.root_hash(), t2.root_hash());
+        prop_assert_eq!(t1.root_hash(), t3.root_hash());
+    }
+
+    /// P49: insert_batch_with_progress equivalent to insert_batch
+    #[test]
+    fn prop_insert_batch_with_progress_equivalent(entries in arb_key_value_list(100)) {
+        let mut t1: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        t1.insert_batch(entries.clone());
+        let h1 = t1.root_hash();
+
+        let mut t2: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        let mut progress_count = 0usize;
+        t2.insert_batch_with_progress(entries.clone(), |n| progress_count = n);
+        let h2 = t2.root_hash();
+
+        prop_assert_eq!(h1, h2);
+        prop_assert_eq!(progress_count, entries.len());
+    }
+
+    /// P50: B256 APIs equivalent for many updates
+    #[test]
+    fn prop_b256_apis_equivalent_many(entries in arb_key_value_list(100)) {
+        let mut t1: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        let mut t2: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+
+        for (k, v) in &entries {
+            t1.insert(*k, *v);
+            t2.insert_b256(k.to_bytes(), *v);
+        }
+
+        prop_assert_eq!(t1.root_hash(), t2.root_hash());
+
+        // Verify get equivalence
+        for (k, _) in &entries {
+            prop_assert_eq!(t1.get(k), t2.get_by_b256(&k.to_bytes()));
         }
     }
 }
