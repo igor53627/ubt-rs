@@ -99,11 +99,19 @@ pub struct WorkloadRunner<D: TestableDatabase> {
 
 impl<D: TestableDatabase> WorkloadRunner<D> {
     pub fn new(db: D, config: WorkloadConfig) -> Self {
-        Self { db, config, metrics: None }
+        Self {
+            db,
+            config,
+            metrics: None,
+        }
     }
 
     pub fn with_metrics(db: D, config: WorkloadConfig, metrics: SharedMetrics) -> Self {
-        Self { db, config, metrics: Some(metrics) }
+        Self {
+            db,
+            config,
+            metrics: Some(metrics),
+        }
     }
 
     pub fn run(&mut self, ctx: &mut WorkloadContext) -> WorkloadResult {
@@ -462,7 +470,10 @@ impl<D: TestableDatabase> WorkloadRunner<D> {
                                         seed,
                                         operations_executed,
                                         start.elapsed(),
-                                        vec![format!("Get failed during consistency check: {:?}", e)],
+                                        vec![format!(
+                                            "Get failed during consistency check: {:?}",
+                                            e
+                                        )],
                                     );
                                 }
                             }

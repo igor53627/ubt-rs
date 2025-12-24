@@ -135,7 +135,10 @@ impl Coordinator {
         let seed_queue = Arc::new(Mutex::new(seeds.into_iter()));
 
         // Initialize metrics
-        let metrics = self.metrics.clone().unwrap_or_else(crate::simulation::metrics::create_shared_metrics);
+        let metrics = self
+            .metrics
+            .clone()
+            .unwrap_or_else(crate::simulation::metrics::create_shared_metrics);
         metrics.set_seeds_total(total_seeds);
         metrics.set_seeds_remaining(total_seeds);
         metrics.set_active_workers(self.config.num_workers as u64);
@@ -145,7 +148,10 @@ impl Coordinator {
             match MetricsServer::start(port, Arc::clone(&metrics)) {
                 Ok(server) => Some(server),
                 Err(e) => {
-                    eprintln!("[WARN] Failed to start metrics server on port {}: {}", port, e);
+                    eprintln!(
+                        "[WARN] Failed to start metrics server on port {}: {}",
+                        port, e
+                    );
                     None
                 }
             }
@@ -164,7 +170,15 @@ impl Coordinator {
             let worker_metrics = Arc::clone(&metrics);
 
             let handle = thread::spawn(move || {
-                worker_loop(worker_id, queue, stats, shutdown, failed, config, worker_metrics);
+                worker_loop(
+                    worker_id,
+                    queue,
+                    stats,
+                    shutdown,
+                    failed,
+                    config,
+                    worker_metrics,
+                );
             });
             handles.push(handle);
         }
@@ -295,7 +309,10 @@ mod tests {
         let result = coordinator.run_with_ubt_adapter();
 
         assert_eq!(result.stats.seeds_completed, 100);
-        assert!(result.failed_seeds.is_empty(), "UBT adapter should not fail");
+        assert!(
+            result.failed_seeds.is_empty(),
+            "UBT adapter should not fail"
+        );
     }
 
     #[test]

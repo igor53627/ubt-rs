@@ -17,4 +17,6 @@ pub use invariants::{
 };
 pub use metrics::{create_shared_metrics, Metrics, MetricsSnapshot, OpCounters, SharedMetrics};
 pub use ubt_adapter::UbtDatabase;
-pub use workload::{KeyValueEntries, TestableDatabase, WorkloadConfig, WorkloadResult, WorkloadRunner};
+pub use workload::{
+    KeyValueEntries, TestableDatabase, WorkloadConfig, WorkloadResult, WorkloadRunner,
+};

@@ -148,7 +148,7 @@ mod tests {
         let ctx = WorkloadContext::new(999, 0);
         let key0 = ctx.indexed_key(0);
         let key255 = ctx.indexed_key(255);
-        
+
         assert_eq!(&key0[24..32], &[0, 0, 0, 0, 0, 0, 0, 0]);
         assert_eq!(&key255[24..32], &[0, 0, 0, 0, 0, 0, 0, 255]);
     }

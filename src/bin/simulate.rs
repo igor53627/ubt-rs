@@ -12,8 +12,8 @@ use std::time::Duration;
 mod simulation;
 
 use simulation::{
-    Coordinator, CoordinatorConfig, UbtDatabase, WorkloadConfig, WorkloadContext, WorkloadRunner,
-    TestableDatabase, create_shared_metrics,
+    create_shared_metrics, Coordinator, CoordinatorConfig, TestableDatabase, UbtDatabase,
+    WorkloadConfig, WorkloadContext, WorkloadRunner,
 };
 
 fn main() {
@@ -31,8 +31,8 @@ fn main() {
     let workers = parse_arg(&args, "--workers")
         .map(|s| s.parse::<usize>().expect("invalid workers"))
         .unwrap_or(num_cpus::get());
-    let metrics_port = parse_arg(&args, "--metrics-port")
-        .map(|s| s.parse::<u16>().expect("invalid metrics port"));
+    let metrics_port =
+        parse_arg(&args, "--metrics-port").map(|s| s.parse::<u16>().expect("invalid metrics port"));
 
     let (seed_start, seed_end) = if let Some(range) = parse_arg(&args, "--seeds") {
         parse_seed_range(&range)
@@ -82,9 +82,27 @@ fn run_single_seed(seed: u64, ops: u64) {
         let snap = metrics.snapshot();
         println!();
         println!("Operation breakdown:");
-        println!("  Insert: {}", metrics.op_counters.insert.load(std::sync::atomic::Ordering::Relaxed));
-        println!("  Get: {}", metrics.op_counters.get.load(std::sync::atomic::Ordering::Relaxed));
-        println!("  Delete: {}", metrics.op_counters.delete.load(std::sync::atomic::Ordering::Relaxed));
+        println!(
+            "  Insert: {}",
+            metrics
+                .op_counters
+                .insert
+                .load(std::sync::atomic::Ordering::Relaxed)
+        );
+        println!(
+            "  Get: {}",
+            metrics
+                .op_counters
+                .get
+                .load(std::sync::atomic::Ordering::Relaxed)
+        );
+        println!(
+            "  Delete: {}",
+            metrics
+                .op_counters
+                .delete
+                .load(std::sync::atomic::Ordering::Relaxed)
+        );
         println!("  Chaos ops: {}", snap.chaos_ops_total);
     } else {
         println!(
@@ -98,7 +116,13 @@ fn run_single_seed(seed: u64, ops: u64) {
     }
 }
 
-fn run_multi_seed(seed_start: u64, seed_end: u64, workers: usize, ops: u64, metrics_port: Option<u16>) {
+fn run_multi_seed(
+    seed_start: u64,
+    seed_end: u64,
+    workers: usize,
+    ops: u64,
+    metrics_port: Option<u16>,
+) {
     let metrics = create_shared_metrics();
 
     let config = CoordinatorConfig {
@@ -133,16 +157,76 @@ fn run_multi_seed(seed_start: u64, seed_end: u64, workers: usize, ops: u64, metr
     }
     println!();
     println!("Chaos operations: {}", msnap.chaos_ops_total);
-    println!("  Toggle incremental: {}", metrics.op_counters.chaos_toggle_incremental.load(std::sync::atomic::Ordering::Relaxed));
-    println!("  Verify incr vs full: {}", metrics.op_counters.chaos_verify_incremental_vs_full.load(std::sync::atomic::Ordering::Relaxed));
-    println!("  Clear caches: {}", metrics.op_counters.chaos_clear_caches.load(std::sync::atomic::Ordering::Relaxed));
-    println!("  Burst stem write: {}", metrics.op_counters.chaos_burst_stem_write.load(std::sync::atomic::Ordering::Relaxed));
-    println!("  Insert/delete storm: {}", metrics.op_counters.chaos_insert_delete_storm.load(std::sync::atomic::Ordering::Relaxed));
-    println!("  Root stability: {}", metrics.op_counters.chaos_root_stability.load(std::sync::atomic::Ordering::Relaxed));
-    println!("  Delete stem: {}", metrics.op_counters.chaos_delete_stem.load(std::sync::atomic::Ordering::Relaxed));
-    println!("  Get/scan consistency: {}", metrics.op_counters.chaos_get_scan_consistency.load(std::sync::atomic::Ordering::Relaxed));
-    println!("  Mode switch storm: {}", metrics.op_counters.chaos_mode_switch_storm.load(std::sync::atomic::Ordering::Relaxed));
-    println!("  Verify last root: {}", metrics.op_counters.chaos_verify_last_root.load(std::sync::atomic::Ordering::Relaxed));
+    println!(
+        "  Toggle incremental: {}",
+        metrics
+            .op_counters
+            .chaos_toggle_incremental
+            .load(std::sync::atomic::Ordering::Relaxed)
+    );
+    println!(
+        "  Verify incr vs full: {}",
+        metrics
+            .op_counters
+            .chaos_verify_incremental_vs_full
+            .load(std::sync::atomic::Ordering::Relaxed)
+    );
+    println!(
+        "  Clear caches: {}",
+        metrics
+            .op_counters
+            .chaos_clear_caches
+            .load(std::sync::atomic::Ordering::Relaxed)
+    );
+    println!(
+        "  Burst stem write: {}",
+        metrics
+            .op_counters
+            .chaos_burst_stem_write
+            .load(std::sync::atomic::Ordering::Relaxed)
+    );
+    println!(
+        "  Insert/delete storm: {}",
+        metrics
+            .op_counters
+            .chaos_insert_delete_storm
+            .load(std::sync::atomic::Ordering::Relaxed)
+    );
+    println!(
+        "  Root stability: {}",
+        metrics
+            .op_counters
+            .chaos_root_stability
+            .load(std::sync::atomic::Ordering::Relaxed)
+    );
+    println!(
+        "  Delete stem: {}",
+        metrics
+            .op_counters
+            .chaos_delete_stem
+            .load(std::sync::atomic::Ordering::Relaxed)
+    );
+    println!(
+        "  Get/scan consistency: {}",
+        metrics
+            .op_counters
+            .chaos_get_scan_consistency
+            .load(std::sync::atomic::Ordering::Relaxed)
+    );
+    println!(
+        "  Mode switch storm: {}",
+        metrics
+            .op_counters
+            .chaos_mode_switch_storm
+            .load(std::sync::atomic::Ordering::Relaxed)
+    );
+    println!(
+        "  Verify last root: {}",
+        metrics
+            .op_counters
+            .chaos_verify_last_root
+            .load(std::sync::atomic::Ordering::Relaxed)
+    );
 
     if !result.failed_seeds.is_empty() {
         println!();
