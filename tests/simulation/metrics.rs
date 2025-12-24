@@ -76,14 +76,22 @@ impl OpCounters {
             7 => self.rapid_overwrite.fetch_add(1, Ordering::Relaxed),
             8 => self.insert_then_delete.fetch_add(1, Ordering::Relaxed),
             9 => self.sync.fetch_add(1, Ordering::Relaxed),
-            10 => self.chaos_toggle_incremental.fetch_add(1, Ordering::Relaxed),
-            11 => self.chaos_verify_incremental_vs_full.fetch_add(1, Ordering::Relaxed),
+            10 => self
+                .chaos_toggle_incremental
+                .fetch_add(1, Ordering::Relaxed),
+            11 => self
+                .chaos_verify_incremental_vs_full
+                .fetch_add(1, Ordering::Relaxed),
             12 => self.chaos_clear_caches.fetch_add(1, Ordering::Relaxed),
             13 => self.chaos_burst_stem_write.fetch_add(1, Ordering::Relaxed),
-            14 => self.chaos_insert_delete_storm.fetch_add(1, Ordering::Relaxed),
+            14 => self
+                .chaos_insert_delete_storm
+                .fetch_add(1, Ordering::Relaxed),
             15 => self.chaos_root_stability.fetch_add(1, Ordering::Relaxed),
             16 => self.chaos_delete_stem.fetch_add(1, Ordering::Relaxed),
-            17 => self.chaos_get_scan_consistency.fetch_add(1, Ordering::Relaxed),
+            17 => self
+                .chaos_get_scan_consistency
+                .fetch_add(1, Ordering::Relaxed),
             18 => self.chaos_mode_switch_storm.fetch_add(1, Ordering::Relaxed),
             _ => self.chaos_verify_last_root.fetch_add(1, Ordering::Relaxed),
         };
@@ -182,7 +190,8 @@ ubt_sim_chaos_verify_last_root_total {}
             self.insert_then_delete.load(Ordering::Relaxed),
             self.sync.load(Ordering::Relaxed),
             self.chaos_toggle_incremental.load(Ordering::Relaxed),
-            self.chaos_verify_incremental_vs_full.load(Ordering::Relaxed),
+            self.chaos_verify_incremental_vs_full
+                .load(Ordering::Relaxed),
             self.chaos_clear_caches.load(Ordering::Relaxed),
             self.chaos_burst_stem_write.load(Ordering::Relaxed),
             self.chaos_insert_delete_storm.load(Ordering::Relaxed),
@@ -196,7 +205,9 @@ ubt_sim_chaos_verify_last_root_total {}
 
     pub fn total_chaos_ops(&self) -> u64 {
         self.chaos_toggle_incremental.load(Ordering::Relaxed)
-            + self.chaos_verify_incremental_vs_full.load(Ordering::Relaxed)
+            + self
+                .chaos_verify_incremental_vs_full
+                .load(Ordering::Relaxed)
             + self.chaos_clear_caches.load(Ordering::Relaxed)
             + self.chaos_burst_stem_write.load(Ordering::Relaxed)
             + self.chaos_insert_delete_storm.load(Ordering::Relaxed)
@@ -369,7 +380,17 @@ ubt_sim_uptime_seconds {:.2}
 ubt_sim_chaos_ops_total {}
 
 "#,
-            ops, ops_per_sec, completed, failed, total, progress_pct, violations, workers, remaining, uptime, chaos_total
+            ops,
+            ops_per_sec,
+            completed,
+            failed,
+            total,
+            progress_pct,
+            violations,
+            workers,
+            remaining,
+            uptime,
+            chaos_total
         );
 
         format!("{}{}", base_metrics, self.op_counters.to_prometheus())
@@ -464,7 +485,10 @@ pub mod server {
             let listener = TcpListener::bind(format!("0.0.0.0:{}", port))?;
             listener.set_nonblocking(true)?;
 
-            eprintln!("[METRICS] Prometheus endpoint listening on http://0.0.0.0:{}/metrics", port);
+            eprintln!(
+                "[METRICS] Prometheus endpoint listening on http://0.0.0.0:{}/metrics",
+                port
+            );
 
             let handle = thread::spawn(move || {
                 Self::run_server(listener, metrics_clone, shutdown_clone);
@@ -493,7 +517,8 @@ pub mod server {
                                 );
                                 let _ = stream.write_all(response.as_bytes());
                             } else {
-                                let response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
+                                let response =
+                                    "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
                                 let _ = stream.write_all(response.as_bytes());
                             }
                         }
@@ -585,8 +610,20 @@ mod tests {
 
         assert_eq!(metrics.op_counters.insert.load(Ordering::Relaxed), 2);
         assert_eq!(metrics.op_counters.get.load(Ordering::Relaxed), 1);
-        assert_eq!(metrics.op_counters.chaos_toggle_incremental.load(Ordering::Relaxed), 1);
-        assert_eq!(metrics.op_counters.chaos_verify_incremental_vs_full.load(Ordering::Relaxed), 1);
+        assert_eq!(
+            metrics
+                .op_counters
+                .chaos_toggle_incremental
+                .load(Ordering::Relaxed),
+            1
+        );
+        assert_eq!(
+            metrics
+                .op_counters
+                .chaos_verify_incremental_vs_full
+                .load(Ordering::Relaxed),
+            1
+        );
         assert_eq!(metrics.op_counters.total_chaos_ops(), 2);
     }
 

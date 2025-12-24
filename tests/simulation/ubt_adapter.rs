@@ -3,7 +3,7 @@
 use crate::simulation::workload::{KeyValueEntries, TestableDatabase};
 use std::collections::BTreeMap;
 use std::convert::Infallible;
-use ubt::{B256, Blake3Hasher, TreeKey, UnifiedBinaryTree};
+use ubt::{Blake3Hasher, TreeKey, UnifiedBinaryTree, B256};
 
 /// UBT database wrapper for simulation testing.
 pub struct UbtDatabase {
@@ -117,14 +117,14 @@ mod tests {
     #[test]
     fn test_ubt_adapter_basic() {
         let mut db = UbtDatabase::create();
-        
+
         let key = [1u8; 32];
         let value = [42u8; 32];
-        
+
         db.insert(key, value).unwrap();
         assert_eq!(db.get(key).unwrap(), Some(value));
         assert_eq!(db.count(), 1);
-        
+
         let root = db.sync().unwrap();
         assert_ne!(root, [0u8; 32]);
     }
@@ -132,10 +132,10 @@ mod tests {
     #[test]
     fn test_ubt_adapter_delete() {
         let mut db = UbtDatabase::create();
-        
+
         let key = [1u8; 32];
         let value = [42u8; 32];
-        
+
         db.insert(key, value).unwrap();
         assert!(db.delete(key).unwrap());
         assert!(!db.delete(key).unwrap());
@@ -144,14 +144,14 @@ mod tests {
     #[test]
     fn test_ubt_adapter_scan() {
         let mut db = UbtDatabase::create();
-        
+
         let key1 = [1u8; 32];
         let key2 = [2u8; 32];
         let value = [42u8; 32];
-        
+
         db.insert(key1, value).unwrap();
         db.insert(key2, value).unwrap();
-        
+
         let entries = db.scan_all().unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries[0].0 < entries[1].0);

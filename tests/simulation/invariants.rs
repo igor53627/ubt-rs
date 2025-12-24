@@ -322,7 +322,10 @@ mod tests {
         model.apply(&UbtOperation::Insert { key, value });
 
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
-        tree.insert(TreeKey::from_bytes(B256::from_slice(&key)), B256::from_slice(&value));
+        tree.insert(
+            TreeKey::from_bytes(B256::from_slice(&key)),
+            B256::from_slice(&value),
+        );
         let root = tree.root_hash();
 
         assert!(checker.verify_root(root, &model).is_ok());
@@ -389,7 +392,10 @@ mod tests {
             log.record(op.clone());
 
             model.apply(&op);
-            tree.insert(TreeKey::from_bytes(B256::from_slice(&key)), B256::from_slice(&value));
+            tree.insert(
+                TreeKey::from_bytes(B256::from_slice(&key)),
+                B256::from_slice(&value),
+            );
 
             checker.set_operation_index(log.len() - 1);
             assert!(checker.verify_root(tree.root_hash(), &model).is_ok());

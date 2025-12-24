@@ -18,8 +18,15 @@ struct TestCase {
 
 #[derive(Debug, Clone)]
 enum Operation {
-    Insert { stem: Vec<u8>, subindex: u8, value: Vec<u8> },
-    Delete { stem: Vec<u8>, subindex: u8 },
+    Insert {
+        stem: Vec<u8>,
+        subindex: u8,
+        value: Vec<u8>,
+    },
+    Delete {
+        stem: Vec<u8>,
+        subindex: u8,
+    },
 }
 
 #[derive(Debug)]
@@ -246,7 +253,11 @@ fn run_test_case(test: &TestCase) -> Vec<(String, Option<Vec<u8>>)> {
 
     for op in &test.operations {
         match op {
-            Operation::Insert { stem, subindex, value } => {
+            Operation::Insert {
+                stem,
+                subindex,
+                value,
+            } => {
                 let s = bytes_to_stem(stem);
                 let key = TreeKey::new(s, *subindex);
                 let val = bytes_to_value(value);
@@ -267,7 +278,12 @@ fn run_test_case(test: &TestCase) -> Vec<(String, Option<Vec<u8>>)> {
         let result = tree.get(&key).map(|v| value_to_bytes(&v));
         let query_id = format!(
             "stem=[{}],subidx={}",
-            query.stem.iter().map(|b| b.to_string()).collect::<Vec<_>>().join(","),
+            query
+                .stem
+                .iter()
+                .map(|b| b.to_string())
+                .collect::<Vec<_>>()
+                .join(","),
             query.subindex
         );
         results.push((query_id, result));
@@ -276,7 +292,11 @@ fn run_test_case(test: &TestCase) -> Vec<(String, Option<Vec<u8>>)> {
 }
 
 fn format_bytes(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| b.to_string()).collect::<Vec<_>>().join(",")
+    bytes
+        .iter()
+        .map(|b| b.to_string())
+        .collect::<Vec<_>>()
+        .join(",")
 }
 
 fn format_result(result: &Option<Vec<u8>>) -> String {
@@ -292,7 +312,10 @@ fn export_test_data(path: &str) -> std::io::Result<()> {
 
     writeln!(file, "# UBT Integration Test Data")?;
     writeln!(file, "# Format: TEST <name>")?;
-    writeln!(file, "#         OP INSERT <stem_bytes> <subindex> <value_bytes>")?;
+    writeln!(
+        file,
+        "#         OP INSERT <stem_bytes> <subindex> <value_bytes>"
+    )?;
     writeln!(file, "#         OP DELETE <stem_bytes> <subindex>")?;
     writeln!(file, "#         QUERY <stem_bytes> <subindex>")?;
     writeln!(file, "#         EXPECT <None|Some(bytes)>")?;
@@ -302,19 +325,31 @@ fn export_test_data(path: &str) -> std::io::Result<()> {
         writeln!(file, "TEST {}", test.name)?;
         for op in &test.operations {
             match op {
-                Operation::Insert { stem, subindex, value } => {
-                    writeln!(file, "OP INSERT [{}] {} [{}]",
-                        format_bytes(stem), subindex, format_bytes(value))?;
+                Operation::Insert {
+                    stem,
+                    subindex,
+                    value,
+                } => {
+                    writeln!(
+                        file,
+                        "OP INSERT [{}] {} [{}]",
+                        format_bytes(stem),
+                        subindex,
+                        format_bytes(value)
+                    )?;
                 }
                 Operation::Delete { stem, subindex } => {
-                    writeln!(file, "OP DELETE [{}] {}",
-                        format_bytes(stem), subindex)?;
+                    writeln!(file, "OP DELETE [{}] {}", format_bytes(stem), subindex)?;
                 }
             }
         }
         for query in &test.queries {
-            writeln!(file, "QUERY [{}] {}",
-                format_bytes(&query.stem), query.subindex)?;
+            writeln!(
+                file,
+                "QUERY [{}] {}",
+                format_bytes(&query.stem),
+                query.subindex
+            )?;
             writeln!(file, "EXPECT {}", format_result(&query.expected))?;
         }
         writeln!(file)?;
@@ -344,10 +379,10 @@ fn run_and_export_results(path: &str) -> std::io::Result<()> {
 
 #[test]
 fn test_export_integration_data() {
-    let test_data_path = env::var("UBT_TEST_DATA_PATH")
-        .unwrap_or_else(|_| "target/test_data.txt".to_string());
-    let results_path = env::var("UBT_RESULTS_PATH")
-        .unwrap_or_else(|_| "target/rust_results.txt".to_string());
+    let test_data_path =
+        env::var("UBT_TEST_DATA_PATH").unwrap_or_else(|_| "target/test_data.txt".to_string());
+    let results_path =
+        env::var("UBT_RESULTS_PATH").unwrap_or_else(|_| "target/rust_results.txt".to_string());
 
     export_test_data(&test_data_path).expect("Failed to export test data");
     run_and_export_results(&results_path).expect("Failed to export results");
@@ -367,11 +402,21 @@ fn test_verify_expected_results() {
         for (i, (query_id, result)) in results.iter().enumerate() {
             let expected = &test.queries[i].expected;
             if result == expected {
-                println!("[PASS] {}: {} = {}", test.name, query_id, format_result(result));
+                println!(
+                    "[PASS] {}: {} = {}",
+                    test.name,
+                    query_id,
+                    format_result(result)
+                );
                 passed += 1;
             } else {
-                println!("[FAIL] {}: {} = {} (expected {})",
-                    test.name, query_id, format_result(result), format_result(expected));
+                println!(
+                    "[FAIL] {}: {} = {} (expected {})",
+                    test.name,
+                    query_id,
+                    format_result(result),
+                    format_result(expected)
+                );
                 failed += 1;
             }
         }

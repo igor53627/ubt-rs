@@ -32,9 +32,9 @@ fn test_simulation_small() {
 
 #[test]
 fn test_workload_runner_directly() {
-    use simulation::{WorkloadContext, WorkloadRunner};
     use simulation::ubt_adapter::UbtDatabase;
     use simulation::workload::TestableDatabase;
+    use simulation::{WorkloadContext, WorkloadRunner};
 
     let db = UbtDatabase::create();
     let config = WorkloadConfig {
@@ -43,10 +43,10 @@ fn test_workload_runner_directly() {
         enable_extended_ops: true,
         enable_chaos_ops: true,
     };
-    
+
     let mut runner = WorkloadRunner::new(db, config);
     let mut ctx = WorkloadContext::new(42, 0);
-    
+
     let result = runner.run(&mut ctx);
     assert!(result.success, "Violations: {:?}", result.violations);
     assert_eq!(result.operations_executed, 500);
@@ -54,10 +54,10 @@ fn test_workload_runner_directly() {
 
 #[test]
 fn test_metrics_collection() {
-    use std::sync::Arc;
-    use simulation::{WorkloadContext, WorkloadRunner, create_shared_metrics};
     use simulation::ubt_adapter::UbtDatabase;
     use simulation::workload::TestableDatabase;
+    use simulation::{create_shared_metrics, WorkloadContext, WorkloadRunner};
+    use std::sync::Arc;
 
     let metrics = create_shared_metrics();
     let db = UbtDatabase::create();
@@ -65,13 +65,16 @@ fn test_metrics_collection() {
         operations_per_run: 100,
         ..Default::default()
     };
-    
+
     let mut runner = WorkloadRunner::with_metrics(db, config, Arc::clone(&metrics));
     let mut ctx = WorkloadContext::new(123, 0);
-    
+
     let result = runner.run(&mut ctx);
     assert!(result.success);
-    
+
     let snap = metrics.snapshot();
-    assert!(snap.chaos_ops_total > 0, "Should have executed some chaos ops");
+    assert!(
+        snap.chaos_ops_total > 0,
+        "Should have executed some chaos ops"
+    );
 }

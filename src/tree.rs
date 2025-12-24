@@ -279,11 +279,8 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         if self.incremental_enabled && !self.node_hash_cache.is_empty() {
             self.rebuild_root_incremental(&dirty_stems);
         } else {
-            let mut stem_hashes: Vec<_> = self
-                .stem_hash_cache
-                .iter()
-                .map(|(s, h)| (*s, *h))
-                .collect();
+            let mut stem_hashes: Vec<_> =
+                self.stem_hash_cache.iter().map(|(s, h)| (*s, *h)).collect();
             stem_hashes.sort_by_key(|(s, _)| *s);
 
             if self.incremental_enabled {
@@ -334,11 +331,8 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         if self.incremental_enabled && !self.node_hash_cache.is_empty() {
             self.rebuild_root_incremental(&dirty_stems);
         } else {
-            let mut stem_hashes: Vec<_> = self
-                .stem_hash_cache
-                .iter()
-                .map(|(s, h)| (*s, *h))
-                .collect();
+            let mut stem_hashes: Vec<_> =
+                self.stem_hash_cache.iter().map(|(s, h)| (*s, *h)).collect();
             stem_hashes.sort_by_key(|(s, _)| *s);
 
             if self.incremental_enabled {
@@ -432,11 +426,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     /// Perform incremental root update for dirty stems.
     /// Only recomputes paths from changed stems to root, using cached sibling hashes.
     fn rebuild_root_incremental(&mut self, dirty_stems: &[Stem]) {
-        let mut stem_hashes: Vec<_> = self
-            .stem_hash_cache
-            .iter()
-            .map(|(s, h)| (*s, *h))
-            .collect();
+        let mut stem_hashes: Vec<_> = self.stem_hash_cache.iter().map(|(s, h)| (*s, *h)).collect();
         stem_hashes.sort_by_key(|(s, _)| *s);
 
         if stem_hashes.is_empty() {
@@ -507,17 +497,14 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
                 .iter()
                 .any(|s| s.bit_at(depth) && Self::stem_matches_prefix(s, path_prefix, depth));
 
-        let left_hash = if left_has_dirty
-            || !self
-                .node_hash_cache
-                .contains_key(&(depth + 1, path_prefix))
-        {
-            self.incremental_hash_update(left, depth + 1, path_prefix, dirty_stems)
-        } else if left.is_empty() {
-            B256::ZERO
-        } else {
-            *self.node_hash_cache.get(&(depth + 1, path_prefix)).unwrap()
-        };
+        let left_hash =
+            if left_has_dirty || !self.node_hash_cache.contains_key(&(depth + 1, path_prefix)) {
+                self.incremental_hash_update(left, depth + 1, path_prefix, dirty_stems)
+            } else if left.is_empty() {
+                B256::ZERO
+            } else {
+                *self.node_hash_cache.get(&(depth + 1, path_prefix)).unwrap()
+            };
 
         let right_hash = if right_has_dirty
             || !self
@@ -528,7 +515,10 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         } else if right.is_empty() {
             B256::ZERO
         } else {
-            *self.node_hash_cache.get(&(depth + 1, right_prefix)).unwrap()
+            *self
+                .node_hash_cache
+                .get(&(depth + 1, right_prefix))
+                .unwrap()
         };
 
         let node_hash = if left_hash.is_zero() && right_hash.is_zero() {
@@ -938,10 +928,7 @@ mod tests {
         let h1 = tree1.root_hash();
 
         tree2.insert(k1, B256::repeat_byte(0x11));
-        tree2.insert_batch([
-            (k2, B256::repeat_byte(0x22)),
-            (k3, B256::repeat_byte(0x33)),
-        ]);
+        tree2.insert_batch([(k2, B256::repeat_byte(0x22)), (k3, B256::repeat_byte(0x33))]);
         let h2 = tree2.root_hash();
 
         assert_eq!(h1, h2);
@@ -1039,7 +1026,11 @@ mod tests {
         }
 
         let root2 = tree.root_hash();
-        assert_ne!(root2, B256::ZERO, "Root hash should be non-zero after update");
+        assert_ne!(
+            root2,
+            B256::ZERO,
+            "Root hash should be non-zero after update"
+        );
         assert_ne!(root1, root2, "Root hash should change after modifications");
     }
 
@@ -1120,7 +1111,10 @@ mod tests {
         // Enable incremental mode on one tree
         tree_parallel_incr.enable_incremental_mode();
         let hash2_incr = tree_parallel_incr.root_hash(); // Populates cache
-        assert_eq!(hash1_incr, hash2_incr, "Enabling incremental shouldn't change hash");
+        assert_eq!(
+            hash1_incr, hash2_incr,
+            "Enabling incremental shouldn't change hash"
+        );
 
         // Modify some stems
         for i in 30u8..50 {
@@ -1181,10 +1175,16 @@ mod tests {
 
         tree_incr.enable_incremental_mode();
         assert!(tree_incr.is_incremental_enabled());
-        assert!(tree_incr.node_cache_size() == 0, "Cache should be empty before first rebuild");
+        assert!(
+            tree_incr.node_cache_size() == 0,
+            "Cache should be empty before first rebuild"
+        );
 
         let hash_incr_2 = tree_incr.root_hash();
-        assert_eq!(hash_full_1, hash_incr_2, "Hash after enabling incremental should match");
+        assert_eq!(
+            hash_full_1, hash_incr_2,
+            "Hash after enabling incremental should match"
+        );
         assert!(tree_incr.node_cache_size() > 0, "Cache should be populated");
 
         for i in 20u8..30 {
