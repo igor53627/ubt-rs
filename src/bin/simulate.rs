@@ -35,7 +35,7 @@ fn main() {
         parse_arg(&args, "--metrics-port").map(|s| s.parse::<u16>().expect("invalid metrics port"));
 
     let (seed_start, seed_end) = if let Some(range) = parse_arg(&args, "--seeds") {
-        parse_seed_range(&range)
+        parse_seed_range(range)
     } else if let Some(seed) = single_seed {
         (seed, seed + 1)
     } else {

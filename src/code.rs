@@ -68,7 +68,7 @@ pub fn chunkify_code(bytecode: &[u8]) -> Vec<CodeChunk> {
         return vec![];
     }
 
-    let num_chunks = (bytecode.len() + CODE_CHUNK_DATA_SIZE - 1) / CODE_CHUNK_DATA_SIZE;
+    let num_chunks = bytecode.len().div_ceil(CODE_CHUNK_DATA_SIZE);
     let mut chunks = Vec::with_capacity(num_chunks);
 
     // Track how many bytes of PUSHDATA remain from previous instruction
