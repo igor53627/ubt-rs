@@ -1,0 +1,100 @@
+name: Fuzzing
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Fuzz target to run'
+        required: true
+        default: 'fuzz_tree_ops'
+        type: choice
+        options:
+          - fuzz_tree_ops
+          - fuzz_proof_decode
+          - fuzz_code_chunk
+          - fuzz_basic_data
+          - fuzz_streaming
+          - all
+      duration:
+        description: 'Duration in seconds (18000 = 5 hours)'
+        required: true
+        default: '18000'
+        type: string
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust nightly
+        uses: dtolnay/rust-action@nightly
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz
+
+      - name: Run fuzzing - ${{ inputs.target }}
+        if: inputs.target != 'all'
+        run: |
+          echo "Fuzzing ${{ inputs.target }} for ${{ inputs.duration }} seconds"
+          cargo +nightly fuzz run ${{ inputs.target }} -- \
+            -max_total_time=${{ inputs.duration }} \
+            -print_final_stats=1
+        continue-on-error: true
+
+      - name: Run all fuzz targets
+        if: inputs.target == 'all'
+        run: |
+          DURATION_PER_TARGET=$(( ${{ inputs.duration }} / 5 ))
+          echo "Running all targets, ${DURATION_PER_TARGET}s each"
+          
+          for target in fuzz_tree_ops fuzz_proof_decode fuzz_code_chunk fuzz_basic_data fuzz_streaming; do
+            echo "=== Fuzzing $target for ${DURATION_PER_TARGET}s ==="
+            cargo +nightly fuzz run $target -- \
+              -max_total_time=${DURATION_PER_TARGET} \
+              -print_final_stats=1 || true
+          done
+        continue-on-error: true
+
+      - name: Upload crash artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fuzz-crashes-${{ inputs.target }}
+          path: |
+            fuzz/artifacts/
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Upload corpus
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fuzz-corpus-${{ inputs.target }}
+          path: |
+            fuzz/corpus/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Fuzzing Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Setting | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Target | ${{ inputs.target }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Duration | ${{ inputs.duration }}s |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -d "fuzz/artifacts" ] && [ "$(ls -A fuzz/artifacts 2>/dev/null)" ]; then
+            echo "### [!] Crashes Found" >> $GITHUB_STEP_SUMMARY
+            echo "Check the uploaded artifacts for crash inputs." >> $GITHUB_STEP_SUMMARY
+            find fuzz/artifacts -type f | head -20 >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### [OK] No crashes found" >> $GITHUB_STEP_SUMMARY
+          fi
