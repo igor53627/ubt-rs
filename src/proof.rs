@@ -5,7 +5,7 @@
 
 use alloy_primitives::B256;
 
-use crate::{error::Result, Hasher, Node, Stem, StemNode, TreeKey, UbtError, STEM_LEN};
+use crate::{error::Result, Hasher, Stem, StemNode, TreeKey, UbtError, STEM_LEN};
 
 /// Direction in the tree (for proof paths)
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

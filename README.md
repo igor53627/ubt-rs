@@ -147,12 +147,19 @@ let chunks = chunkify_code(&bytecode);
 |---------|---------|-------------|
 | `parallel` | Yes | Parallel stem hashing via rayon |
 | `serde` | No | Serialization support for tree types |
+| `simulate` | No | Enables the simulation stress-test binary |
 
 To disable default features:
 
 ```toml
 [dependencies]
 ubt = { version = "0.2", default-features = false }
+```
+
+To run the simulation stress-test binary:
+
+```bash
+cargo run --bin simulate --features simulate -- --seed 12345 --ops 10000
 ```
 
 ## Hash Function
