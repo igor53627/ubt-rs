@@ -12,8 +12,7 @@ use std::collections::HashMap;
 use crate::{Hasher, Stem, SubIndex};
 
 /// A node in the UBT.
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub enum Node {
     /// Empty node (hash = 0)
     #[default]
@@ -25,7 +24,6 @@ pub enum Node {
     /// Leaf node containing a value
     Leaf(LeafNode),
 }
-
 
 impl Node {
     /// Calculate the hash of this node.
