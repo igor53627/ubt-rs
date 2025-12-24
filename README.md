@@ -177,7 +177,7 @@ impl Hasher for MyHasher {
 
 [![Proof Verification](https://github.com/igor53627/ubt-rs/actions/workflows/proofs.yml/badge.svg)](https://github.com/igor53627/ubt-rs/actions/workflows/proofs.yml)
 [![Verification Summary](https://img.shields.io/badge/verification-95%25%20confidence-brightgreen)](formal/docs/VERIFICATION_SUMMARY.md)
-[![Qed Count](https://img.shields.io/badge/Qed-697%20proofs-blue)](formal/docs/VERIFICATION_SUMMARY.md)
+[![Qed Count](https://img.shields.io/badge/Qed-641%20proofs-blue)](formal/docs/VERIFICATION_SUMMARY.md)
 
 This crate includes formal verification using [rocq-of-rust](https://github.com/formal-land/rocq-of-rust) and the Rocq proof assistant.
 
@@ -185,10 +185,10 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 
 | Metric | Initial | Final | Change |
 |--------|---------|-------|--------|
-| **Theorems (Qed)** | ~20 | **697** | +3385% |
-| **Total Axioms** | 50+ | **155** | All documented |
-| **Irreducible Axioms** | N/A | **25** | Minimal trust base |
-| **Admitted** | 10+ | **0** | 0 in linking/simulations/proofs (82 in RocqOfRust src/, 3 in specs) |
+| **Theorems (Qed)** | ~20 | **641** | +3105% |
+| **Total Axioms** | 50+ | **185** | All documented |
+| **Linking Axioms** | N/A | **45** | Minimal trust base |
+| **Admitted** | 10+ | **0** | 0 in linking/simulations/proofs (82 total in RocqOfRust src/ and specs) |
 | **QuickChick Properties** | 5 | **22 CI / 50 total** | 11k/500k tests |
 | **Verification Confidence** | - | **95%** | Complete |
 
@@ -227,10 +227,10 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| **Total Axioms** | 155 | All Axiom declarations in linking layer |
+| **Total Axioms** | 185 | All Axiom declarations in linking+simulations |
+| **Linking Axioms** | 45 | Axioms in formal/linking/ layer |
 | **IRREDUCIBLE** | 25 | Minimal trust base (monad laws, crypto, stdlib) |
-| **DERIVABLE** | 128 | Could be proven with additional effort |
-| **Parameters** | 77 | Type/function abstractions (not logical axioms) |
+| **Parameters (non-axioms)** | 77 | Type/function abstractions, tracked separately |
 
 **Trust assumptions:**
 - **Monad Laws:** Standard mathematical properties (high confidence)

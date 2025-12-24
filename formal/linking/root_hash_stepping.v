@@ -73,6 +73,8 @@ Require Import UBT.Linking.operations.
 Require Import UBT.Linking.interpreter.
 Require Import UBT.Linking.iterator_stepping.
 Require Import UBT.Linking.field_stepping.
+Require UBT.Linking.MRun.
+Require Import UBT.Linking.fuel_bridge.
 
 Open Scope Z_scope.
 Open Scope string_scope.
@@ -597,9 +599,10 @@ Module RootHashDerivation.
     exact Hfuel.
   Qed.
   
-  (** ** Corollary: Connection to Run.run
+  (** ** Corollary: Connection to Run.run_ok
       
-      The Fuel-based result connects to the abstract Run.run.
+      The Fuel-based result connects to the relational Run.run_ok.
+      Updated: Now uses the relational Run.run_ok predicate.
   *)
   Corollary root_hash_run_executes :
     forall (H : Ty.t) (sim_t : SimTree)
@@ -607,15 +610,17 @@ Module RootHashDerivation.
       tree_refines H rust_tree sim_t ->
       wf_tree sim_t ->
       exists (s' : ExecState.t),
-        Run.run (HashLink.rust_root_hash H [] [] [rust_tree]) 
-                (RunFuelLink.state_to_exec s) =
-        (Outcome.Success (φ (sim_root_hash sim_t)), s').
+        Run.run_ok (HashLink.rust_root_hash H [] [] [rust_tree]) 
+                   (RunFuelLink.state_to_exec s) 
+                   (φ (sim_root_hash sim_t))
+                   s'.
   Proof.
     intros H sim_t rust_tree s Href Hwf.
     destruct (root_hash_executes_derived H sim_t rust_tree s Href Hwf)
       as [fuel [s' Hfuel]].
-    exists (RunFuelLink.state_to_exec s').
-    apply RunFuelLink.fuel_success_implies_run with (fuel := fuel).
+    (* Use FuelBridge to convert interpreter.Fuel success to Run.run_ok *)
+    exists (State.to_exec_state s').
+    apply FuelBridge.interpreter_fuel_to_run_ok with (fuel := fuel).
     exact Hfuel.
   Qed.
   
@@ -713,7 +718,7 @@ End RootHashDerivation.
     HashLink.root_hash_executes is now:
     - DERIVED from 5 primitive axioms (reduced from 8, 37.5% reduction)
     - Compositionally verified via stepping lemmas
-    - Connected to Run.run via RunFuelLink
+    - Connected to Run.run_ok via MRun relational semantics
     - Termination proven via depth bound
     - Panic freedom proven (depth < 248)
     - Hash correctness proven via stepping_matches_simulation

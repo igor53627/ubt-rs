@@ -109,7 +109,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Documentation metrics aligned across README.md, VERIFICATION_SUMMARY.md, BUILD_STATUS.md, wiki.json
-- Consistent counts: 697 Qed, 155 Axioms, 0 Admitted in linking layer
+- Consistent counts: 641 Qed, 185 Axioms (45 in linking), 0 Admitted in linking layer, 82 Admitted total
 
 - **Converted 3 decode_* axioms to theorems (formal/linking/types.v, interpreter.v)**
   - Added `Bytes32Link.array_to_bytes` inverse function with `array_to_bytes_correct` lemma
