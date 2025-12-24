@@ -14,6 +14,7 @@ on:
           - fuzz_code_chunk
           - fuzz_basic_data
           - fuzz_streaming
+          - fuzz_embedding
           - all
       duration:
         description: 'Duration in seconds (18000 = 5 hours)'
@@ -49,10 +50,10 @@ jobs:
       - name: Run all fuzz targets
         if: inputs.target == 'all'
         run: |
-          DURATION_PER_TARGET=$(( ${{ inputs.duration }} / 5 ))
+          DURATION_PER_TARGET=$(( ${{ inputs.duration }} / 6 ))
           echo "Running all targets, ${DURATION_PER_TARGET}s each"
           
-          for target in fuzz_tree_ops fuzz_proof_decode fuzz_code_chunk fuzz_basic_data fuzz_streaming; do
+          for target in fuzz_tree_ops fuzz_proof_decode fuzz_code_chunk fuzz_basic_data fuzz_streaming fuzz_embedding; do
             echo "=== Fuzzing $target for ${DURATION_PER_TARGET}s ==="
             cargo +nightly fuzz run $target -- \
               -max_total_time=${DURATION_PER_TARGET} \
