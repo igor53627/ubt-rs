@@ -47,3 +47,10 @@ path = "fuzz_targets/fuzz_streaming.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "fuzz_embedding"
+path = "fuzz_targets/fuzz_embedding.rs"
+test = false
+doc = false
+bench = false

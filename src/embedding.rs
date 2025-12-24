@@ -122,13 +122,12 @@ pub fn get_storage_slot_key(address: &Address, slot: &[u8; 32]) -> TreeKey {
             k[i] = slot[i];
         }
 
-        // Byte 0: 1 (from 256^30) + slot[0]
-        // Note: if slot[0] >= 255, this would overflow. Per EIP-7864, such
-        // slot values are not expected in practice. We use checked_add to
-        // catch any violations during development.
-        k[0] = slot[0]
-            .checked_add(1)
-            .expect("slot[0] >= 255 not supported per EIP-7864");
+        // Byte 0: 1 (from 256^30) + slot[0], modulo 256.
+        // Per EIP-7864, storage keys are full 256-bit values, so we must
+        // support all possible slot[0] values including 0xff. Adding 1 to
+        // the most significant byte corresponds to adding 256^30 to the
+        // 31-byte tree_index, modulo 256^31.
+        k[0] = slot[0].wrapping_add(1);
 
         // subindex = slot % 256 = slot[31]
         k[31] = slot[31];
@@ -481,5 +480,69 @@ mod tests {
             key_large.stem, key_other.stem,
             "different tree_index should produce different stem"
         );
+    }
+
+    #[test]
+    fn test_storage_slot_high_byte_0xff() {
+        let address = Address::repeat_byte(0x42);
+
+        // Test slot with high byte = 0xff (previously caused panic)
+        // This is a valid keccak-derived storage slot from real Ethereum state
+        let mut slot_bytes = [0u8; 32];
+        slot_bytes[0] = 0xff;
+        slot_bytes[31] = 0x20;
+
+        // Should not panic - must handle all 256-bit storage keys per EIP-7864
+        let key1 = get_storage_slot_key(&address, &slot_bytes);
+        let key2 = get_storage_slot_key(&address, &slot_bytes);
+        assert_eq!(key1, key2, "storage key must be deterministic");
+
+        // Verify subindex is preserved
+        assert_eq!(key1.subindex, 0x20);
+
+        // tree_index[0] = 0xff + 1 = 0x00 (wrapping)
+        // Verify by checking it's different from slot with high byte 0xfe
+        let mut slot_fe = slot_bytes;
+        slot_fe[0] = 0xfe;
+        let key_fe = get_storage_slot_key(&address, &slot_fe);
+        assert_ne!(
+            key1.stem, key_fe.stem,
+            "0xff and 0xfe high bytes should produce different stems"
+        );
+    }
+
+    #[test]
+    fn test_storage_slot_all_high_bytes() {
+        let address = Address::repeat_byte(0x42);
+
+        // Test slot = 0xffffffff...ffff (max U256)
+        let slot_max = [0xffu8; 32];
+        let key_max = get_storage_slot_key(&address, &slot_max);
+        assert_eq!(key_max.subindex, 0xff);
+
+        // Test slot = 0xff00...0000
+        let mut slot_ff00 = [0u8; 32];
+        slot_ff00[0] = 0xff;
+        let key_ff00 = get_storage_slot_key(&address, &slot_ff00);
+        assert_eq!(key_ff00.subindex, 0x00);
+
+        // Both should work without panic
+        assert_ne!(key_max.stem, key_ff00.stem);
+    }
+
+    #[test]
+    fn test_storage_slot_boundary_values() {
+        let address = Address::repeat_byte(0x42);
+
+        // Test all boundary values for high byte
+        for high_byte in [0x00, 0x01, 0x7f, 0x80, 0xfe, 0xff] {
+            let mut slot = [0u8; 32];
+            slot[0] = high_byte;
+            slot[31] = 0x42;
+
+            // Should not panic for any high byte value
+            let key = get_storage_slot_key(&address, &slot);
+            assert_eq!(key.subindex, 0x42);
+        }
     }
 }
