@@ -7,12 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.2.2] - 2025-12-24
+## [0.2.3] - 2025-12-24
 
 ### Fixed
 - **Storage slots with high byte 0xff no longer panic (Issue #66)**
   - Changed `checked_add(1)` to `wrapping_add(1)` in `get_storage_slot_key`
   - Per EIP-7864, all 256-bit storage keys must be supported including keccak-derived slots
+- **Add missing dev-dependencies for simulation tests**
+  - Added `rand` and `num_cpus` to dev-dependencies
 
 ### Added
 - **Comprehensive embedding function tests**

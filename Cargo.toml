@@ -1,6 +1,6 @@
 [package]
 name = "ubt"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 description = "Unified Binary Tree implementation based on EIP-7864"
 license = "MIT OR Apache-2.0"
@@ -37,6 +37,8 @@ num_cpus = { version = "1.16", optional = true }
 [dev-dependencies]
 proptest = "1.4"
 criterion = "0.5"
+rand = "0.8"
+num_cpus = "1.16"
 
 [features]
 ## Enables parallel stem hashing via rayon. Provides significant speedup for
