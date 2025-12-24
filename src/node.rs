@@ -13,8 +13,10 @@ use crate::{Hasher, Stem, SubIndex};
 
 /// A node in the UBT.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Default)]
 pub enum Node {
     /// Empty node (hash = 0)
+    #[default]
     Empty,
     /// Internal branching node with two children
     Internal(InternalNode),
@@ -24,11 +26,6 @@ pub enum Node {
     Leaf(LeafNode),
 }
 
-impl Default for Node {
-    fn default() -> Self {
-        Self::Empty
-    }
-}
 
 impl Node {
     /// Calculate the hash of this node.

@@ -247,7 +247,7 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
         #[cfg(debug_assertions)]
         let mut prev_key: Option<TreeKey> = None;
 
-        while let Some((key, value)) = entries.next() {
+        for (key, value) in entries.by_ref() {
             #[cfg(debug_assertions)]
             {
                 if let Some(prev) = prev_key {

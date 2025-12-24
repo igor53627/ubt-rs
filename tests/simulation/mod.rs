@@ -7,16 +7,12 @@ pub mod metrics;
 pub mod ubt_adapter;
 pub mod workload;
 
-pub use context::{DeterministicMap, WorkloadContext};
+pub use context::WorkloadContext;
 pub use coordinator::{
-    Coordinator, CoordinatorConfig, SimulationResult, SimulationStats, StatsSnapshot,
+    Coordinator, CoordinatorConfig,
 };
-pub use invariants::{
-    InvariantViolation, MerkleInvariantChecker, OperationLog, UbtMerkleChecker, UbtOperation,
-    UbtReferenceModel,
-};
-pub use metrics::{create_shared_metrics, Metrics, MetricsSnapshot, OpCounters, SharedMetrics};
+pub use metrics::create_shared_metrics;
 pub use ubt_adapter::UbtDatabase;
 pub use workload::{
-    KeyValueEntries, TestableDatabase, WorkloadConfig, WorkloadResult, WorkloadRunner,
+    TestableDatabase, WorkloadConfig, WorkloadRunner,
 };

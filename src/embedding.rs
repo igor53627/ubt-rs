@@ -64,7 +64,7 @@ const ZERO_PREFIX: [u8; 12] = [0u8; 12];
 /// ```
 pub fn get_binary_tree_key(address: &Address, input_key: &[u8; 32]) -> TreeKey {
     let mut hasher = Sha256::new();
-    hasher.update(&ZERO_PREFIX);
+    hasher.update(ZERO_PREFIX);
     hasher.update(address.as_slice());
     hasher.update(&input_key[..31]);
 
