@@ -2,19 +2,6 @@
 
 ## Backlog
 
-### [KB-02] Split tree.rs into submodules
-**Priority:** Medium
-**Files:** `src/tree.rs` (1,281 lines)
-
-Split into:
-- `src/tree/mod.rs` — struct definition, insert/get/delete
-- `src/tree/hash.rs` — root hash strategies (rebuild, cached, incremental)
-- `src/tree/build.rs` — sorted-stem tree construction
-
-Public API unchanged.
-
----
-
 ### [KB-03] Declare MSRV in Cargo.toml
 **Priority:** Medium
 **Files:** `Cargo.toml`
@@ -25,7 +12,7 @@ Add `rust-version = "1.74"` (or actual minimum). Prevents accidental use of newe
 
 ### [KB-04] Replace unwrap() with expect() in production code
 **Priority:** Low
-**Files:** `src/tree.rs`
+**Files:** `src/tree/hash.rs`
 
 Two `unwrap()` calls in `incremental_hash_update` after `contains_key()` checks. Replace with `.expect("cache entry guaranteed by contains_key check")` to document the invariant.
 
@@ -33,7 +20,7 @@ Two `unwrap()` calls in `incremental_hash_update` after `contains_key()` checks.
 
 ### [KB-05] Add #[must_use] to key public APIs
 **Priority:** Low
-**Files:** `src/tree.rs`, `src/proof.rs`, `src/streaming.rs`
+**Files:** `src/tree/mod.rs`, `src/tree/hash.rs`, `src/proof.rs`, `src/streaming.rs`
 
 Functions like `root_hash()`, `get()`, `generate_proof()`, `build_root_hash()` return values that should not be silently discarded. Add `#[must_use]` annotations.
 
@@ -96,6 +83,14 @@ _Empty_
 
 ### [KB-01] Convert tree-depth panics to Result returns
 **Priority:** Medium
-**Files:** `src/tree.rs`, `src/streaming.rs`, `src/error.rs`
+**Files:** `src/tree/mod.rs`, `src/tree/hash.rs`, `src/tree/build.rs`, `src/streaming.rs`, `src/error.rs`
 
 Converted tree-depth `panic!`s on public code paths into `Result` returns by introducing `UbtError::TreeDepthExceeded { depth }` and propagating errors through `root_hash()` and streaming root-hash builders.
+
+---
+
+### [KB-02] Split tree.rs into submodules
+**Priority:** Medium
+**Files:** `src/tree/mod.rs`, `src/tree/hash.rs`, `src/tree/build.rs`
+
+Split the `UnifiedBinaryTree` implementation into focused submodules for API surface (`mod.rs`), hashing and rebuild logic (`hash.rs`), and tree-shape construction (`build.rs`), with public API unchanged.
