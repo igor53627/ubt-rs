@@ -2,19 +2,6 @@
 
 ## Backlog
 
-### [KB-08] Add release profile optimizations
-**Priority:** Low
-**Files:** `Cargo.toml`
-
-Add for main crate:
-```toml
-[profile.release]
-lto = "thin"
-codegen-units = 1
-```
-
----
-
 ### [KB-09] Clean up Cargo.lock in .gitignore
 **Priority:** Low
 **Files:** `.gitignore`
@@ -84,3 +71,11 @@ Pinned basic rustfmt configuration to reduce formatting churn.
 **Files:** `Cargo.toml`
 
 Enabled `clippy::pedantic` lints (warn-level) in `Cargo.toml` with a small allow-list to keep the signal reasonable.
+
+---
+
+### [KB-08] Add release profile optimizations
+**Priority:** Low
+**Files:** `Cargo.toml`
+
+Added release profile settings (`lto = "thin"`, `codegen-units = 1`) to improve release build performance.
