@@ -2,18 +2,6 @@
 
 ## Backlog
 
-### [KB-06] Add rustfmt.toml
-**Priority:** Low
-**Files:** `rustfmt.toml` (new)
-
-Pin formatting conventions to prevent churn across Rust edition changes:
-```toml
-edition = "2021"
-max_width = 100
-```
-
----
-
 ### [KB-07] Enable pedantic clippy lints
 **Priority:** Low
 **Files:** `Cargo.toml`
@@ -94,3 +82,11 @@ Replaced the two `unwrap()` calls in `incremental_hash_update` with `.expect(...
 **Files:** `src/tree/mod.rs`, `src/tree/hash.rs`, `src/proof.rs`, `src/streaming.rs`
 
 Added `#[must_use]` to key API functions to discourage accidentally ignoring results like `root_hash()`, `get()`, `generate_stem_proof()`, and streaming root-hash builders.
+
+---
+
+### [KB-06] Add rustfmt.toml
+**Priority:** Low
+**Files:** `rustfmt.toml`
+
+Pinned basic rustfmt configuration to reduce formatting churn.
