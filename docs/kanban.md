@@ -2,14 +2,6 @@
 
 ## Backlog
 
-### [KB-03] Declare MSRV in Cargo.toml
-**Priority:** Medium
-**Files:** `Cargo.toml`
-
-Add `rust-version = "1.74"` (or actual minimum). Prevents accidental use of newer features and gives users clear compatibility info.
-
----
-
 ### [KB-04] Replace unwrap() with expect() in production code
 **Priority:** Low
 **Files:** `src/tree/hash.rs`
@@ -94,3 +86,11 @@ Converted tree-depth `panic!`s on public code paths into `Result` returns by int
 **Files:** `src/tree/mod.rs`, `src/tree/hash.rs`, `src/tree/build.rs`
 
 Split the `UnifiedBinaryTree` implementation into focused submodules for API surface (`mod.rs`), hashing and rebuild logic (`hash.rs`), and tree-shape construction (`build.rs`), with public API unchanged.
+
+---
+
+### [KB-03] Declare MSRV in Cargo.toml
+**Priority:** Medium
+**Files:** `Cargo.toml`
+
+Declared the crate MSRV via `rust-version` to make compatibility explicit and prevent accidental use of newer language features.
