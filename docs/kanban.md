@@ -2,11 +2,7 @@
 
 ## Backlog
 
-### [KB-09] Clean up Cargo.lock in .gitignore
-**Priority:** Low
-**Files:** `.gitignore`
-
-`Cargo.lock` is committed but also listed in `.gitignore`. Remove the `Cargo.lock` line from `.gitignore` since the project ships binaries and benefits from reproducible builds.
+_Empty_
 
 ---
 
@@ -79,3 +75,11 @@ Enabled `clippy::pedantic` lints (warn-level) in `Cargo.toml` with a small allow
 **Files:** `Cargo.toml`
 
 Added release profile settings (`lto = "thin"`, `codegen-units = 1`) to improve release build performance.
+
+---
+
+### [KB-09] Clean up Cargo.lock in .gitignore
+**Priority:** Low
+**Files:** `.gitignore`
+
+Removed the `Cargo.lock` entry from `.gitignore` since it is committed.
