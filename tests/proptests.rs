@@ -89,7 +89,7 @@ proptest! {
         tree2.insert(key, value);
         tree2.insert(key, value);
 
-        prop_assert_eq!(tree1.root_hash(), tree2.root_hash());
+        prop_assert_eq!(tree1.root_hash().unwrap(), tree2.root_hash().unwrap());
     }
 
     /// P5: get from empty tree returns None
@@ -182,7 +182,7 @@ proptest! {
         tree2.delete(&key);
         tree2.delete(&key);
 
-        prop_assert_eq!(tree1.root_hash(), tree2.root_hash());
+        prop_assert_eq!(tree1.root_hash().unwrap(), tree2.root_hash().unwrap());
     }
 
     /// P10: insert zero is equivalent to delete (both result in None for get)
@@ -212,10 +212,10 @@ proptest! {
 
         let mut tree1: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
         tree1.insert(k1, v);
-        let hash1 = tree1.root_hash();
+        let hash1 = tree1.root_hash().unwrap();
 
         tree1.delete(&k2); // k2 doesn't exist
-        let hash2 = tree1.root_hash();
+        let hash2 = tree1.root_hash().unwrap();
 
         prop_assert_eq!(hash1, hash2);
     }
@@ -250,14 +250,14 @@ proptest! {
             tree2.insert(*k, *v);
         }
 
-        prop_assert_eq!(tree1.root_hash(), tree2.root_hash());
+        prop_assert_eq!(tree1.root_hash().unwrap(), tree2.root_hash().unwrap());
     }
 
     /// P14: empty tree has zero hash
     #[test]
     fn prop_empty_tree_zero_hash(_dummy: u8) {
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
-        prop_assert_eq!(tree.root_hash(), B256::ZERO);
+        prop_assert_eq!(tree.root_hash().unwrap(), B256::ZERO);
     }
 
     /// P15: different values produce different hashes (probabilistic)
@@ -275,7 +275,7 @@ proptest! {
         let mut tree2: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
         tree2.insert(key, v2);
 
-        prop_assert_ne!(tree1.root_hash(), tree2.root_hash());
+        prop_assert_ne!(tree1.root_hash().unwrap(), tree2.root_hash().unwrap());
     }
 }
 
@@ -302,7 +302,7 @@ proptest! {
         tree2.insert(k2, v2);
         tree2.insert(k1, v1);
 
-        prop_assert_eq!(tree1.root_hash(), tree2.root_hash());
+        prop_assert_eq!(tree1.root_hash().unwrap(), tree2.root_hash().unwrap());
     }
 
     /// P17: insert order independence for larger batches
@@ -331,7 +331,7 @@ proptest! {
             tree2.insert(*k, *v);
         }
 
-        prop_assert_eq!(tree1.root_hash(), tree2.root_hash());
+        prop_assert_eq!(tree1.root_hash().unwrap(), tree2.root_hash().unwrap());
     }
 }
 
@@ -358,9 +358,9 @@ proptest! {
 
         // Batch insert
         let mut tree2: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
-        tree2.insert_batch(unique.clone());
+        tree2.insert_batch(unique.clone()).unwrap();
 
-        prop_assert_eq!(tree1.root_hash(), tree2.root_hash());
+        prop_assert_eq!(tree1.root_hash().unwrap(), tree2.root_hash().unwrap());
     }
 
     /// P19: batch then individual equals all sequential
@@ -383,7 +383,7 @@ proptest! {
 
         // Method 1: batch then individual
         let mut tree1: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
-        tree1.insert_batch(unique_batch.clone());
+        tree1.insert_batch(unique_batch.clone()).unwrap();
         tree1.insert(k, v);
 
         // Method 2: all sequential
@@ -393,7 +393,7 @@ proptest! {
         }
         tree2.insert(k, v);
 
-        prop_assert_eq!(tree1.root_hash(), tree2.root_hash());
+        prop_assert_eq!(tree1.root_hash().unwrap(), tree2.root_hash().unwrap());
     }
 }
 
@@ -420,11 +420,11 @@ proptest! {
         for (k, v) in &sorted {
             tree.insert(*k, *v);
         }
-        let tree_hash = tree.root_hash();
+        let tree_hash = tree.root_hash().unwrap();
 
         // Streaming hash
         let builder: StreamingTreeBuilder<Blake3Hasher> = StreamingTreeBuilder::new();
-        let streaming_hash = builder.build_root_hash(sorted);
+        let streaming_hash = builder.build_root_hash(sorted).unwrap();
 
         prop_assert_eq!(tree_hash, streaming_hash);
     }
@@ -444,8 +444,8 @@ proptest! {
         sorted.sort_by(|a, b| (a.0.stem, a.0.subindex).cmp(&(b.0.stem, b.0.subindex)));
 
         let builder: StreamingTreeBuilder<Blake3Hasher> = StreamingTreeBuilder::new();
-        let serial_hash = builder.build_root_hash(sorted.clone());
-        let parallel_hash = builder.build_root_hash_parallel(sorted);
+        let serial_hash = builder.build_root_hash(sorted.clone()).unwrap();
+        let parallel_hash = builder.build_root_hash_parallel(sorted).unwrap();
 
         prop_assert_eq!(serial_hash, parallel_hash);
     }
@@ -479,20 +479,20 @@ proptest! {
         for (k, v) in &unique_initial {
             tree1.insert(*k, *v);
         }
-        tree1.root_hash();
+        tree1.root_hash().unwrap();
         tree1.insert(update_key, update_value);
-        let full_hash = tree1.root_hash();
+        let full_hash = tree1.root_hash().unwrap();
 
         // Incremental approach
         let mut tree2: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
         for (k, v) in &unique_initial {
             tree2.insert(*k, *v);
         }
-        tree2.root_hash();
+        tree2.root_hash().unwrap();
         tree2.enable_incremental_mode();
-        tree2.root_hash(); // Populate cache
+        tree2.root_hash().unwrap(); // Populate cache
         tree2.insert(update_key, update_value);
-        let incremental_hash = tree2.root_hash();
+        let incremental_hash = tree2.root_hash().unwrap();
 
         prop_assert_eq!(full_hash, incremental_hash);
     }
@@ -518,20 +518,20 @@ proptest! {
         for (k, v) in &updates {
             tree1.insert(*k, *v);
         }
-        let full_hash = tree1.root_hash();
+        let full_hash = tree1.root_hash().unwrap();
 
         // Incremental mode
         let mut tree2: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
         for (k, v) in &unique_initial {
             tree2.insert(*k, *v);
         }
-        tree2.root_hash();
+        tree2.root_hash().unwrap();
         tree2.enable_incremental_mode();
-        tree2.root_hash();
+        tree2.root_hash().unwrap();
         for (k, v) in &updates {
             tree2.insert(*k, *v);
         }
-        let incremental_hash = tree2.root_hash();
+        let incremental_hash = tree2.root_hash().unwrap();
 
         prop_assert_eq!(full_hash, incremental_hash);
     }
@@ -636,8 +636,8 @@ proptest! {
         }
 
         // Hash should be deterministic
-        let hash1 = tree.root_hash();
-        let hash2 = tree.root_hash();
+        let hash1 = tree.root_hash().unwrap();
+        let hash2 = tree.root_hash().unwrap();
         prop_assert_eq!(hash1, hash2);
     }
 
@@ -672,8 +672,8 @@ proptest! {
         }
 
         // Hash should be stable
-        let h1 = tree.root_hash();
-        let h2 = tree.root_hash();
+        let h1 = tree.root_hash().unwrap();
+        let h2 = tree.root_hash().unwrap();
         prop_assert_eq!(h1, h2);
     }
 }
@@ -737,7 +737,7 @@ proptest! {
         prop_assert_eq!(tree.get(&key), None);
         prop_assert_eq!(tree.stem_count(), 0);
         prop_assert!(tree.is_empty());
-        prop_assert_eq!(tree.root_hash(), B256::ZERO);
+        prop_assert_eq!(tree.root_hash().unwrap(), B256::ZERO);
     }
 
     /// P33: B256 APIs equivalent to TreeKey APIs
@@ -756,7 +756,7 @@ proptest! {
         let v2 = t2.get_by_b256(&key_bytes);
 
         prop_assert_eq!(v1, v2);
-        prop_assert_eq!(t1.root_hash(), t2.root_hash());
+        prop_assert_eq!(t1.root_hash().unwrap(), t2.root_hash().unwrap());
     }
 
     /// P34: insert_batch equivalent to individual inserts (including zeros)
@@ -766,11 +766,11 @@ proptest! {
         for (k, v) in &entries {
             t1.insert(*k, *v);
         }
-        let h1 = t1.root_hash();
+        let h1 = t1.root_hash().unwrap();
 
         let mut t2: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
-        t2.insert_batch(entries.clone());
-        let h2 = t2.root_hash();
+        t2.insert_batch(entries.clone()).unwrap();
+        let h2 = t2.root_hash().unwrap();
 
         prop_assert_eq!(h1, h2);
     }
@@ -783,9 +783,9 @@ proptest! {
             tree.insert(*k, *v);
         }
 
-        let h1 = tree.root_hash();
-        let h2 = tree.root_hash();
-        let h3 = tree.root_hash();
+        let h1 = tree.root_hash().unwrap();
+        let h2 = tree.root_hash().unwrap();
+        let h3 = tree.root_hash().unwrap();
 
         prop_assert_eq!(h1, h2);
         prop_assert_eq!(h2, h3);
@@ -821,10 +821,10 @@ proptest! {
         let mut inc: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
 
         // Populate caches before enabling incremental
-        let _ = full.root_hash();
-        let _ = inc.root_hash();
+        let _ = full.root_hash().unwrap();
+        let _ = inc.root_hash().unwrap();
         inc.enable_incremental_mode();
-        let _ = inc.root_hash();
+        let _ = inc.root_hash().unwrap();
 
         for op in ops {
             match op {
@@ -839,7 +839,7 @@ proptest! {
             }
         }
 
-        prop_assert_eq!(full.root_hash(), inc.root_hash());
+        prop_assert_eq!(full.root_hash().unwrap(), inc.root_hash().unwrap());
     }
 
     /// P37: Deeply colliding stems (differ only in last bit) hash consistently
@@ -862,7 +862,7 @@ proptest! {
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
         tree.insert(TreeKey::new(s1, 0), v1);
         tree.insert(TreeKey::new(s2, 0), v2);
-        let tree_root = tree.root_hash();
+        let tree_root = tree.root_hash().unwrap();
 
         // Build via streaming
         let mut entries = vec![
@@ -872,7 +872,7 @@ proptest! {
         entries.sort_by(|a, b| (a.0.stem, a.0.subindex).cmp(&(b.0.stem, b.0.subindex)));
 
         let builder: StreamingTreeBuilder<Blake3Hasher> = StreamingTreeBuilder::new();
-        let streaming_root = builder.build_root_hash(entries);
+        let streaming_root = builder.build_root_hash(entries).unwrap();
 
         prop_assert_eq!(tree_root, streaming_root);
     }
@@ -1042,12 +1042,12 @@ proptest! {
         }
 
         // Force rebuild before enabling incremental
-        let _ = full.root_hash();
-        let _ = inc.root_hash();
+        let _ = full.root_hash().unwrap();
+        let _ = inc.root_hash().unwrap();
 
         // Now enable incremental and continue
         inc.enable_incremental_mode();
-        let _ = inc.root_hash();
+        let _ = inc.root_hash().unwrap();
 
         for op in &ops[mid..] {
             match op {
@@ -1056,7 +1056,7 @@ proptest! {
             }
         }
 
-        prop_assert_eq!(full.root_hash(), inc.root_hash());
+        prop_assert_eq!(full.root_hash().unwrap(), inc.root_hash().unwrap());
     }
 
     /// P46: Mixing insert_batch with incremental mode
@@ -1074,10 +1074,10 @@ proptest! {
             inc.insert(*k, *v);
         }
 
-        let _ = full.root_hash();
-        let _ = inc.root_hash();
+        let _ = full.root_hash().unwrap();
+        let _ = inc.root_hash().unwrap();
         inc.enable_incremental_mode();
-        let _ = inc.root_hash();
+        let _ = inc.root_hash().unwrap();
 
         // Full tree: individual inserts
         for (k, v) in &batch {
@@ -1085,9 +1085,9 @@ proptest! {
         }
 
         // Incremental tree: batch insert
-        inc.insert_batch(batch.clone());
+        inc.insert_batch(batch.clone()).unwrap();
 
-        prop_assert_eq!(full.root_hash(), inc.root_hash());
+        prop_assert_eq!(full.root_hash().unwrap(), inc.root_hash().unwrap());
     }
 
     /// P47: Incremental root hash stability
@@ -1099,9 +1099,9 @@ proptest! {
         }
 
         tree.enable_incremental_mode();
-        let h1 = tree.root_hash();
-        let h2 = tree.root_hash();
-        let h3 = tree.root_hash();
+        let h1 = tree.root_hash().unwrap();
+        let h2 = tree.root_hash().unwrap();
+        let h3 = tree.root_hash().unwrap();
 
         prop_assert_eq!(h1, h2);
         prop_assert_eq!(h2, h3);
@@ -1122,21 +1122,22 @@ proptest! {
             t3.insert(*k, *v);
         }
 
-        prop_assert_eq!(t1.root_hash(), t2.root_hash());
-        prop_assert_eq!(t1.root_hash(), t3.root_hash());
+        prop_assert_eq!(t1.root_hash().unwrap(), t2.root_hash().unwrap());
+        prop_assert_eq!(t1.root_hash().unwrap(), t3.root_hash().unwrap());
     }
 
     /// P49: insert_batch_with_progress equivalent to insert_batch
     #[test]
     fn prop_insert_batch_with_progress_equivalent(entries in arb_key_value_list(100)) {
         let mut t1: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
-        t1.insert_batch(entries.clone());
-        let h1 = t1.root_hash();
+        t1.insert_batch(entries.clone()).unwrap();
+        let h1 = t1.root_hash().unwrap();
 
         let mut t2: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
         let mut progress_count = 0usize;
-        t2.insert_batch_with_progress(entries.clone(), |n| progress_count = n);
-        let h2 = t2.root_hash();
+        t2.insert_batch_with_progress(entries.clone(), |n| progress_count = n)
+            .unwrap();
+        let h2 = t2.root_hash().unwrap();
 
         prop_assert_eq!(h1, h2);
         prop_assert_eq!(progress_count, entries.len());
@@ -1153,7 +1154,7 @@ proptest! {
             t2.insert_b256(k.to_bytes(), *v);
         }
 
-        prop_assert_eq!(t1.root_hash(), t2.root_hash());
+        prop_assert_eq!(t1.root_hash().unwrap(), t2.root_hash().unwrap());
 
         // Verify get equivalence
         for (k, _) in &entries {

@@ -34,7 +34,7 @@ mod tests {
         // Insert key=0x00...00, value=0x0101...01
         tree.insert_b256(ZERO_KEY, one_key());
 
-        let root = tree.root_hash();
+        let root = tree.root_hash().unwrap();
         let expected =
             hex_to_b256("aab1060e04cb4f5dc6f697ae93156a95714debbf77d54238766adc5709282b6f");
 
@@ -60,7 +60,7 @@ mod tests {
         let key2 = hex_to_b256("8000000000000000000000000000000000000000000000000000000000000000");
         tree.insert_b256(key2, two_key());
 
-        let root = tree.root_hash();
+        let root = tree.root_hash().unwrap();
         let expected =
             hex_to_b256("dfc69c94013a8b3c65395625a719a87534a7cfd38719251ad8c8ea7fe79f065e");
 
@@ -75,7 +75,7 @@ mod tests {
     /// Test stem node hashing matches go-ethereum
     #[test]
     fn test_stem_node_hash_single_value() {
-        use crate::{Hasher, Sha256Hasher, StemNode};
+        use crate::{Sha256Hasher, StemNode};
 
         let hasher = Sha256Hasher;
         let stem = Stem::new([0u8; 31]);
@@ -117,7 +117,7 @@ mod tests {
         // Tree should have 2 values but only 1 stem
         assert_eq!(tree.len(), 2);
 
-        let root = tree.root_hash();
+        let root = tree.root_hash().unwrap();
         println!("Colocated values root: {}", root);
         assert_ne!(root, B256::ZERO);
     }
@@ -138,7 +138,7 @@ mod tests {
         tree2.insert_b256(key2, two_key());
         tree2.insert_b256(key1, one_key());
 
-        assert_eq!(tree1.root_hash(), tree2.root_hash());
+        assert_eq!(tree1.root_hash().unwrap(), tree2.root_hash().unwrap());
     }
 
     /// Test internal node hash

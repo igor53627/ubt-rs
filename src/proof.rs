@@ -224,7 +224,7 @@ impl Witness {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Blake3Hasher, Sha256Hasher};
+    use crate::Sha256Hasher;
 
     #[test]
     fn test_stem_proof_generation() {

@@ -223,7 +223,7 @@ Fixpoint sim_node_hash (n : SimNode) : Bytes32 :=
 | `sim_tree_get` | `tree.get()` | **Axiom** | `GetLink.get_executes` | Requires monadic semantics |
 | `sim_tree_insert` | `tree.insert()` | **Axiom** | `InsertLink.insert_executes` | Requires HashMap linking |
 | `sim_tree_delete` | `tree.delete()` | **Axiom** | `DeleteLink.delete_executes` | Follows from insert |
-| `sim_root_hash` | `tree.root_hash()` | **Axiom** | `HashLink.root_hash_executes` | Requires hash linking |
+| `sim_root_hash` | `tree.root_hash().unwrap()` | **Axiom** | `HashLink.root_hash_executes` | Requires hash linking |
 | `wf_tree` | — | **Proven** | `insert_preserves_wf` | Well-formedness invariant |
 | `get_empty` | — | **Proven** | Direct | Empty returns None |
 | `get_insert_same` | — | **Proven** | Direct | Insert-get correctness |

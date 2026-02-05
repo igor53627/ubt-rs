@@ -6,7 +6,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::{Blake3Hasher, Stem, TreeKey, UnifiedBinaryTree, B256};
+    use crate::{Blake3Hasher, TreeKey, UnifiedBinaryTree, B256};
 
     fn hex_to_b256(s: &str) -> B256 {
         let s = s.strip_prefix("0x").unwrap_or(s);
@@ -45,7 +45,7 @@ mod tests {
 
         tree.insert_b256(ZERO_KEY, one_key());
 
-        let root = tree.root_hash();
+        let root = tree.root_hash().unwrap();
         let expected =
             hex_to_b256("aab1060e04cb4f5dc6f697ae93156a95714debbf77d54238766adc5709282b6f");
 
@@ -73,7 +73,7 @@ mod tests {
         let key2 = hex_to_b256("8000000000000000000000000000000000000000000000000000000000000000");
         tree.insert_b256(key2, two_key());
 
-        let root = tree.root_hash();
+        let root = tree.root_hash().unwrap();
         let expected =
             hex_to_b256("dfc69c94013a8b3c65395625a719a87534a7cfd38719251ad8c8ea7fe79f065e");
 
@@ -229,7 +229,7 @@ mod tests {
             tree.insert_b256(*key, B256::from(v));
         }
 
-        let root = tree.root_hash();
+        let root = tree.root_hash().unwrap();
 
         println!("Multiple entries root (BLAKE3): {}", root);
         println!("Note: go-ethereum uses different hash function, roots will differ");
@@ -276,6 +276,6 @@ mod tests {
             tree2.insert_b256(*key, B256::from(v));
         }
 
-        assert_eq!(tree1.root_hash(), tree2.root_hash());
+        assert_eq!(tree1.root_hash().unwrap(), tree2.root_hash().unwrap());
     }
 }

@@ -161,7 +161,9 @@ impl<H: Hasher> UbtMerkleChecker<H> {
         entries.sort_by(|a, b| (a.0.stem, a.0.subindex).cmp(&(b.0.stem, b.0.subindex)));
 
         let builder: StreamingTreeBuilder<H> = StreamingTreeBuilder::new();
-        builder.build_root_hash(entries)
+        builder
+            .build_root_hash(entries)
+            .expect("tree depth within bounds")
     }
 }
 
@@ -326,7 +328,7 @@ mod tests {
             TreeKey::from_bytes(B256::from_slice(&key)),
             B256::from_slice(&value),
         );
-        let root = tree.root_hash();
+        let root = tree.root_hash().expect("tree depth within bounds");
 
         assert!(checker.verify_root(root, &model).is_ok());
     }
@@ -398,7 +400,9 @@ mod tests {
             );
 
             checker.set_operation_index(log.len() - 1);
-            assert!(checker.verify_root(tree.root_hash(), &model).is_ok());
+            assert!(checker
+                .verify_root(tree.root_hash().expect("tree depth within bounds"), &model)
+                .is_ok());
         }
 
         for i in 0u8..5 {
@@ -412,7 +416,9 @@ mod tests {
             tree.delete(&TreeKey::from_bytes(B256::from_slice(&key)));
 
             checker.set_operation_index(log.len() - 1);
-            assert!(checker.verify_root(tree.root_hash(), &model).is_ok());
+            assert!(checker
+                .verify_root(tree.root_hash().expect("tree depth within bounds"), &model)
+                .is_ok());
         }
     }
 }

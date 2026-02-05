@@ -24,6 +24,7 @@ use std::collections::{HashMap, HashSet};
 use rayon::prelude::*;
 
 use crate::{Blake3Hasher, Hasher, InternalNode, Node, Stem, StemNode, TreeKey, STEM_LEN};
+use crate::{error::Result, UbtError};
 
 /// Maximum tree depth (248 bits = 31 bytes * 8)
 const MAX_DEPTH: usize = STEM_LEN * 8;
@@ -191,12 +192,12 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     ///
     /// This will trigger a rebuild of the tree structure if any modifications
     /// have been made since the last call to `root_hash()`.
-    pub fn root_hash(&mut self) -> B256 {
+    pub fn root_hash(&mut self) -> Result<B256> {
         if self.root_dirty {
-            self.rebuild_root();
+            self.rebuild_root()?;
             self.root_dirty = false;
         }
-        self.root_hash_cached
+        Ok(self.root_hash_cached)
     }
 
     /// Check if the tree is empty.
@@ -257,8 +258,10 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
 
     /// Rebuild the root from all stem nodes.
     #[cfg(not(feature = "parallel"))]
-    fn rebuild_root(&mut self) {
-        let dirty_stems: Vec<_> = self.dirty_stem_hashes.drain().collect();
+    fn rebuild_root(&mut self) -> Result<()> {
+        // Don't clear `dirty_stem_hashes` until we've successfully rebuilt the root.
+        // Otherwise, a failure would lose information needed for a retry.
+        let dirty_stems: Vec<_> = self.dirty_stem_hashes.iter().copied().collect();
 
         for stem in &dirty_stems {
             let hash = self.compute_stem_hash(stem);
@@ -273,33 +276,41 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
             self.root = Node::Empty;
             self.root_hash_cached = B256::ZERO;
             self.node_hash_cache.clear();
-            return;
+            self.dirty_stem_hashes.clear();
+            return Ok(());
         }
 
         if self.incremental_enabled && !self.node_hash_cache.is_empty() {
-            self.rebuild_root_incremental(&dirty_stems);
+            self.rebuild_root_incremental(&dirty_stems)?;
         } else {
             let mut stem_hashes: Vec<_> =
                 self.stem_hash_cache.iter().map(|(s, h)| (*s, *h)).collect();
             stem_hashes.sort_by_key(|(s, _)| *s);
 
-            if self.incremental_enabled {
+            let root_hash = if self.incremental_enabled {
                 self.node_hash_cache.clear();
-                self.root_hash_cached =
-                    self.build_root_hash_with_cache(&stem_hashes, 0, B256::ZERO);
+                self.build_root_hash_with_cache(&stem_hashes, 0, B256::ZERO)?
             } else {
-                self.root_hash_cached = self.build_root_hash_from_stem_hashes(&stem_hashes, 0);
-            }
+                self.build_root_hash_from_stem_hashes(&stem_hashes, 0)?
+            };
 
             let stems: Vec<_> = stem_hashes.iter().map(|(s, _)| *s).collect();
-            self.root = self.build_tree_from_sorted_stems(&stems, 0);
+            let root = self.build_tree_from_sorted_stems(&stems, 0)?;
+
+            self.root_hash_cached = root_hash;
+            self.root = root;
         }
+
+        self.dirty_stem_hashes.clear();
+        Ok(())
     }
 
     /// Rebuild the root from all stem nodes (parallel version).
     #[cfg(feature = "parallel")]
-    fn rebuild_root(&mut self) {
-        let dirty_stems: Vec<_> = self.dirty_stem_hashes.drain().collect();
+    fn rebuild_root(&mut self) -> Result<()> {
+        // Don't clear `dirty_stem_hashes` until we've successfully rebuilt the root.
+        // Otherwise, a failure would lose information needed for a retry.
+        let dirty_stems: Vec<_> = self.dirty_stem_hashes.iter().copied().collect();
 
         let stem_updates: Vec<_> = dirty_stems
             .par_iter()
@@ -325,58 +336,68 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
             self.root = Node::Empty;
             self.root_hash_cached = B256::ZERO;
             self.node_hash_cache.clear();
-            return;
+            self.dirty_stem_hashes.clear();
+            return Ok(());
         }
 
         if self.incremental_enabled && !self.node_hash_cache.is_empty() {
-            self.rebuild_root_incremental(&dirty_stems);
+            self.rebuild_root_incremental(&dirty_stems)?;
         } else {
             let mut stem_hashes: Vec<_> =
                 self.stem_hash_cache.iter().map(|(s, h)| (*s, *h)).collect();
             stem_hashes.sort_by_key(|(s, _)| *s);
 
-            if self.incremental_enabled {
+            let root_hash = if self.incremental_enabled {
                 self.node_hash_cache.clear();
-                self.root_hash_cached =
-                    self.build_root_hash_with_cache(&stem_hashes, 0, B256::ZERO);
+                self.build_root_hash_with_cache(&stem_hashes, 0, B256::ZERO)?
             } else {
-                self.root_hash_cached = self.build_root_hash_from_stem_hashes(&stem_hashes, 0);
-            }
+                self.build_root_hash_from_stem_hashes(&stem_hashes, 0)?
+            };
 
             let stems: Vec<_> = stem_hashes.iter().map(|(s, _)| *s).collect();
-            self.root = self.build_tree_from_sorted_stems(&stems, 0);
+            let root = self.build_tree_from_sorted_stems(&stems, 0)?;
+
+            self.root_hash_cached = root_hash;
+            self.root = root;
         }
+
+        self.dirty_stem_hashes.clear();
+        Ok(())
     }
 
     /// Build the root hash directly from sorted stem hashes.
     /// This avoids recomputing stem hashes via Node::hash.
-    fn build_root_hash_from_stem_hashes(&self, stem_hashes: &[(Stem, B256)], depth: usize) -> B256 {
+    fn build_root_hash_from_stem_hashes(
+        &self,
+        stem_hashes: &[(Stem, B256)],
+        depth: usize,
+    ) -> Result<B256> {
         if stem_hashes.is_empty() {
-            return B256::ZERO;
+            return Ok(B256::ZERO);
         }
 
         if stem_hashes.len() == 1 {
-            return stem_hashes[0].1;
+            return Ok(stem_hashes[0].1);
         }
 
-        if depth >= 248 {
-            panic!("Tree depth exceeded maximum of 248 bits");
+        if depth >= MAX_DEPTH {
+            return Err(UbtError::TreeDepthExceeded { depth });
         }
 
         let split_point = stem_hashes.partition_point(|(s, _)| !s.bit_at(depth));
         let (left, right) = stem_hashes.split_at(split_point);
 
-        let left_hash = self.build_root_hash_from_stem_hashes(left, depth + 1);
-        let right_hash = self.build_root_hash_from_stem_hashes(right, depth + 1);
+        let left_hash = self.build_root_hash_from_stem_hashes(left, depth + 1)?;
+        let right_hash = self.build_root_hash_from_stem_hashes(right, depth + 1)?;
 
         if left_hash.is_zero() && right_hash.is_zero() {
-            B256::ZERO
+            Ok(B256::ZERO)
         } else if left_hash.is_zero() {
-            right_hash
+            Ok(right_hash)
         } else if right_hash.is_zero() {
-            left_hash
+            Ok(left_hash)
         } else {
-            self.hasher.hash_64(&left_hash, &right_hash)
+            Ok(self.hasher.hash_64(&left_hash, &right_hash))
         }
     }
 
@@ -387,27 +408,27 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         stem_hashes: &[(Stem, B256)],
         depth: usize,
         path_prefix: B256,
-    ) -> B256 {
+    ) -> Result<B256> {
         if stem_hashes.is_empty() {
-            return B256::ZERO;
+            return Ok(B256::ZERO);
         }
 
         if stem_hashes.len() == 1 {
             let hash = stem_hashes[0].1;
             self.node_hash_cache.insert((depth, path_prefix), hash);
-            return hash;
+            return Ok(hash);
         }
 
         if depth >= MAX_DEPTH {
-            panic!("Tree depth exceeded maximum of {} bits", MAX_DEPTH);
+            return Err(UbtError::TreeDepthExceeded { depth });
         }
 
         let split_point = stem_hashes.partition_point(|(s, _)| !s.bit_at(depth));
         let (left, right) = stem_hashes.split_at(split_point);
 
-        let left_hash = self.build_root_hash_with_cache(left, depth + 1, path_prefix);
+        let left_hash = self.build_root_hash_with_cache(left, depth + 1, path_prefix)?;
         let right_prefix = set_bit_at(path_prefix, depth);
-        let right_hash = self.build_root_hash_with_cache(right, depth + 1, right_prefix);
+        let right_hash = self.build_root_hash_with_cache(right, depth + 1, right_prefix)?;
 
         let node_hash = if left_hash.is_zero() && right_hash.is_zero() {
             B256::ZERO
@@ -420,12 +441,12 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         };
 
         self.node_hash_cache.insert((depth, path_prefix), node_hash);
-        node_hash
+        Ok(node_hash)
     }
 
     /// Perform incremental root update for dirty stems.
     /// Only recomputes paths from changed stems to root, using cached sibling hashes.
-    fn rebuild_root_incremental(&mut self, dirty_stems: &[Stem]) {
+    fn rebuild_root_incremental(&mut self, dirty_stems: &[Stem]) -> Result<()> {
         let mut stem_hashes: Vec<_> = self.stem_hash_cache.iter().map(|(s, h)| (*s, *h)).collect();
         stem_hashes.sort_by_key(|(s, _)| *s);
 
@@ -433,15 +454,19 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
             self.root = Node::Empty;
             self.root_hash_cached = B256::ZERO;
             self.node_hash_cache.clear();
-            return;
+            return Ok(());
         }
 
         let dirty_set: HashSet<_> = dirty_stems.iter().cloned().collect();
-        self.root_hash_cached =
-            self.incremental_hash_update(&stem_hashes, 0, B256::ZERO, &dirty_set);
+        let root_hash = self.incremental_hash_update(&stem_hashes, 0, B256::ZERO, &dirty_set)?;
 
         let stems: Vec<_> = stem_hashes.iter().map(|(s, _)| *s).collect();
-        self.root = self.build_tree_from_sorted_stems(&stems, 0);
+        let root = self.build_tree_from_sorted_stems(&stems, 0)?;
+
+        self.root_hash_cached = root_hash;
+        self.root = root;
+
+        Ok(())
     }
 
     /// Check if a stem's path matches the given prefix up to depth bits.
@@ -467,20 +492,20 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         depth: usize,
         path_prefix: B256,
         dirty_stems: &HashSet<Stem>,
-    ) -> B256 {
+    ) -> Result<B256> {
         if stem_hashes.is_empty() {
             self.node_hash_cache.remove(&(depth, path_prefix));
-            return B256::ZERO;
+            return Ok(B256::ZERO);
         }
 
         if stem_hashes.len() == 1 {
             let hash = stem_hashes[0].1;
             self.node_hash_cache.insert((depth, path_prefix), hash);
-            return hash;
+            return Ok(hash);
         }
 
         if depth >= MAX_DEPTH {
-            panic!("Tree depth exceeded maximum of {} bits", MAX_DEPTH);
+            return Err(UbtError::TreeDepthExceeded { depth });
         }
 
         let split_point = stem_hashes.partition_point(|(s, _)| !s.bit_at(depth));
@@ -499,7 +524,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
 
         let left_hash =
             if left_has_dirty || !self.node_hash_cache.contains_key(&(depth + 1, path_prefix)) {
-                self.incremental_hash_update(left, depth + 1, path_prefix, dirty_stems)
+                self.incremental_hash_update(left, depth + 1, path_prefix, dirty_stems)?
             } else if left.is_empty() {
                 B256::ZERO
             } else {
@@ -511,7 +536,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
                 .node_hash_cache
                 .contains_key(&(depth + 1, right_prefix))
         {
-            self.incremental_hash_update(right, depth + 1, right_prefix, dirty_stems)
+            self.incremental_hash_update(right, depth + 1, right_prefix, dirty_stems)?
         } else if right.is_empty() {
             B256::ZERO
         } else {
@@ -532,7 +557,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         };
 
         self.node_hash_cache.insert((depth, path_prefix), node_hash);
-        node_hash
+        Ok(node_hash)
     }
 
     /// Enable incremental root hash updates.
@@ -558,14 +583,14 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     /// let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
     /// // Initial inserts...
     /// tree.insert(TreeKey::from_bytes(B256::repeat_byte(0x01)), B256::repeat_byte(0x42));
-    /// tree.root_hash(); // Full rebuild
+    /// tree.root_hash().unwrap(); // Full rebuild
     ///
     /// tree.enable_incremental_mode();
-    /// tree.root_hash(); // Populates cache
+    /// tree.root_hash().unwrap(); // Populates cache
     ///
     /// // Subsequent updates are O(D * C) instead of O(S log S)
     /// tree.insert(TreeKey::from_bytes(B256::repeat_byte(0x02)), B256::repeat_byte(0x43));
-    /// tree.root_hash(); // Only recomputes affected paths
+    /// tree.root_hash().unwrap(); // Only recomputes affected paths
     /// ```
     pub fn enable_incremental_mode(&mut self) {
         if !self.incremental_enabled {
@@ -598,21 +623,21 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
 
     /// Build the tree structure from a sorted list of stems using slice partitioning.
     /// This is O(n) per level with no allocations, compared to the previous O(n) allocations per level.
-    fn build_tree_from_sorted_stems(&self, stems: &[Stem], depth: usize) -> Node {
+    fn build_tree_from_sorted_stems(&self, stems: &[Stem], depth: usize) -> Result<Node> {
         if stems.is_empty() {
-            return Node::Empty;
+            return Ok(Node::Empty);
         }
 
         if stems.len() == 1 {
             let stem = &stems[0];
             if let Some(stem_node) = self.stems.get(stem) {
-                return Node::Stem(stem_node.clone());
+                return Ok(Node::Stem(stem_node.clone()));
             }
-            return Node::Empty;
+            return Ok(Node::Empty);
         }
 
-        if depth >= 248 {
-            panic!("Tree depth exceeded maximum of 248 bits");
+        if depth >= MAX_DEPTH {
+            return Err(UbtError::TreeDepthExceeded { depth });
         }
 
         // Use partition_point for O(n) split with no allocation
@@ -622,17 +647,17 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         let split_point = stems.partition_point(|s| !s.bit_at(depth));
         let (left_stems, right_stems) = stems.split_at(split_point);
 
-        let left = self.build_tree_from_sorted_stems(left_stems, depth + 1);
-        let right = self.build_tree_from_sorted_stems(right_stems, depth + 1);
+        let left = self.build_tree_from_sorted_stems(left_stems, depth + 1)?;
+        let right = self.build_tree_from_sorted_stems(right_stems, depth + 1)?;
 
         if left.is_empty() && right.is_empty() {
-            Node::Empty
+            Ok(Node::Empty)
         } else if left.is_empty() {
-            right
+            Ok(right)
         } else if right.is_empty() {
-            left
+            Ok(left)
         } else {
-            Node::Internal(InternalNode::new(left, right))
+            Ok(Node::Internal(InternalNode::new(left, right)))
         }
     }
 
@@ -669,7 +694,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     }
 
     /// Batch insert multiple key-value pairs.
-    pub fn insert_batch(&mut self, entries: impl IntoIterator<Item = (TreeKey, B256)>) {
+    pub fn insert_batch(&mut self, entries: impl IntoIterator<Item = (TreeKey, B256)>) -> Result<()> {
         for (key, value) in entries {
             let stem_node = self
                 .stems
@@ -678,8 +703,9 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
             stem_node.set_value(key.subindex, value);
             self.dirty_stem_hashes.insert(key.stem);
         }
-        self.rebuild_root();
+        self.rebuild_root()?;
         self.root_dirty = false;
+        Ok(())
     }
 
     /// Batch insert multiple key-value pairs with progress callback.
@@ -687,7 +713,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         &mut self,
         entries: impl IntoIterator<Item = (TreeKey, B256)>,
         mut on_progress: impl FnMut(usize),
-    ) {
+    ) -> Result<()> {
         let mut count = 0usize;
         for (key, value) in entries {
             let stem_node = self
@@ -699,8 +725,9 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
             count += 1;
             on_progress(count);
         }
-        self.rebuild_root();
+        self.rebuild_root()?;
         self.root_dirty = false;
+        Ok(())
     }
 }
 
@@ -712,7 +739,7 @@ mod tests {
     fn test_empty_tree() {
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
         assert!(tree.is_empty());
-        assert_eq!(tree.root_hash(), B256::ZERO);
+        assert_eq!(tree.root_hash().unwrap(), B256::ZERO);
     }
 
     #[test]
@@ -725,7 +752,7 @@ mod tests {
 
         assert!(!tree.is_empty());
         assert_eq!(tree.get(&key), Some(value));
-        assert_ne!(tree.root_hash(), B256::ZERO);
+        assert_ne!(tree.root_hash().unwrap(), B256::ZERO);
     }
 
     #[test]
@@ -760,7 +787,7 @@ mod tests {
         tree.insert(TreeKey::new(stem2, 0), B256::repeat_byte(0x02));
 
         assert_eq!(tree.len(), 2);
-        let root = tree.root_hash();
+        let root = tree.root_hash().unwrap();
         assert_ne!(root, B256::ZERO);
     }
 
@@ -790,14 +817,14 @@ mod tests {
         tree2.insert(key2, B256::repeat_byte(0x22));
         tree2.insert(key1, B256::repeat_byte(0x11));
 
-        assert_eq!(tree1.root_hash(), tree2.root_hash());
+        assert_eq!(tree1.root_hash().unwrap(), tree2.root_hash().unwrap());
     }
 
     #[test]
     fn test_with_capacity() {
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::with_capacity(1000);
         assert!(tree.is_empty());
-        assert_eq!(tree.root_hash(), B256::ZERO);
+        assert_eq!(tree.root_hash().unwrap(), B256::ZERO);
     }
 
     #[test]
@@ -848,7 +875,7 @@ mod tests {
             tree.insert(key, B256::repeat_byte(i));
         }
 
-        let root1 = tree.root_hash();
+        let root1 = tree.root_hash().unwrap();
 
         // Create another tree with same data in different order
         let mut tree2: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
@@ -861,7 +888,7 @@ mod tests {
             tree2.insert(key, B256::repeat_byte(i));
         }
 
-        let root2 = tree2.root_hash();
+        let root2 = tree2.root_hash().unwrap();
 
         assert_eq!(
             root1, root2,
@@ -892,11 +919,11 @@ mod tests {
             "root should still be dirty after third insert"
         );
 
-        let hash1 = tree.root_hash();
+        let hash1 = tree.root_hash().unwrap();
         assert!(!tree.root_dirty, "root should be clean after root_hash()");
         assert_ne!(hash1, B256::ZERO, "root hash should be non-zero");
 
-        let hash2 = tree.root_hash();
+        let hash2 = tree.root_hash().unwrap();
         assert_eq!(
             hash1, hash2,
             "calling root_hash() again should return same value"
@@ -906,7 +933,7 @@ mod tests {
         tree2.insert(key1, B256::repeat_byte(0x11));
         tree2.insert(key2, B256::repeat_byte(0x22));
         tree2.insert(key3, B256::repeat_byte(0x33));
-        let hash3 = tree2.root_hash();
+        let hash3 = tree2.root_hash().unwrap();
         assert_eq!(
             hash1, hash3,
             "deferred computation should produce same hash as immediate"
@@ -925,11 +952,13 @@ mod tests {
         tree1.insert(k1, B256::repeat_byte(0x11));
         tree1.insert(k2, B256::repeat_byte(0x22));
         tree1.insert(k3, B256::repeat_byte(0x33));
-        let h1 = tree1.root_hash();
+        let h1 = tree1.root_hash().unwrap();
 
         tree2.insert(k1, B256::repeat_byte(0x11));
-        tree2.insert_batch([(k2, B256::repeat_byte(0x22)), (k3, B256::repeat_byte(0x33))]);
-        let h2 = tree2.root_hash();
+        tree2
+            .insert_batch([(k2, B256::repeat_byte(0x22)), (k3, B256::repeat_byte(0x33))])
+            .unwrap();
+        let h2 = tree2.root_hash().unwrap();
 
         assert_eq!(h1, h2);
     }
@@ -944,10 +973,10 @@ mod tests {
         tree.insert(k1, B256::repeat_byte(0x11));
         assert!(tree.root_dirty);
 
-        tree.insert_batch([(k2, B256::repeat_byte(0x22))]);
+        tree.insert_batch([(k2, B256::repeat_byte(0x22))]).unwrap();
         assert!(!tree.root_dirty, "insert_batch should leave root clean");
 
-        let _ = tree.root_hash();
+        tree.root_hash().unwrap();
         assert!(
             !tree.root_dirty,
             "root_hash after clean batch should keep root clean"
@@ -960,10 +989,10 @@ mod tests {
         let key = TreeKey::from_bytes(B256::repeat_byte(0x01));
 
         tree.insert(key, B256::repeat_byte(0x42));
-        assert_ne!(tree.root_hash(), B256::ZERO);
+        assert_ne!(tree.root_hash().unwrap(), B256::ZERO);
 
         tree.delete(&key);
-        let root = tree.root_hash();
+        let root = tree.root_hash().unwrap();
         assert_eq!(root, B256::ZERO);
     }
 
@@ -972,14 +1001,14 @@ mod tests {
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
         let stem = Stem::new([0u8; 31]);
 
-        let _ = tree.root_hash();
+        tree.root_hash().unwrap();
         assert!(!tree.root_dirty);
 
         let node = tree.get_or_create_stem(stem);
         node.set_value(0, B256::repeat_byte(0x42));
         assert!(tree.root_dirty, "get_or_create_stem should mark root dirty");
 
-        let hash = tree.root_hash();
+        let hash = tree.root_hash().unwrap();
         assert_ne!(hash, B256::ZERO);
     }
 
@@ -1012,7 +1041,7 @@ mod tests {
             tree.insert(key, B256::repeat_byte(i.max(1)));
         }
 
-        let root1 = tree.root_hash();
+        let root1 = tree.root_hash().unwrap();
         assert_ne!(root1, B256::ZERO, "Root hash should be non-zero");
 
         // Modify some stems and recompute
@@ -1025,7 +1054,7 @@ mod tests {
             tree.insert(key, B256::repeat_byte(i.wrapping_mul(2).max(1)));
         }
 
-        let root2 = tree.root_hash();
+        let root2 = tree.root_hash().unwrap();
         assert_ne!(
             root2,
             B256::ZERO,
@@ -1068,11 +1097,11 @@ mod tests {
 
         entries.sort_by(|a, b| (a.0.stem, a.0.subindex).cmp(&(b.0.stem, b.0.subindex)));
 
-        let tree_root = tree.root_hash();
+        let tree_root = tree.root_hash().unwrap();
 
         // StreamingTreeBuilder serial mode
         let builder: StreamingTreeBuilder<Blake3Hasher> = StreamingTreeBuilder::new();
-        let streaming_serial_root = builder.build_root_hash(entries);
+        let streaming_serial_root = builder.build_root_hash(entries).unwrap();
 
         assert_eq!(
             tree_root, streaming_serial_root,
@@ -1104,13 +1133,13 @@ mod tests {
         }
 
         // Both compute initial hash
-        let hash1_incr = tree_parallel_incr.root_hash();
-        let hash1_full = tree_parallel_full.root_hash();
+        let hash1_incr = tree_parallel_incr.root_hash().unwrap();
+        let hash1_full = tree_parallel_full.root_hash().unwrap();
         assert_eq!(hash1_incr, hash1_full, "Initial hashes should match");
 
         // Enable incremental mode on one tree
         tree_parallel_incr.enable_incremental_mode();
-        let hash2_incr = tree_parallel_incr.root_hash(); // Populates cache
+        let hash2_incr = tree_parallel_incr.root_hash().unwrap(); // Populates cache
         assert_eq!(
             hash1_incr, hash2_incr,
             "Enabling incremental shouldn't change hash"
@@ -1128,8 +1157,8 @@ mod tests {
             tree_parallel_full.insert(key, new_value);
         }
 
-        let hash3_incr = tree_parallel_incr.root_hash();
-        let hash3_full = tree_parallel_full.root_hash();
+        let hash3_incr = tree_parallel_incr.root_hash().unwrap();
+        let hash3_full = tree_parallel_full.root_hash().unwrap();
         assert_eq!(
             hash3_incr, hash3_full,
             "Parallel + incremental should match parallel + full rebuild"
@@ -1146,8 +1175,8 @@ mod tests {
             tree_parallel_full.delete(&key);
         }
 
-        let hash4_incr = tree_parallel_incr.root_hash();
-        let hash4_full = tree_parallel_full.root_hash();
+        let hash4_incr = tree_parallel_incr.root_hash().unwrap();
+        let hash4_full = tree_parallel_full.root_hash().unwrap();
         assert_eq!(
             hash4_incr, hash4_full,
             "Deletes with parallel + incremental should match"
@@ -1169,8 +1198,8 @@ mod tests {
             tree_incr.insert(key, B256::repeat_byte(i.max(1)));
         }
 
-        let hash_full_1 = tree_full.root_hash();
-        let hash_incr_1 = tree_incr.root_hash();
+        let hash_full_1 = tree_full.root_hash().unwrap();
+        let hash_incr_1 = tree_incr.root_hash().unwrap();
         assert_eq!(hash_full_1, hash_incr_1, "Initial hashes should match");
 
         tree_incr.enable_incremental_mode();
@@ -1180,7 +1209,7 @@ mod tests {
             "Cache should be empty before first rebuild"
         );
 
-        let hash_incr_2 = tree_incr.root_hash();
+        let hash_incr_2 = tree_incr.root_hash().unwrap();
         assert_eq!(
             hash_full_1, hash_incr_2,
             "Hash after enabling incremental should match"
@@ -1198,8 +1227,8 @@ mod tests {
             tree_incr.insert(key, new_value);
         }
 
-        let hash_full_3 = tree_full.root_hash();
-        let hash_incr_3 = tree_incr.root_hash();
+        let hash_full_3 = tree_full.root_hash().unwrap();
+        let hash_incr_3 = tree_incr.root_hash().unwrap();
         assert_eq!(
             hash_full_3, hash_incr_3,
             "Incremental update should produce same hash as full rebuild"
@@ -1216,8 +1245,8 @@ mod tests {
             tree_incr.insert(key, B256::repeat_byte(i));
         }
 
-        let hash_full_4 = tree_full.root_hash();
-        let hash_incr_4 = tree_incr.root_hash();
+        let hash_full_4 = tree_full.root_hash().unwrap();
+        let hash_incr_4 = tree_incr.root_hash().unwrap();
         assert_eq!(
             hash_full_4, hash_incr_4,
             "Adding new stems with incremental should match full rebuild"
@@ -1246,18 +1275,18 @@ mod tests {
             tree_incr.insert(*key, B256::repeat_byte((i as u8).max(1)));
         }
 
-        tree_full.root_hash();
-        tree_incr.root_hash();
+        tree_full.root_hash().unwrap();
+        tree_incr.root_hash().unwrap();
         tree_incr.enable_incremental_mode();
-        tree_incr.root_hash();
+        tree_incr.root_hash().unwrap();
 
         for key in &keys[10..20] {
             tree_full.delete(key);
             tree_incr.delete(key);
         }
 
-        let hash_full = tree_full.root_hash();
-        let hash_incr = tree_incr.root_hash();
+        let hash_full = tree_full.root_hash().unwrap();
+        let hash_incr = tree_incr.root_hash().unwrap();
         assert_eq!(
             hash_full, hash_incr,
             "Deletes with incremental mode should match full rebuild"
@@ -1268,14 +1297,33 @@ mod tests {
     fn test_incremental_empty_tree() {
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
         tree.enable_incremental_mode();
-        assert_eq!(tree.root_hash(), B256::ZERO);
+        assert_eq!(tree.root_hash().unwrap(), B256::ZERO);
 
         let key = TreeKey::from_bytes(B256::repeat_byte(0x01));
         tree.insert(key, B256::repeat_byte(0x42));
-        let h1 = tree.root_hash();
+        let h1 = tree.root_hash().unwrap();
         assert_ne!(h1, B256::ZERO);
 
         tree.delete(&key);
-        assert_eq!(tree.root_hash(), B256::ZERO);
+        assert_eq!(tree.root_hash().unwrap(), B256::ZERO);
+    }
+
+    #[test]
+    fn test_tree_depth_exceeded_returns_error() {
+        let tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+
+        let stem1 = Stem::new([0u8; 31]);
+        let mut stem2_bytes = [0u8; 31];
+        stem2_bytes[0] = 1;
+        let stem2 = Stem::new(stem2_bytes);
+        let stem_hashes = vec![
+            (stem1, B256::repeat_byte(1)),
+            (stem2, B256::repeat_byte(2)),
+        ];
+
+        let err = tree
+            .build_root_hash_from_stem_hashes(&stem_hashes, MAX_DEPTH)
+            .unwrap_err();
+        assert!(matches!(err, UbtError::TreeDepthExceeded { depth } if depth == MAX_DEPTH));
     }
 }

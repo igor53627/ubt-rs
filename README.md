@@ -62,7 +62,7 @@ let key = TreeKey::from_bytes(B256::repeat_byte(0x01));
 tree.insert(key, B256::repeat_byte(0x42));
 
 // Get the root hash
-let root = tree.root_hash();
+let root = tree.root_hash().unwrap();
 
 // Retrieve a value
 let value = tree.get(&key);
@@ -80,7 +80,7 @@ let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::with_capacity
 
 // Batch insert (single tree rebuild at the end)
 let entries: Vec<(TreeKey, B256)> = vec![/* ... */];
-tree.insert_batch(entries);
+tree.insert_batch(entries).unwrap();
 ```
 
 ### Streaming Tree Builder (Memory-Efficient)
@@ -95,7 +95,7 @@ let mut entries: Vec<(TreeKey, B256)> = vec![/* ... */];
 entries.sort_by(|a, b| (a.0.stem, a.0.subindex).cmp(&(b.0.stem, b.0.subindex)));
 
 let builder: StreamingTreeBuilder<Blake3Hasher> = StreamingTreeBuilder::new();
-let root = builder.build_root_hash(entries);
+let root = builder.build_root_hash(entries).unwrap();
 ```
 
 The streaming builder computes the root hash without keeping the full tree in memory.
@@ -109,16 +109,16 @@ use ubt::{UnifiedBinaryTree, Blake3Hasher, TreeKey, B256};
 
 let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
 // ... initial inserts ...
-tree.root_hash(); // Full rebuild
+tree.root_hash().unwrap(); // Full rebuild
 
 // Enable incremental mode for subsequent updates
 tree.enable_incremental_mode();
-tree.root_hash(); // Populates intermediate node cache
+tree.root_hash().unwrap(); // Populates intermediate node cache
 
 // Future updates reuse cached intermediate hashes: O(D*C) hashing work
 // (root_hash() still does O(S log S) stem sort; D=248, C=changed stems)
 tree.insert(TreeKey::from_bytes(B256::repeat_byte(0x02)), B256::repeat_byte(0x43));
-tree.root_hash(); // Only recomputes paths to changed stems
+tree.root_hash().unwrap(); // Only recomputes paths to changed stems
 ```
 
 See [docs/incremental-updates.md](docs/incremental-updates.md) for benchmarks and when to use each mode.

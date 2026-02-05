@@ -2,14 +2,6 @@
 
 ## Backlog
 
-### [KB-01] Convert tree-depth panics to Result returns
-**Priority:** Medium
-**Files:** `src/tree.rs`, `src/streaming.rs`, `src/error.rs`
-
-`panic!("Tree depth exceeded maximum of 248 bits")` in public API functions should return `Result` instead. Add `TreeDepthExceeded { depth: usize }` variant to `UbtError`. Update `root_hash()` and related functions to propagate errors.
-
----
-
 ### [KB-02] Split tree.rs into submodules
 **Priority:** Medium
 **Files:** `src/tree.rs` (1,281 lines)
@@ -102,4 +94,8 @@ _Empty_
 
 ## Done
 
-_Empty_
+### [KB-01] Convert tree-depth panics to Result returns
+**Priority:** Medium
+**Files:** `src/tree.rs`, `src/streaming.rs`, `src/error.rs`
+
+Converted tree-depth `panic!`s on public code paths into `Result` returns by introducing `UbtError::TreeDepthExceeded { depth }` and propagating errors through `root_hash()` and streaming root-hash builders.

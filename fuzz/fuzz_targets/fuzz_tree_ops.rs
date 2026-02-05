@@ -44,5 +44,5 @@ fuzz_target!(|data: &[u8]| {
     }
 
     // Always compute root hash at end
-    let _ = tree.root_hash();
+    tree.root_hash().expect("tree depth within bounds");
 });

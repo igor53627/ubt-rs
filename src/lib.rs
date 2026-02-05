@@ -33,7 +33,7 @@
 //! let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
 //! let key = TreeKey::from_bytes(B256::repeat_byte(0x01));
 //! tree.insert(key, B256::repeat_byte(0x42));
-//! let root = tree.root_hash();
+//! let root = tree.root_hash().unwrap();
 //! ```
 //!
 //! ## Features
@@ -60,7 +60,7 @@
 //!
 //! let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
 //! // ... initial inserts ...
-//! tree.root_hash(); // Initial full build
+//! tree.root_hash().unwrap(); // Initial full build
 //!
 //! // Enable incremental mode for subsequent updates
 //! tree.enable_incremental_mode();
