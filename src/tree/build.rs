@@ -7,7 +7,11 @@ use super::{UnifiedBinaryTree, MAX_DEPTH};
 impl<H: Hasher> UnifiedBinaryTree<H> {
     /// Build the tree structure from a sorted list of stems using slice partitioning.
     /// This is O(n) per level with no allocations, compared to the previous O(n) allocations per level.
-    pub(super) fn build_tree_from_sorted_stems(&self, stems: &[Stem], depth: usize) -> Result<Node> {
+    pub(super) fn build_tree_from_sorted_stems(
+        &self,
+        stems: &[Stem],
+        depth: usize,
+    ) -> Result<Node> {
         if stems.is_empty() {
             return Ok(Node::Empty);
         }
@@ -45,4 +49,3 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         }
     }
 }
-

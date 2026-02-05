@@ -13,7 +13,7 @@
 //! | Operation | Full Rebuild | Incremental Mode |
 //! |-----------|--------------|------------------|
 //! | Insert    | O(1)         | O(1)             |
-//! | root_hash | O(S log S)   | O(D * C)         |
+//! | `root_hash` | O(S log S)   | O(D * C)         |
 //!
 //! Where S = total stems, D = 248 (tree depth), C = changed stems since last rebuild.
 
@@ -28,8 +28,8 @@ use crate::{Blake3Hasher, Hasher, Node, Stem, StemNode, TreeKey, STEM_LEN};
 /// Maximum tree depth (248 bits = 31 bytes * 8)
 const MAX_DEPTH: usize = STEM_LEN * 8;
 
-/// Key for intermediate node cache: (depth, path_prefix as B256)
-/// The path_prefix contains the bits from the root to this node.
+/// Key for intermediate node cache: (depth, `path_prefix` as B256)
+/// The `path_prefix` contains the bits from the root to this node.
 /// At depth d, only the first d bits are significant.
 type NodeCacheKey = (usize, B256);
 
@@ -40,15 +40,15 @@ type NodeCacheKey = (usize, B256);
 ///
 /// # Implementation Notes
 ///
-/// ## HashMap vs BTreeMap for stems
+/// ## `HashMap` vs `BTreeMap` for stems
 ///
 /// The tree uses `HashMap` for `stems` and `stem_hash_cache` rather than `BTreeMap`.
 /// While `BTreeMap` would maintain sorted order (avoiding O(S log S) sort on rebuild),
-/// `HashMap` provides O(1) insert vs O(log S) for BTreeMap.
+/// `HashMap` provides O(1) insert vs O(log S) for `BTreeMap`.
 ///
-/// For typical block processing with many inserts per rebuild cycle, HashMap is
+/// For typical block processing with many inserts per rebuild cycle, `HashMap` is
 /// often faster overall. If your workload is rebuild-heavy with few inserts,
-/// consider a BTreeMap-based variant.
+/// consider a `BTreeMap`-based variant.
 ///
 /// ## Incremental Mode
 ///
@@ -70,10 +70,10 @@ pub struct UnifiedBinaryTree<H: Hasher = Blake3Hasher> {
     stem_hash_cache: HashMap<Stem, B256>,
     /// Stems that need their hash recomputed
     dirty_stem_hashes: HashSet<Stem>,
-    /// Cached root hash (computed from stem_hash_cache)
+    /// Cached root hash (computed from `stem_hash_cache`)
     root_hash_cached: B256,
     /// Cache of intermediate node hashes for incremental updates.
-    /// Key: (depth, path_prefix), Value: hash at that node.
+    /// Key: (depth, `path_prefix`), Value: hash at that node.
     /// This enables O(D * C) updates where D=248 depth and C=changed stems,
     /// instead of O(S log S) for full rebuilds.
     node_hash_cache: HashMap<NodeCacheKey, B256>,
@@ -121,7 +121,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     /// Create a new empty tree with pre-allocated capacity for stems.
     ///
     /// Use this when you know approximately how many unique stems will be inserted,
-    /// such as during bulk migrations. This avoids HashMap resizing overhead.
+    /// such as during bulk migrations. This avoids `HashMap` resizing overhead.
     ///
     /// # Example
     /// ```
@@ -256,7 +256,6 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     pub fn contains_key(&self, key: &TreeKey) -> bool {
         self.get(key).is_some()
     }
-
 }
 
 #[cfg(test)]
@@ -835,5 +834,4 @@ mod tests {
         tree.delete(&key);
         assert_eq!(tree.root_hash().unwrap(), B256::ZERO);
     }
-
 }

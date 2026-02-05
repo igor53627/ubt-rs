@@ -2,20 +2,6 @@
 
 ## Backlog
 
-### [KB-07] Enable pedantic clippy lints
-**Priority:** Low
-**Files:** `Cargo.toml`
-
-Add `[lints.clippy]` section with pedantic warnings and selective allows:
-```toml
-[lints.clippy]
-pedantic = { level = "warn", priority = -1 }
-module_name_repetitions = "allow"
-must_use_candidate = "allow"
-```
-
----
-
 ### [KB-08] Add release profile optimizations
 **Priority:** Low
 **Files:** `Cargo.toml`
@@ -90,3 +76,11 @@ Added `#[must_use]` to key API functions to discourage accidentally ignoring res
 **Files:** `rustfmt.toml`
 
 Pinned basic rustfmt configuration to reduce formatting churn.
+
+---
+
+### [KB-07] Enable pedantic clippy lints
+**Priority:** Low
+**Files:** `Cargo.toml`
+
+Enabled `clippy::pedantic` lints (warn-level) in `Cargo.toml` with a small allow-list to keep the signal reasonable.

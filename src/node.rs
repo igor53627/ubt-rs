@@ -1,10 +1,10 @@
 //! Tree node types for the UBT.
 //!
 //! Four node types per EIP-7864:
-//! - InternalNode: Has left_hash and right_hash (black nodes in diagrams)
-//! - StemNode: Has stem, left_hash and right_hash (blue nodes)
-//! - LeafNode: Contains a 32-byte value (orange nodes)
-//! - EmptyNode: Represents empty subtree (hash = 0)
+//! - `InternalNode`: Has `left_hash` and `right_hash` (black nodes in diagrams)
+//! - `StemNode`: Has `stem`, `left_hash` and `right_hash` (blue nodes)
+//! - `LeafNode`: Contains a 32-byte value (orange nodes)
+//! - `EmptyNode`: Represents empty subtree (`hash = 0`)
 
 use alloy_primitives::B256;
 use std::collections::HashMap;
@@ -45,7 +45,9 @@ impl Node {
 /// Internal branching node.
 ///
 /// Used for tree traversal based on stem bits.
-/// hash = hash(left_hash || right_hash)
+///
+/// Hash formula:
+/// `hash = hash(left_hash || right_hash)`
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InternalNode {
     /// Left child
@@ -63,7 +65,7 @@ impl InternalNode {
         }
     }
 
-    /// Calculate the hash: hash(left_hash || right_hash)
+    /// Calculate the hash: `hash(left_hash || right_hash)`
     pub fn hash<H: Hasher>(&self, hasher: &H) -> B256 {
         let left_hash = self.left.hash(hasher);
         let right_hash = self.right.hash(hasher);
@@ -116,7 +118,7 @@ impl StemNode {
     /// Calculate the hash per go-ethereum algorithm:
     /// 1. Hash each value individually
     /// 2. Build 8-level binary tree (256 leaves)
-    /// 3. hash(stem || 0x00 || subtree_root)
+    /// 3. `hash(stem || 0x00 || subtree_root)`
     pub fn hash<H: Hasher>(&self, hasher: &H) -> B256 {
         // Step 1: Hash all values
         let mut data = [B256::ZERO; 256];
@@ -147,7 +149,8 @@ impl StemNode {
 
 /// Leaf node containing a 32-byte value.
 ///
-/// hash = hash(value)
+/// Hash formula:
+/// `hash = hash(value)`
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LeafNode {
     /// The 32-byte value stored at this leaf
@@ -160,7 +163,7 @@ impl LeafNode {
         Self { value }
     }
 
-    /// Calculate the hash: hash(value)
+    /// Calculate the hash: `hash(value)`
     pub fn hash<H: Hasher>(&self, hasher: &H) -> B256 {
         hasher.hash_32(&self.value)
     }

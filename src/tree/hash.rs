@@ -25,7 +25,12 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     ///
     /// This will trigger a rebuild of the tree structure if any modifications
     /// have been made since the last call to `root_hash()`.
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the internal rebuild exceeds maximum depth, which typically
+    /// indicates duplicate stems or a bug in the rebuild logic.
+    #[must_use = "callers should handle errors and use the computed root hash"]
     pub fn root_hash(&mut self) -> Result<B256> {
         if self.root_dirty {
             self.rebuild_root()?;
@@ -154,8 +159,12 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     }
 
     /// Build the root hash directly from sorted stem hashes.
-    /// This avoids recomputing stem hashes via Node::hash.
-    fn build_root_hash_from_stem_hashes(&self, stem_hashes: &[(Stem, B256)], depth: usize) -> Result<B256> {
+    /// This avoids recomputing stem hashes via `Node::hash`.
+    fn build_root_hash_from_stem_hashes(
+        &self,
+        stem_hashes: &[(Stem, B256)],
+        depth: usize,
+    ) -> Result<B256> {
         if stem_hashes.is_empty() {
             return Ok(B256::ZERO);
         }
@@ -185,7 +194,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         }
     }
 
-    /// Build the root hash and populate the node_hash_cache for incremental updates.
+    /// Build the root hash and populate the `node_hash_cache` for incremental updates.
     /// This version caches all intermediate node hashes.
     fn build_root_hash_with_cache(
         &mut self,
@@ -306,17 +315,17 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
                 .iter()
                 .any(|s| s.bit_at(depth) && Self::stem_matches_prefix(s, path_prefix, depth));
 
-        let left_hash = if left_has_dirty || !self.node_hash_cache.contains_key(&(depth + 1, path_prefix))
-        {
-            self.incremental_hash_update(left, depth + 1, path_prefix, dirty_stems)?
-        } else if left.is_empty() {
-            B256::ZERO
-        } else {
-            *self
-                .node_hash_cache
-                .get(&(depth + 1, path_prefix))
-                .expect("cache entry guaranteed by contains_key check")
-        };
+        let left_hash =
+            if left_has_dirty || !self.node_hash_cache.contains_key(&(depth + 1, path_prefix)) {
+                self.incremental_hash_update(left, depth + 1, path_prefix, dirty_stems)?
+            } else if left.is_empty() {
+                B256::ZERO
+            } else {
+                *self
+                    .node_hash_cache
+                    .get(&(depth + 1, path_prefix))
+                    .expect("cache entry guaranteed by contains_key check")
+            };
 
         let right_hash = if right_has_dirty
             || !self
@@ -409,7 +418,14 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     }
 
     /// Batch insert multiple key-value pairs.
-    pub fn insert_batch(&mut self, entries: impl IntoIterator<Item = (TreeKey, B256)>) -> Result<()> {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the root rebuild exceeds maximum depth.
+    pub fn insert_batch(
+        &mut self,
+        entries: impl IntoIterator<Item = (TreeKey, B256)>,
+    ) -> Result<()> {
         for (key, value) in entries {
             let stem_node = self
                 .stems
@@ -424,6 +440,10 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     }
 
     /// Batch insert multiple key-value pairs with progress callback.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the root rebuild exceeds maximum depth.
     pub fn insert_batch_with_progress(
         &mut self,
         entries: impl IntoIterator<Item = (TreeKey, B256)>,
@@ -459,10 +479,7 @@ mod tests {
         let mut stem2_bytes = [0u8; 31];
         stem2_bytes[0] = 1;
         let stem2 = Stem::new(stem2_bytes);
-        let stem_hashes = vec![
-            (stem1, B256::repeat_byte(1)),
-            (stem2, B256::repeat_byte(2)),
-        ];
+        let stem_hashes = vec![(stem1, B256::repeat_byte(1)), (stem2, B256::repeat_byte(2))];
 
         let err = tree
             .build_root_hash_from_stem_hashes(&stem_hashes, MAX_DEPTH)

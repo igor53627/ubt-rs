@@ -56,6 +56,11 @@ parallel = ["dep:rayon"]
 ## Enables the simulation binary for stress testing.
 simulate = ["dep:rand", "dep:num_cpus"]
 
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+
 [[bench]]
 name = "stem_vs_tree"
 harness = false
@@ -68,4 +73,3 @@ harness = false
 name = "simulate"
 path = "src/bin/simulate.rs"
 required-features = ["simulate"]
-

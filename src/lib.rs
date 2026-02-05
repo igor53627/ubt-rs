@@ -20,8 +20,8 @@
 //! - Last byte: **subindex** (position within the 256-value subtree)
 //!
 //! Node types:
-//! - [`InternalNode`]: Has left_hash and right_hash
-//! - [`StemNode`]: Has stem (31 bytes), left_hash and right_hash for its 256-value subtree
+//! - [`InternalNode`]: Has `left_hash` and `right_hash`
+//! - [`StemNode`]: Has stem (31 bytes), `left_hash` and `right_hash` for its 256-value subtree
 //! - [`LeafNode`]: Contains a 32-byte value or empty
 //! - `EmptyNode`: Represents an empty node/subtree (hash = 0)
 //!

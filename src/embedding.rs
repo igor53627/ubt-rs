@@ -9,8 +9,8 @@
 //! - Subindex 0: Basic data (version, code size, nonce, balance)
 //! - Subindex 1: Code hash
 //! - Subindexes 2-63: Reserved for future use
-//! - Subindexes 64-127: First 64 storage slots (HEADER_STORAGE_OFFSET)
-//! - Subindexes 128-255: First 128 code chunks (CODE_OFFSET)
+//! - Subindexes 64-127: First 64 storage slots (`HEADER_STORAGE_OFFSET`)
+//! - Subindexes 128-255: First 128 code chunks (`CODE_OFFSET`)
 //!
 //! Storage slots beyond the first 64 and code chunks beyond the first 128
 //! are stored in separate stems calculated from the account address and slot/chunk index.
@@ -92,9 +92,9 @@ pub fn get_code_hash_key(address: &Address) -> TreeKey {
 /// Get the tree key for a storage slot.
 ///
 /// Per EIP-7864:
-/// - Slots 0-63: pos = HEADER_STORAGE_OFFSET + slot, stored in account stem
-/// - Slots >= 64: pos = MAIN_STORAGE_OFFSET + slot (MAIN_STORAGE_OFFSET = 256^31)
-/// - tree_index = pos // 256, subindex = pos % 256
+/// - Slots 0-63: pos = `HEADER_STORAGE_OFFSET` + slot, stored in account stem
+/// - Slots >= 64: pos = `MAIN_STORAGE_OFFSET` + slot (`MAIN_STORAGE_OFFSET` = 256^31)
+/// - `tree_index` = pos // 256, `subindex` = pos % 256
 pub fn get_storage_slot_key(address: &Address, slot: &[u8; 32]) -> TreeKey {
     let mut k = [0u8; 32];
 
@@ -144,21 +144,26 @@ pub fn get_storage_slot_key_u256(address: &Address, slot: U256) -> TreeKey {
 /// Get the tree key for a code chunk.
 ///
 /// Per EIP-7864:
-/// - First 128 chunks (pos 128-255) go in account stem at subindex 128+chunk_num
-/// - Chunks >= 128 go in separate stems calculated from stem_index
+/// - First 128 chunks (pos 128-255) go in account stem at subindex `128 + chunk_number`
+/// - Chunks >= 128 go in separate stems calculated from `stem_index`
+///
+/// # Panics
+///
+/// Panics if internal indexing invariants are violated and a computed subindex does not
+/// fit in `u8` (subindexes are always in 0..256 by construction).
 pub fn get_code_chunk_key(address: &Address, chunk_number: u64) -> TreeKey {
-    let pos = CODE_OFFSET as u64 + chunk_number;
+    let pos = u64::from(CODE_OFFSET) + chunk_number;
 
     // First 128 chunks (pos < 256) go in account stem
     if pos < STEM_SUBTREE_WIDTH {
         let mut k = [0u8; 32];
-        k[31] = pos as u8; // subindex 128..255
+        k[31] = u8::try_from(pos).expect("pos < 256 by construction"); // subindex 128..255
         return get_binary_tree_key(address, &k);
     }
 
     // Chunks >= 128 go in separate stems per EIP
     let stem_index = pos / STEM_SUBTREE_WIDTH;
-    let subindex = (pos % STEM_SUBTREE_WIDTH) as u8;
+    let subindex = u8::try_from(pos % STEM_SUBTREE_WIDTH).expect("subindex < 256 by construction");
 
     let mut k = [0u8; 32];
     // Encode stem_index into first 31 bytes (big-endian)

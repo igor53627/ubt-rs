@@ -50,12 +50,22 @@ impl Proof {
     }
 
     /// Verify this proof against an expected root hash.
+    ///
+    /// Returns `Ok(true)` if the computed root matches `expected_root`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the proof is structurally invalid.
     pub fn verify<H: Hasher>(&self, hasher: &H, expected_root: &B256) -> Result<bool> {
         let computed_root = self.compute_root(hasher)?;
         Ok(&computed_root == expected_root)
     }
 
     /// Compute the root hash from this proof.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the proof is structurally invalid.
     pub fn compute_root<H: Hasher>(&self, hasher: &H) -> Result<B256> {
         let mut current_hash = match &self.value {
             Some(v) => hasher.hash_32(v),
