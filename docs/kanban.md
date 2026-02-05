@@ -2,14 +2,6 @@
 
 ## Backlog
 
-### [KB-04] Replace unwrap() with expect() in production code
-**Priority:** Low
-**Files:** `src/tree/hash.rs`
-
-Two `unwrap()` calls in `incremental_hash_update` after `contains_key()` checks. Replace with `.expect("cache entry guaranteed by contains_key check")` to document the invariant.
-
----
-
 ### [KB-05] Add #[must_use] to key public APIs
 **Priority:** Low
 **Files:** `src/tree/mod.rs`, `src/tree/hash.rs`, `src/proof.rs`, `src/streaming.rs`
@@ -94,3 +86,11 @@ Split the `UnifiedBinaryTree` implementation into focused submodules for API sur
 **Files:** `Cargo.toml`
 
 Declared the crate MSRV via `rust-version` to make compatibility explicit and prevent accidental use of newer language features.
+
+---
+
+### [KB-04] Replace unwrap() with expect() in production code
+**Priority:** Low
+**Files:** `src/tree/hash.rs`
+
+Replaced the two `unwrap()` calls in `incremental_hash_update` with `.expect(...)` to document the cache invariant.

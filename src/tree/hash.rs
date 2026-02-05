@@ -311,7 +311,10 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         } else if left.is_empty() {
             B256::ZERO
         } else {
-            *self.node_hash_cache.get(&(depth + 1, path_prefix)).unwrap()
+            *self
+                .node_hash_cache
+                .get(&(depth + 1, path_prefix))
+                .expect("cache entry guaranteed by contains_key check")
         };
 
         let right_hash = if right_has_dirty
@@ -326,7 +329,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
             *self
                 .node_hash_cache
                 .get(&(depth + 1, right_prefix))
-                .unwrap()
+                .expect("cache entry guaranteed by contains_key check")
         };
 
         let node_hash = if left_hash.is_zero() && right_hash.is_zero() {
@@ -466,4 +469,3 @@ mod tests {
         assert!(matches!(err, UbtError::TreeDepthExceeded { depth } if depth == MAX_DEPTH));
     }
 }
-
