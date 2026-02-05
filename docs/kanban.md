@@ -2,14 +2,6 @@
 
 ## Backlog
 
-### [KB-05] Add #[must_use] to key public APIs
-**Priority:** Low
-**Files:** `src/tree/mod.rs`, `src/tree/hash.rs`, `src/proof.rs`, `src/streaming.rs`
-
-Functions like `root_hash()`, `get()`, `generate_proof()`, `build_root_hash()` return values that should not be silently discarded. Add `#[must_use]` annotations.
-
----
-
 ### [KB-06] Add rustfmt.toml
 **Priority:** Low
 **Files:** `rustfmt.toml` (new)
@@ -94,3 +86,11 @@ Declared the crate MSRV via `rust-version` to make compatibility explicit and pr
 **Files:** `src/tree/hash.rs`
 
 Replaced the two `unwrap()` calls in `incremental_hash_update` with `.expect(...)` to document the cache invariant.
+
+---
+
+### [KB-05] Add #[must_use] to key public APIs
+**Priority:** Low
+**Files:** `src/tree/mod.rs`, `src/tree/hash.rs`, `src/proof.rs`, `src/streaming.rs`
+
+Added `#[must_use]` to key API functions to discourage accidentally ignoring results like `root_hash()`, `get()`, `generate_stem_proof()`, and streaming root-hash builders.

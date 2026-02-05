@@ -25,6 +25,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     ///
     /// This will trigger a rebuild of the tree structure if any modifications
     /// have been made since the last call to `root_hash()`.
+    #[must_use]
     pub fn root_hash(&mut self) -> Result<B256> {
         if self.root_dirty {
             self.rebuild_root()?;

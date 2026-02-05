@@ -120,6 +120,7 @@ impl Proof {
 }
 
 /// Generate a proof for a key in a stem node.
+#[must_use]
 pub fn generate_stem_proof<H: Hasher>(
     stem_node: &StemNode,
     subindex: u8,

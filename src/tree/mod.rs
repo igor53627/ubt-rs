@@ -183,6 +183,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     }
 
     /// Get a value by its full 32-byte key.
+    #[must_use]
     pub fn get(&self, key: &TreeKey) -> Option<B256> {
         self.stems
             .get(&key.stem)
@@ -190,6 +191,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     }
 
     /// Get a value by B256 key.
+    #[must_use]
     pub fn get_by_b256(&self, key: &B256) -> Option<B256> {
         self.get(&TreeKey::from_bytes(*key))
     }

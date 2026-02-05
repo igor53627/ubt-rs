@@ -96,6 +96,7 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
     /// In debug builds, this is asserted.
     ///
     /// Returns B256::ZERO for empty input.
+    #[must_use]
     pub fn build_root_hash(&self, entries: impl IntoIterator<Item = (TreeKey, B256)>) -> Result<B256> {
         let mut entries_iter = entries.into_iter().peekable();
 
@@ -136,6 +137,7 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
     ///
     /// Requires the `parallel` feature (enabled by default).
     #[cfg(feature = "parallel")]
+    #[must_use]
     pub fn build_root_hash_parallel(
         &self,
         entries: impl IntoIterator<Item = (TreeKey, B256)>,
