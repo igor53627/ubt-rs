@@ -2,7 +2,7 @@
 name = "ubt"
 version = "0.2.3"
 edition = "2021"
-rust-version = "1.74"
+rust-version = "1.85"
 description = "Unified Binary Tree implementation based on EIP-7864"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/igor53627/ubt-rs"

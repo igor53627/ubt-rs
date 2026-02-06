@@ -83,3 +83,11 @@ Added release profile settings (`lto = "thin"`, `codegen-units = 1`) to improve 
 **Files:** `.gitignore`
 
 Removed the `Cargo.lock` entry from `.gitignore` since it is committed.
+
+---
+
+### [KB-10] Align MSRV with dependency requirements
+**Priority:** Medium
+**Files:** `Cargo.toml`
+
+Updated `rust-version` to reflect current dependency requirements (Rust/Cargo 1.85+ due to edition 2024 crates), keeping the declared MSRV accurate.
