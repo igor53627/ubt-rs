@@ -13,9 +13,12 @@
 //! | Operation | Full Rebuild | Incremental Mode |
 //! |-----------|--------------|------------------|
 //! | Insert    | O(1)         | O(1)             |
-//! | `root_hash` | O(S log S)   | O(S log S) (structure) + O(D * C) (hash recomputation) |
+//! | `root_hash` | O(S log S)   | O(S log S) + O(D * C) |
 //!
 //! Where S = total stems, D = 248 (tree depth), C = changed stems since last rebuild.
+//!
+//! Note: incremental mode improves hash recomputation to O(D * C), but the current
+//! implementation still sorts stems and rebuilds structure (O(S log S)).
 
 mod build;
 mod hash;
