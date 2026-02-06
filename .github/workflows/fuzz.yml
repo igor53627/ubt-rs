@@ -17,7 +17,7 @@ on:
           - fuzz_embedding
           - all
       duration:
-        description: 'Duration in seconds (18000 = 5 hours)'
+        description: 'Duration in seconds (18000 = 5 hours). If target=all, must be >= number of targets.'
         required: true
         default: '18000'
         type: string
@@ -44,7 +44,7 @@ jobs:
       - name: Install cargo-fuzz
         run: cargo +nightly-2026-02-01 install cargo-fuzz --version 0.13.1 --locked --force
 
-      - name: Run fuzzing (single target)
+      - name: Validate fuzz inputs (single target)
         if: inputs.target != 'all'
         env:
           TARGET: ${{ inputs.target }}
@@ -76,12 +76,21 @@ jobs:
             exit 1
           fi
 
-          echo "Fuzzing $TARGET for ${DURATION_INT} seconds"
-          cargo +nightly-2026-02-01 fuzz run "$TARGET" -- \
-            -max_total_time="$DURATION_INT" \
-            -print_final_stats=1 || true
+          echo "FUZZ_TARGET=$TARGET" >> "$GITHUB_ENV"
+          echo "FUZZ_DURATION_INT=$DURATION_INT" >> "$GITHUB_ENV"
 
-      - name: Run all fuzz targets
+      - name: Run fuzz (single target)
+        if: inputs.target != 'all'
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+
+          echo "Fuzzing $FUZZ_TARGET for ${FUZZ_DURATION_INT} seconds"
+          cargo +nightly-2026-02-01 fuzz run "$FUZZ_TARGET" -- \
+            -max_total_time="$FUZZ_DURATION_INT" \
+            -print_final_stats=1
+
+      - name: Validate fuzz inputs (all targets)
         if: inputs.target == 'all'
         env:
           DURATION: ${{ inputs.duration }}
@@ -115,14 +124,30 @@ jobs:
           if (( DURATION_PER_TARGET < 1 )); then
             DURATION_PER_TARGET=1
           fi
-          echo "Running all targets, ${DURATION_PER_TARGET}s each"
-          
+          echo "FUZZ_DURATION_PER_TARGET=$DURATION_PER_TARGET" >> "$GITHUB_ENV"
+
+      - name: Run fuzz (all targets)
+        if: inputs.target == 'all'
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          set -f
+
+          read -r -a targets <<<"$FUZZ_TARGETS"
+          failed=0
+          echo "Running all targets, ${FUZZ_DURATION_PER_TARGET}s each"
+
           for target in "${targets[@]}"; do
-            echo "=== Fuzzing $target for ${DURATION_PER_TARGET}s ==="
-            cargo +nightly-2026-02-01 fuzz run "$target" -- \
-              -max_total_time="$DURATION_PER_TARGET" \
-              -print_final_stats=1 || true
+            echo "=== Fuzzing $target for ${FUZZ_DURATION_PER_TARGET}s ==="
+            if ! cargo +nightly-2026-02-01 fuzz run "$target" -- \
+              -max_total_time="$FUZZ_DURATION_PER_TARGET" \
+              -print_final_stats=1; then
+              echo "::warning::fuzz run failed for target: $target"
+              failed=1
+            fi
           done
+
+          exit "$failed"
 
       - name: Upload crash artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
