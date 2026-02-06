@@ -64,7 +64,6 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     }
 
     /// Compute the hash for a stem node.
-    #[cfg(not(feature = "parallel"))]
     fn compute_stem_hash(&self, stem: &Stem) -> B256 {
         if let Some(stem_node) = self.stems.get(stem) {
             stem_node.hash(&self.hasher)
@@ -73,73 +72,31 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         }
     }
 
-    /// Rebuild the root from all stem nodes.
-    #[cfg(not(feature = "parallel"))]
-    fn rebuild_root(&mut self) -> Result<()> {
-        // Don't clear `dirty_stem_hashes` until we've successfully rebuilt the root.
-        // Otherwise, a failure would lose information needed for a retry.
-        let dirty_stems: Vec<_> = self.dirty_stem_hashes.iter().copied().collect();
-
-        for stem in &dirty_stems {
-            let hash = self.compute_stem_hash(stem);
-            if hash.is_zero() {
-                self.stem_hash_cache.remove(stem);
-            } else {
-                self.stem_hash_cache.insert(*stem, hash);
-            }
+    fn compute_stem_updates(&self, dirty_stems: &[Stem]) -> Vec<(Stem, B256)> {
+        #[cfg(feature = "parallel")]
+        {
+            dirty_stems
+                .par_iter()
+                .map(|stem| (*stem, self.compute_stem_hash(stem)))
+                .collect()
         }
 
-        if self.stem_hash_cache.is_empty() {
-            self.root = Node::Empty;
-            self.root_hash_cached = B256::ZERO;
-            self.node_hash_cache.clear();
-            self.dirty_stem_hashes.clear();
-            return Ok(());
+        #[cfg(not(feature = "parallel"))]
+        {
+            dirty_stems
+                .iter()
+                .map(|stem| (*stem, self.compute_stem_hash(stem)))
+                .collect()
         }
-
-        if self.incremental_enabled && !self.node_hash_cache.is_empty() {
-            self.rebuild_root_incremental(&dirty_stems)?;
-        } else {
-            let mut stem_hashes: Vec<_> =
-                self.stem_hash_cache.iter().map(|(s, h)| (*s, *h)).collect();
-            stem_hashes.sort_by_key(|(s, _)| *s);
-
-            let root_hash = if self.incremental_enabled {
-                self.node_hash_cache.clear();
-                self.build_root_hash_with_cache(&stem_hashes, 0, B256::ZERO)?
-            } else {
-                self.build_root_hash_from_stem_hashes(&stem_hashes, 0)?
-            };
-
-            let stems: Vec<_> = stem_hashes.iter().map(|(s, _)| *s).collect();
-            let root = self.build_tree_from_sorted_stems(&stems, 0)?;
-
-            self.root_hash_cached = root_hash;
-            self.root = root;
-        }
-
-        self.dirty_stem_hashes.clear();
-        Ok(())
     }
 
-    /// Rebuild the root from all stem nodes (parallel version).
-    #[cfg(feature = "parallel")]
+    /// Rebuild the root from all stem nodes.
     fn rebuild_root(&mut self) -> Result<()> {
         // Don't clear `dirty_stem_hashes` until we've successfully rebuilt the root.
         // Otherwise, a failure would lose information needed for a retry.
         let dirty_stems: Vec<_> = self.dirty_stem_hashes.iter().copied().collect();
 
-        let stem_updates: Vec<_> = dirty_stems
-            .par_iter()
-            .map(|stem| {
-                let hash = if let Some(stem_node) = self.stems.get(stem) {
-                    stem_node.hash(&self.hasher)
-                } else {
-                    B256::ZERO
-                };
-                (*stem, hash)
-            })
-            .collect();
+        let stem_updates = self.compute_stem_updates(&dirty_stems);
 
         for (stem, hash) in &stem_updates {
             if hash.is_zero() {
@@ -395,9 +352,10 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
 
     /// Enable incremental root hash updates.
     ///
-    /// When enabled, intermediate node hashes are cached to allow O(D * C) updates
-    /// where D is tree depth (248) and C is the number of changed stems, instead of
-    /// O(S log S) for full rebuilds.
+    /// When enabled, intermediate node hashes are cached to allow O(D * C) hash
+    /// recomputation where D is tree depth (248) and C is the number of changed stems.
+    /// Note: the current rebuild path still sorts stems and rebuilds the tree structure,
+    /// so end-to-end updates may remain O(S log S).
     ///
     /// This is the recommended mode for block-by-block state updates where only
     /// a small fraction of stems change per block.
@@ -421,7 +379,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     /// tree.enable_incremental_mode();
     /// tree.root_hash().unwrap(); // Populates cache
     ///
-    /// // Subsequent updates are O(D * C) instead of O(S log S)
+    /// // Subsequent updates do O(D * C) hash recomputation (structure rebuild is still O(S log S))
     /// tree.insert(TreeKey::from_bytes(B256::repeat_byte(0x02)), B256::repeat_byte(0x43));
     /// tree.root_hash().unwrap(); // Only recomputes affected paths
     /// ```

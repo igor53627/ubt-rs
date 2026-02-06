@@ -74,8 +74,8 @@ pub struct UnifiedBinaryTree<H: Hasher = Blake3Hasher> {
     root_hash_cached: B256,
     /// Cache of intermediate node hashes for incremental updates.
     /// Key: (depth, `path_prefix`), Value: hash at that node.
-    /// This enables O(D * C) updates where D=248 depth and C=changed stems,
-    /// instead of O(S log S) for full rebuilds.
+    /// This enables O(D * C) hash recomputation where D=248 depth and C=changed stems.
+    /// Note: end-to-end rebuilds still include structural work (e.g., sorting/rebuilding).
     node_hash_cache: HashMap<NodeCacheKey, B256>,
     /// Whether incremental mode is active (cache is populated and valid)
     incremental_enabled: bool,
