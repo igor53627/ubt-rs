@@ -279,7 +279,11 @@ mod tests {
         assert!(size > 0);
     }
 
-    fn build_valid_stem_proof<H: Hasher>(
+    /// Build a stem-only proof using `generate_stem_proof`.
+    ///
+    /// Callers that care about proof-shape invariants (e.g., sibling count) should assert on
+    /// `proof.path`.
+    fn build_stem_proof<H: Hasher>(
         hasher: &H,
         stem: Stem,
         subindex: u8,
@@ -309,7 +313,7 @@ mod tests {
         let stem = Stem::new([0u8; 31]);
         let value = B256::repeat_byte(0x42);
 
-        let (proof, expected_root) = build_valid_stem_proof(&hasher, stem, 0, value);
+        let (proof, expected_root) = build_stem_proof(&hasher, stem, 0, value);
         let result = proof.verify(&hasher, &expected_root);
 
         assert!(result.is_ok());
@@ -337,7 +341,7 @@ mod tests {
             assert!(matches!(err, UbtError::InvalidProof(_)));
         }
 
-        let (proof_ok, expected_root) = build_valid_stem_proof(&hasher, stem, 0, value);
+        let (proof_ok, expected_root) = build_stem_proof(&hasher, stem, 0, value);
         let ProofNode::Stem {
             subtree_siblings, ..
         } = proof_ok.path.first().unwrap()

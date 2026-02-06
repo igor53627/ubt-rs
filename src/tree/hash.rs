@@ -20,14 +20,10 @@ fn set_bit_at(mut value: B256, pos: usize) -> B256 {
 }
 
 fn b256_matches_prefix(value: &B256, prefix: &B256, depth: usize) -> bool {
-    #[allow(clippy::uninlined_format_args)]
-    {
-        debug_assert!(depth <= 256, "depth must be <= 256, got {}", depth);
-    }
+    // MSRV is pinned (Cargo.toml `rust-version`), so format-string capture is fine here.
+    debug_assert!(depth <= 256, "depth must be <= 256, got {depth}");
     if depth > 256 {
-        // Conservative choice for callers that use this for cache pruning:
-        // treat invalid depth as a match so potentially-stale entries are dropped.
-        return true;
+        return false;
     }
     let full_bytes = depth / 8;
     if value.0[..full_bytes] != prefix.0[..full_bytes] {
@@ -366,12 +362,23 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     }
 
     fn prune_node_hash_cache_descendants(&mut self, depth: usize, path_prefix: B256) {
+        if depth > 256 {
+            // `depth` should be bounded by `MAX_DEPTH`; if it is ever invalid, clear the cache
+            // to avoid reusing stale entries.
+            self.node_hash_cache.clear();
+            return;
+        }
         self.node_hash_cache.retain(|(d, prefix), _| {
             !(*d > depth && b256_matches_prefix(prefix, &path_prefix, depth))
         });
     }
 
     fn prune_node_hash_cache_subtree(&mut self, depth: usize, path_prefix: B256) {
+        if depth > 256 {
+            // See `prune_node_hash_cache_descendants`.
+            self.node_hash_cache.clear();
+            return;
+        }
         self.node_hash_cache.retain(|(d, prefix), _| {
             !(*d >= depth && b256_matches_prefix(prefix, &path_prefix, depth))
         });
@@ -516,5 +523,32 @@ mod tests {
             .build_root_hash_from_stem_hashes(&stem_hashes, MAX_DEPTH)
             .unwrap_err();
         assert!(matches!(err, UbtError::TreeDepthExceeded { depth } if depth == MAX_DEPTH));
+    }
+
+    #[test]
+    fn test_b256_matches_prefix_depth_0_matches_everything() {
+        let a = B256::repeat_byte(0xAA);
+        let b = B256::repeat_byte(0xBB);
+        assert!(b256_matches_prefix(&a, &b, 0));
+    }
+
+    #[test]
+    fn test_b256_matches_prefix_depth_256_requires_full_match() {
+        let a = B256::repeat_byte(0xAA);
+        let b = B256::repeat_byte(0xAA);
+        let c = B256::repeat_byte(0xBB);
+
+        assert!(b256_matches_prefix(&a, &b, 256));
+        assert!(!b256_matches_prefix(&a, &c, 256));
+    }
+
+    #[test]
+    fn test_prune_node_hash_cache_invalid_depth_clears_cache() {
+        let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        tree.node_hash_cache
+            .insert((0, B256::ZERO), B256::repeat_byte(1));
+
+        tree.prune_node_hash_cache_subtree(257, B256::ZERO);
+        assert!(tree.node_hash_cache.is_empty());
     }
 }
