@@ -20,6 +20,10 @@ This crate provides a binary tree structure intended to replace Ethereum's hexar
 - **Incremental updates**: O(D*C) root updates instead of O(S log S) full rebuilds
 - **Formally verified**: Core operations proven correct using the Rocq proof assistant
 
+## Requirements
+
+- Rust 1.85+ (MSRV). `rust-toolchain.toml` pins the toolchain for local development.
+
 ## Tree Structure
 
 The tree uses 32-byte keys where:

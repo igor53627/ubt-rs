@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **MSRV enforcement**
+  - Added a Rust `1.85.0` CI job to ensure `rust-version` stays accurate
+  - Added `rust-toolchain.toml` pinning local development to `1.85.0`
+
+### Changed
+- **MSRV bumped to Rust 1.85**
+  - Updated `Cargo.toml` `rust-version` to `1.85` to match dependency requirements (edition 2024 crates)
+
 ## [0.2.3] - 2025-12-24
 
 ### Fixed
