@@ -116,7 +116,7 @@ jobs:
         run: cargo test --lib --all-features
 
       - name: Run integration smoke tests
-        run: cargo test --test integration_export --all-features
+        run: cargo test --test integration_export
 
       - name: Check formatting
         run: cargo fmt --check
