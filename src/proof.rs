@@ -328,5 +328,15 @@ mod tests {
             let err = proof.compute_root(&hasher).unwrap_err();
             assert!(matches!(err, UbtError::InvalidProof(_)));
         }
+
+        let proof_ok = Proof::new(
+            key,
+            Some(B256::repeat_byte(0x42)),
+            vec![ProofNode::Stem {
+                stem,
+                subtree_siblings: vec![B256::ZERO; 8],
+            }],
+        );
+        assert!(proof_ok.compute_root(&hasher).is_ok());
     }
 }
