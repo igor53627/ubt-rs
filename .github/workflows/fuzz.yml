@@ -42,34 +42,52 @@ jobs:
 
       - name: Run fuzzing - ${{ inputs.target }}
         if: inputs.target != 'all'
+        env:
+          TARGET: ${{ inputs.target }}
+          DURATION: ${{ inputs.duration }}
         run: |
-          DURATION='${{ inputs.duration }}'
+          set -euo pipefail
+
           if ! [[ "$DURATION" =~ ^[0-9]+$ ]]; then
             echo "::error::duration must be an integer number of seconds (got: $DURATION)"
             exit 1
           fi
 
-          echo "Fuzzing ${{ inputs.target }} for ${DURATION} seconds"
-          cargo +nightly-2026-02-01 fuzz run ${{ inputs.target }} -- \
+          case "$TARGET" in
+            fuzz_tree_ops|fuzz_proof_decode|fuzz_code_chunk|fuzz_basic_data|fuzz_streaming|fuzz_embedding) ;;
+            *)
+              echo "::error::invalid fuzz target: $TARGET"
+              exit 1
+              ;;
+          esac
+
+          echo "Fuzzing $TARGET for ${DURATION} seconds"
+          cargo +nightly-2026-02-01 fuzz run "$TARGET" -- \
             -max_total_time="$DURATION" \
             -print_final_stats=1
         continue-on-error: true
 
       - name: Run all fuzz targets
         if: inputs.target == 'all'
+        env:
+          DURATION: ${{ inputs.duration }}
         run: |
-          DURATION='${{ inputs.duration }}'
+          set -euo pipefail
+
           if ! [[ "$DURATION" =~ ^[0-9]+$ ]]; then
             echo "::error::duration must be an integer number of seconds (got: $DURATION)"
             exit 1
           fi
 
           DURATION_PER_TARGET=$(( DURATION / 6 ))
+          if (( DURATION_PER_TARGET < 1 )); then
+            DURATION_PER_TARGET=1
+          fi
           echo "Running all targets, ${DURATION_PER_TARGET}s each"
           
           for target in fuzz_tree_ops fuzz_proof_decode fuzz_code_chunk fuzz_basic_data fuzz_streaming fuzz_embedding; do
             echo "=== Fuzzing $target for ${DURATION_PER_TARGET}s ==="
-            cargo +nightly-2026-02-01 fuzz run $target -- \
+            cargo +nightly-2026-02-01 fuzz run "$target" -- \
               -max_total_time="$DURATION_PER_TARGET" \
               -print_final_stats=1 || true
           done
