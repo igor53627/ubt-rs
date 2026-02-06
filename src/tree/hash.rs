@@ -72,22 +72,12 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         }
     }
 
+    #[cfg(feature = "parallel")]
     fn compute_stem_updates(&self, dirty_stems: &[Stem]) -> Vec<(Stem, B256)> {
-        #[cfg(feature = "parallel")]
-        {
-            dirty_stems
-                .par_iter()
-                .map(|stem| (*stem, self.compute_stem_hash(stem)))
-                .collect()
-        }
-
-        #[cfg(not(feature = "parallel"))]
-        {
-            dirty_stems
-                .iter()
-                .map(|stem| (*stem, self.compute_stem_hash(stem)))
-                .collect()
-        }
+        dirty_stems
+            .par_iter()
+            .map(|stem| (*stem, self.compute_stem_hash(stem)))
+            .collect()
     }
 
     /// Rebuild the root from all stem nodes.
@@ -96,13 +86,25 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         // Otherwise, a failure would lose information needed for a retry.
         let dirty_stems: Vec<_> = self.dirty_stem_hashes.iter().copied().collect();
 
-        let stem_updates = self.compute_stem_updates(&dirty_stems);
+        #[cfg(feature = "parallel")]
+        {
+            let stem_updates = self.compute_stem_updates(&dirty_stems);
+            for (stem, hash) in &stem_updates {
+                if hash.is_zero() {
+                    self.stem_hash_cache.remove(stem);
+                } else {
+                    self.stem_hash_cache.insert(*stem, *hash);
+                }
+            }
+        }
 
-        for (stem, hash) in &stem_updates {
+        #[cfg(not(feature = "parallel"))]
+        for stem in &dirty_stems {
+            let hash = self.compute_stem_hash(stem);
             if hash.is_zero() {
                 self.stem_hash_cache.remove(stem);
             } else {
-                self.stem_hash_cache.insert(*stem, *hash);
+                self.stem_hash_cache.insert(*stem, hash);
             }
         }
 

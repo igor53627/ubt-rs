@@ -13,7 +13,7 @@
 //! | Operation | Full Rebuild | Incremental Mode |
 //! |-----------|--------------|------------------|
 //! | Insert    | O(1)         | O(1)             |
-//! | `root_hash` | O(S log S)   | O(D * C)         |
+//! | `root_hash` | O(S log S)   | O(S log S) (structure) + O(D * C) (hash recomputation) |
 //!
 //! Where S = total stems, D = 248 (tree depth), C = changed stems since last rebuild.
 
@@ -53,8 +53,12 @@ type NodeCacheKey = (usize, B256);
 /// ## Incremental Mode
 ///
 /// When `enable_incremental_mode()` is called, the tree caches intermediate node
-/// hashes in `node_hash_cache`. This reduces update complexity from O(S log S)
-/// to O(D * C) where D=248 (tree depth) and C=changed stems per block.
+/// hashes in `node_hash_cache`. This makes hash recomputation O(D * C) where D=248
+/// (tree depth) and C=changed stems per block.
+///
+/// Note: the current rebuild path still does structural work (sorting/rebuilding),
+/// so end-to-end `root_hash()` may remain O(S log S).
+///
 /// This is the recommended approach for block-by-block state updates.
 #[derive(Clone, Debug)]
 pub struct UnifiedBinaryTree<H: Hasher = Blake3Hasher> {
