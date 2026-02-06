@@ -31,8 +31,8 @@ jobs:
       FUZZ_TARGETS: fuzz_tree_ops fuzz_proof_decode fuzz_code_chunk fuzz_basic_data fuzz_streaming fuzz_embedding
     
     steps:
-      # This workflow is manually triggered. Fuzz failures intentionally fail the job so crashes
-      # and build regressions are obvious, while artifact upload steps still run via `if: always()`.
+      # Triggered via `workflow_dispatch`. Fuzz failures currently fail the job so crashes and build
+      # regressions are obvious; artifact upload steps below use `if: always()` to run on failure.
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
