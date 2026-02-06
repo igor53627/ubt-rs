@@ -28,12 +28,14 @@ jobs:
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           submodules: recursive
 
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@881ba7bf39a41cda34ac9e123fb41b44ed08232f # nightly
+        with:
+          toolchain: nightly
 
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz
@@ -62,7 +64,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload crash artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: fuzz-crashes-${{ inputs.target }}
@@ -72,7 +74,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload corpus
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: fuzz-corpus-${{ inputs.target }}

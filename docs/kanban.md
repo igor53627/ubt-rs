@@ -90,4 +90,4 @@ Removed the `Cargo.lock` entry from `.gitignore` since it is committed.
 **Priority:** Medium
 **Files:** `Cargo.toml`
 
-Updated `rust-version` to `1.85` to reflect current dependency requirements (e.g., `alloy-primitives v1.5.4`, `blake3 v1.8.3`, and transitive `constant_time_eq v0.4.2` in `Cargo.lock` require Rust/Cargo 1.85+), keeping the declared MSRV accurate.
+Updated `rust-version` to `1.85` to reflect current dependency requirements. At the time of this change, `Cargo.lock` included `alloy-primitives v1.5.4`, `blake3 v1.8.3`, and transitive `constant_time_eq v0.4.2` (edition 2024 crates require Rust 1.85+), keeping the declared MSRV accurate.

@@ -23,7 +23,7 @@ jobs:
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       # NOTE: Linking layer requires RocqOfRust library
       # RocqOfRust requires cloning and building from https://github.com/formal-land/rocq-of-rust
@@ -36,7 +36,7 @@ jobs:
           sudo apt-get install -y opam
 
       - name: Cache opam
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         id: cache-opam
         with:
           path: ~/.opam
@@ -148,14 +148,14 @@ jobs:
           make check-admits ADMIT_THRESHOLD=10
 
       - name: Upload audit report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: proof-audit
           path: formal/audit-report.txt
           retention-days: 30
 
       - name: Upload extracted OCaml
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: extracted-ocaml
           path: |
@@ -164,7 +164,7 @@ jobs:
           retention-days: 30
 
       - name: Upload documentation
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         continue-on-error: true
         with:
