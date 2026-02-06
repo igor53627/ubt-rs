@@ -262,6 +262,9 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
             // If this subtree became empty due to deletions, `dirty_stems` will be non-empty.
             // If we have cached state for this subtree root, prune it even if dirty information
             // was lost, to avoid reusing stale entries.
+            //
+            // Invariant: cached subtrees always include the subtree-root entry, so this
+            // `contains_key` check is sufficient to detect cached descendants.
             if !dirty_stems.is_empty() || self.node_hash_cache.contains_key(&(depth, path_prefix)) {
                 self.prune_node_hash_cache_subtree(depth, path_prefix);
             }
@@ -639,6 +642,35 @@ mod tests {
             tree_inc.node_hash_cache.iter().any(|((depth, prefix), _)| {
                 *depth >= 1 && b256_matches_prefix(prefix, &right_prefix, 1)
             });
+        assert!(!has_right_cache_entries);
+    }
+
+    #[test]
+    fn test_incremental_hash_update_prunes_cached_empty_subtree_without_dirty_info() {
+        let mut key_right_bytes = [0u8; 32];
+        key_right_bytes[0] = 0x80;
+
+        let key_left = TreeKey::from_bytes(B256::ZERO);
+        let key_right = TreeKey::from_bytes(B256::from_slice(&key_right_bytes));
+
+        let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        tree.insert(key_left, B256::repeat_byte(0x11));
+        tree.insert(key_right, B256::repeat_byte(0x22));
+        tree.enable_incremental_mode();
+        tree.root_hash().unwrap(); // Populate cache
+
+        let right_prefix = set_bit_at(B256::ZERO, 0);
+        assert!(tree.node_hash_cache.contains_key(&(1, right_prefix)));
+
+        // Simulate a subtree becoming empty while "dirty stem" information is lost.
+        let out = tree
+            .incremental_hash_update(&[], 1, right_prefix, &[])
+            .unwrap();
+        assert_eq!(out, B256::ZERO);
+
+        let has_right_cache_entries = tree.node_hash_cache.iter().any(|((depth, prefix), _)| {
+            *depth >= 1 && b256_matches_prefix(prefix, &right_prefix, 1)
+        });
         assert!(!has_right_cache_entries);
     }
 }
