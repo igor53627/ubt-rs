@@ -22,6 +22,9 @@ fn set_bit_at(mut value: B256, pos: usize) -> B256 {
 /// Returns whether `value` shares the first `depth` bits with `prefix`.
 ///
 /// Bits are interpreted MSB-first within each byte.
+///
+/// `depth` must be in `0..=256`. In debug builds, `depth > 256` triggers a `debug_assert!`.
+/// In release builds, `depth > 256` returns `false`.
 fn b256_matches_prefix(value: &B256, prefix: &B256, depth: usize) -> bool {
     debug_assert!(depth <= 256, "depth must be <= 256, got {depth}");
     if depth > 256 {
@@ -511,6 +514,27 @@ mod tests {
     use super::*;
     use crate::Blake3Hasher;
 
+    fn b256_from_zero(overrides: &[(usize, u8)]) -> B256 {
+        let mut bytes = [0u8; 32];
+        for (idx, value) in overrides {
+            bytes[*idx] = *value;
+        }
+        B256::from(bytes)
+    }
+
+    fn b256_from_fill(fill: u8, overrides: &[(usize, u8)]) -> B256 {
+        let mut bytes = [fill; 32];
+        for (idx, value) in overrides {
+            bytes[*idx] = *value;
+        }
+        B256::from(bytes)
+    }
+
+    fn assert_prefix_match(value: B256, prefix_ok: B256, prefix_bad: B256, depth: usize) {
+        assert!(b256_matches_prefix(&value, &prefix_ok, depth));
+        assert!(!b256_matches_prefix(&value, &prefix_bad, depth));
+    }
+
     #[test]
     fn test_tree_depth_exceeded_returns_error() {
         let tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
@@ -546,97 +570,40 @@ mod tests {
 
     #[test]
     fn test_b256_matches_prefix_partial_depths() {
-        // Depth = 1: compare MSB of the first byte.
-        let mut v1 = [0u8; 32];
-        v1[0] = 0x80;
-        let mut p1_ok = [0u8; 32];
-        p1_ok[0] = 0x80;
-        let mut p1_bad = [0u8; 32];
-        p1_bad[0] = 0x00;
+        assert_prefix_match(
+            b256_from_zero(&[(0, 0x80)]),
+            b256_from_zero(&[(0, 0x80)]),
+            b256_from_zero(&[]),
+            1,
+        );
 
-        assert!(b256_matches_prefix(&B256::from(v1), &B256::from(p1_ok), 1));
-        assert!(!b256_matches_prefix(
-            &B256::from(v1),
-            &B256::from(p1_bad),
-            1
-        ));
+        assert_prefix_match(
+            b256_from_zero(&[(0, 0xAA)]),
+            b256_from_zero(&[(0, 0xAA)]),
+            b256_from_zero(&[(0, 0xAB)]),
+            8,
+        );
 
-        // Depth = 9: compare first byte plus MSB of the second byte.
-        let mut v9 = [0u8; 32];
-        v9[0] = 0xAA;
-        v9[1] = 0x80;
-        let mut p9_ok = [0u8; 32];
-        p9_ok[0] = 0xAA;
-        p9_ok[1] = 0x80;
-        let mut p9_bad = [0u8; 32];
-        p9_bad[0] = 0xAA;
-        p9_bad[1] = 0x00;
+        assert_prefix_match(
+            b256_from_zero(&[(0, 0xAA), (1, 0x80)]),
+            b256_from_zero(&[(0, 0xAA), (1, 0x80)]),
+            b256_from_zero(&[(0, 0xAA), (1, 0x00)]),
+            9,
+        );
 
-        assert!(b256_matches_prefix(&B256::from(v9), &B256::from(p9_ok), 9));
-        assert!(!b256_matches_prefix(
-            &B256::from(v9),
-            &B256::from(p9_bad),
-            9
-        ));
+        assert_prefix_match(
+            b256_from_zero(&[(0, 0xAA), (1, 0xFE)]),
+            b256_from_zero(&[(0, 0xAA), (1, 0xFF)]),
+            b256_from_zero(&[(0, 0xAA), (1, 0x7E)]),
+            15,
+        );
 
-        // Depth = 8: compare first byte only.
-        let mut v8 = [0u8; 32];
-        v8[0] = 0xAA;
-        let mut p8_ok = [0u8; 32];
-        p8_ok[0] = 0xAA;
-        let mut p8_bad = [0u8; 32];
-        p8_bad[0] = 0xAB;
-
-        assert!(b256_matches_prefix(&B256::from(v8), &B256::from(p8_ok), 8));
-        assert!(!b256_matches_prefix(
-            &B256::from(v8),
-            &B256::from(p8_bad),
-            8
-        ));
-
-        // Depth = 15: compare first byte plus the top 7 bits of the second byte.
-        let mut v15 = [0u8; 32];
-        v15[0] = 0xAA;
-        v15[1] = 0xFE;
-        let mut p15_ok = [0u8; 32];
-        p15_ok[0] = 0xAA;
-        p15_ok[1] = 0xFF;
-        let mut p15_bad = [0u8; 32];
-        p15_bad[0] = 0xAA;
-        p15_bad[1] = 0x7E;
-
-        assert!(b256_matches_prefix(
-            &B256::from(v15),
-            &B256::from(p15_ok),
-            15
-        ));
-        assert!(!b256_matches_prefix(
-            &B256::from(v15),
-            &B256::from(p15_bad),
-            15
-        ));
-
-        // Depth = 255: compare the first 31 bytes plus the top 7 bits of the last byte.
-        let mut v255 = [0u8; 32];
-        v255[..31].fill(0xAA);
-        v255[31] = 0xFE;
-        let mut p255_ok = [0u8; 32];
-        p255_ok[..31].fill(0xAA);
-        p255_ok[31] = 0xFF;
-        let mut p255_bad = [0u8; 32];
-        p255_bad[..31].fill(0xAA);
-        p255_bad[31] = 0x7E;
-
-        assert!(b256_matches_prefix(
-            &B256::from(v255),
-            &B256::from(p255_ok),
-            255
-        ));
-        assert!(!b256_matches_prefix(
-            &B256::from(v255),
-            &B256::from(p255_bad),
-            255
-        ));
+        assert_prefix_match(
+            b256_from_fill(0xAA, &[(31, 0xFE)]),
+            b256_from_fill(0xAA, &[(31, 0xFF)]),
+            b256_from_fill(0xAA, &[(31, 0x7E)]),
+            255,
+        );
     }
 
     #[test]
