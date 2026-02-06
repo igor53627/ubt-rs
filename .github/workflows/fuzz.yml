@@ -27,6 +27,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
+      # Keep in sync with `workflow_dispatch.inputs.target.options`.
       FUZZ_TARGETS: fuzz_tree_ops fuzz_proof_decode fuzz_code_chunk fuzz_basic_data fuzz_streaming fuzz_embedding
     
     steps:
@@ -55,8 +56,9 @@ jobs:
             echo "::error::duration must be an integer number of seconds (got: $DURATION)"
             exit 1
           fi
-          if (( DURATION < 1 )); then
-            echo "::error::duration must be >= 1 second (got: $DURATION)"
+          DURATION_INT=$((10#$DURATION))
+          if (( DURATION_INT < 1 )); then
+            echo "::error::duration must be >= 1 second (got: $DURATION_INT)"
             exit 1
           fi
 
@@ -73,9 +75,9 @@ jobs:
             exit 1
           fi
 
-          echo "Fuzzing $TARGET for ${DURATION} seconds"
+          echo "Fuzzing $TARGET for ${DURATION_INT} seconds"
           cargo +nightly-2026-02-01 fuzz run "$TARGET" -- \
-            -max_total_time="$DURATION" \
+            -max_total_time="$DURATION_INT" \
             -print_final_stats=1
         continue-on-error: true
 
@@ -90,13 +92,19 @@ jobs:
             echo "::error::duration must be an integer number of seconds (got: $DURATION)"
             exit 1
           fi
-          if (( DURATION < 1 )); then
-            echo "::error::duration must be >= 1 second (got: $DURATION)"
+          DURATION_INT=$((10#$DURATION))
+          if (( DURATION_INT < 1 )); then
+            echo "::error::duration must be >= 1 second (got: $DURATION_INT)"
             exit 1
           fi
 
           targets=($FUZZ_TARGETS)
-          DURATION_PER_TARGET=$(( DURATION / ${#targets[@]} ))
+          if (( ${#targets[@]} == 0 )); then
+            echo "::error::FUZZ_TARGETS is empty"
+            exit 1
+          fi
+
+          DURATION_PER_TARGET=$(( DURATION_INT / ${#targets[@]} ))
           if (( DURATION_PER_TARGET < 1 )); then
             DURATION_PER_TARGET=1
           fi
