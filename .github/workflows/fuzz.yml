@@ -17,7 +17,7 @@ on:
           - fuzz_embedding
           - all
       duration:
-        description: 'Duration in seconds (18000 = 5 hours)'
+        description: 'Duration in seconds (18000 = 5 hours). If target=all, must be >= number of targets.'
         required: true
         default: '18000'
         type: string
@@ -25,44 +25,137 @@ on:
 jobs:
   fuzz:
     runs-on: ubuntu-latest
+
+    env:
+      # Keep in sync with `workflow_dispatch.inputs.target.options`.
+      FUZZ_TARGETS: fuzz_tree_ops fuzz_proof_decode fuzz_code_chunk fuzz_basic_data fuzz_streaming fuzz_embedding
     
     steps:
+      # Triggered via `workflow_dispatch`. Fuzz failures currently fail the job so crashes and build
+      # regressions are obvious; artifact upload steps below use `if: always()` to run on failure.
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           submodules: recursive
 
       - name: Install Rust nightly
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@881ba7bf39a41cda34ac9e123fb41b44ed08232f # nightly
+        with:
+          toolchain: nightly-2026-02-01
 
       - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz
+        run: cargo +nightly-2026-02-01 install cargo-fuzz --version 0.13.1 --locked --force
 
-      - name: Run fuzzing - ${{ inputs.target }}
+      - name: Validate fuzz inputs (single target)
+        if: inputs.target != 'all'
+        env:
+          TARGET: ${{ inputs.target }}
+          DURATION: ${{ inputs.duration }}
+        run: |
+          set -euo pipefail
+          set -f
+
+          if ! [[ "$DURATION" =~ ^[0-9]+$ ]]; then
+            echo "::error::duration must be an integer number of seconds (got: $DURATION)"
+            exit 1
+          fi
+          DURATION_INT=$((10#$DURATION))
+          if (( DURATION_INT < 1 )); then
+            echo "::error::duration must be >= 1 second (got: $DURATION_INT)"
+            exit 1
+          fi
+
+          read -r -a targets <<<"$FUZZ_TARGETS"
+          num_targets=${#targets[@]}
+          if (( num_targets == 0 )); then
+            echo "::error::FUZZ_TARGETS is empty"
+            exit 1
+          fi
+          valid_target=false
+          for t in "${targets[@]}"; do
+            if [[ "$t" == "$TARGET" ]]; then
+              valid_target=true
+              break
+            fi
+          done
+          if ! $valid_target; then
+            echo "::error::invalid fuzz target: $TARGET"
+            exit 1
+          fi
+
+          printf '%s=%s\n' "FUZZ_TARGET" "$TARGET" >>"$GITHUB_ENV"
+          printf '%s=%s\n' "FUZZ_DURATION_INT" "$DURATION_INT" >>"$GITHUB_ENV"
+
+      - name: Run fuzz (single target)
         if: inputs.target != 'all'
         run: |
-          echo "Fuzzing ${{ inputs.target }} for ${{ inputs.duration }} seconds"
-          cargo +nightly fuzz run ${{ inputs.target }} -- \
-            -max_total_time=${{ inputs.duration }} \
-            -print_final_stats=1
-        continue-on-error: true
+          set -euo pipefail
 
-      - name: Run all fuzz targets
+          echo "Fuzzing $FUZZ_TARGET for ${FUZZ_DURATION_INT} seconds"
+          cargo +nightly-2026-02-01 fuzz run "$FUZZ_TARGET" -- \
+            -max_total_time="$FUZZ_DURATION_INT" \
+            -print_final_stats=1
+
+      - name: Validate fuzz inputs (all targets)
+        if: inputs.target == 'all'
+        env:
+          DURATION: ${{ inputs.duration }}
+        run: |
+          set -euo pipefail
+          set -f
+
+          if ! [[ "$DURATION" =~ ^[0-9]+$ ]]; then
+            echo "::error::duration must be an integer number of seconds (got: $DURATION)"
+            exit 1
+          fi
+          DURATION_INT=$((10#$DURATION))
+          if (( DURATION_INT < 1 )); then
+            echo "::error::duration must be >= 1 second (got: $DURATION_INT)"
+            exit 1
+          fi
+
+          read -r -a targets <<<"$FUZZ_TARGETS"
+          num_targets=${#targets[@]}
+          if (( num_targets == 0 )); then
+            echo "::error::FUZZ_TARGETS is empty"
+            exit 1
+          fi
+
+          if (( DURATION_INT < num_targets )); then
+            echo "::error::duration must be >= ${num_targets} seconds when target=all (got: $DURATION_INT)"
+            exit 1
+          fi
+
+          DURATION_PER_TARGET=$(( DURATION_INT / num_targets ))
+          if (( DURATION_PER_TARGET < 1 )); then
+            DURATION_PER_TARGET=1
+          fi
+          printf '%s=%s\n' "FUZZ_DURATION_PER_TARGET" "$DURATION_PER_TARGET" >>"$GITHUB_ENV"
+
+      - name: Run fuzz (all targets)
         if: inputs.target == 'all'
         run: |
-          DURATION_PER_TARGET=$(( ${{ inputs.duration }} / 6 ))
-          echo "Running all targets, ${DURATION_PER_TARGET}s each"
-          
-          for target in fuzz_tree_ops fuzz_proof_decode fuzz_code_chunk fuzz_basic_data fuzz_streaming fuzz_embedding; do
-            echo "=== Fuzzing $target for ${DURATION_PER_TARGET}s ==="
-            cargo +nightly fuzz run $target -- \
-              -max_total_time=${DURATION_PER_TARGET} \
-              -print_final_stats=1 || true
+          set -euo pipefail
+          set -f
+
+          read -r -a targets <<<"$FUZZ_TARGETS"
+          failed=0
+          echo "Running all targets, ${FUZZ_DURATION_PER_TARGET}s each"
+
+          for target in "${targets[@]}"; do
+            echo "=== Fuzzing $target for ${FUZZ_DURATION_PER_TARGET}s ==="
+            if ! cargo +nightly-2026-02-01 fuzz run "$target" -- \
+              -max_total_time="$FUZZ_DURATION_PER_TARGET" \
+              -print_final_stats=1; then
+              echo "::warning::fuzz run failed for target: $target"
+              failed=1
+            fi
           done
-        continue-on-error: true
+
+          exit "$failed"
 
       - name: Upload crash artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: fuzz-crashes-${{ inputs.target }}
@@ -72,7 +165,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload corpus
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: fuzz-corpus-${{ inputs.target }}

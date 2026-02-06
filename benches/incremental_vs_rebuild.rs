@@ -36,7 +36,7 @@ fn create_populated_tree(num_stems: usize) -> UnifiedBinaryTree<Blake3Hasher> {
         }
     }
 
-    tree.root_hash();
+    tree.root_hash().expect("benchmark tree root_hash failed");
     tree
 }
 
@@ -56,7 +56,7 @@ fn bench_single_update(c: &mut Criterion) {
                     |mut tree| {
                         let key = TreeKey::new(generate_stems(1)[0], 0);
                         tree.insert(key, B256::repeat_byte(0xFF));
-                        black_box(tree.root_hash())
+                        black_box(tree.root_hash().expect("benchmark tree root_hash failed"))
                     },
                     criterion::BatchSize::SmallInput,
                 )
@@ -65,7 +65,9 @@ fn bench_single_update(c: &mut Criterion) {
 
         let mut tree_incr = tree_full.clone();
         tree_incr.enable_incremental_mode();
-        tree_incr.root_hash();
+        tree_incr
+            .root_hash()
+            .expect("benchmark tree root_hash failed");
 
         group.bench_with_input(
             BenchmarkId::new("incremental", num_stems),
@@ -76,7 +78,7 @@ fn bench_single_update(c: &mut Criterion) {
                     |mut tree| {
                         let key = TreeKey::new(generate_stems(1)[0], 0);
                         tree.insert(key, B256::repeat_byte(0xFF));
-                        black_box(tree.root_hash())
+                        black_box(tree.root_hash().expect("benchmark tree root_hash failed"))
                     },
                     criterion::BatchSize::SmallInput,
                 )
@@ -116,7 +118,7 @@ fn bench_batch_update(c: &mut Criterion) {
                             let key = TreeKey::new(stems[i % stems.len()], (i % 5) as u8);
                             tree.insert(key, B256::repeat_byte(0xAB));
                         }
-                        black_box(tree.root_hash())
+                        black_box(tree.root_hash().expect("benchmark tree root_hash failed"))
                     },
                     criterion::BatchSize::SmallInput,
                 )
@@ -125,7 +127,9 @@ fn bench_batch_update(c: &mut Criterion) {
 
         let mut tree_incr = tree_full.clone();
         tree_incr.enable_incremental_mode();
-        tree_incr.root_hash();
+        tree_incr
+            .root_hash()
+            .expect("benchmark tree root_hash failed");
 
         group.bench_with_input(
             BenchmarkId::new("incremental", &label),
@@ -138,7 +142,7 @@ fn bench_batch_update(c: &mut Criterion) {
                             let key = TreeKey::new(stems[i % stems.len()], (i % 5) as u8);
                             tree.insert(key, B256::repeat_byte(0xAB));
                         }
-                        black_box(tree.root_hash())
+                        black_box(tree.root_hash().expect("benchmark tree root_hash failed"))
                     },
                     criterion::BatchSize::SmallInput,
                 )
@@ -172,7 +176,7 @@ fn bench_block_simulation(c: &mut Criterion) {
                         let key = TreeKey::new(stems[i], (i % 5) as u8);
                         tree.insert(key, B256::repeat_byte(0xCD));
                     }
-                    black_box(tree.root_hash())
+                    black_box(tree.root_hash().expect("benchmark tree root_hash failed"))
                 },
                 criterion::BatchSize::LargeInput,
             )
@@ -181,7 +185,9 @@ fn bench_block_simulation(c: &mut Criterion) {
 
     let mut tree_incr = tree_full.clone();
     tree_incr.enable_incremental_mode();
-    tree_incr.root_hash();
+    tree_incr
+        .root_hash()
+        .expect("benchmark tree root_hash failed");
 
     group.bench_with_input(
         BenchmarkId::new("incremental", "100k_stems_500_changes"),
@@ -194,7 +200,7 @@ fn bench_block_simulation(c: &mut Criterion) {
                         let key = TreeKey::new(stems[i], (i % 5) as u8);
                         tree.insert(key, B256::repeat_byte(0xCD));
                     }
-                    black_box(tree.root_hash())
+                    black_box(tree.root_hash().expect("benchmark tree root_hash failed"))
                 },
                 criterion::BatchSize::LargeInput,
             )
@@ -220,7 +226,7 @@ fn bench_memory_overhead(c: &mut Criterion) {
                     || tree.clone(),
                     |mut tree| {
                         tree.enable_incremental_mode();
-                        black_box(tree.root_hash())
+                        black_box(tree.root_hash().expect("benchmark tree root_hash failed"))
                     },
                     criterion::BatchSize::SmallInput,
                 )

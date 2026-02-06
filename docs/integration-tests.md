@@ -104,7 +104,9 @@ integration-test:
   runs-on: ubuntu-latest
   steps:
     - uses: actions/checkout@v4
-    - uses: actions-rust-lang/setup-rust-toolchain@v1
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: 1.85.0
     - uses: ocaml/setup-ocaml@v3
       with:
         ocaml-compiler: 5.1

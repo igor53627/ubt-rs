@@ -63,6 +63,11 @@ fn push_size(opcode: u8) -> usize {
 /// - 31 bytes: the actual code/data
 ///
 /// This allows code analysis to skip PUSHDATA bytes when looking for valid opcodes.
+///
+/// # Panics
+///
+/// Panics if an internal invariant is violated and the computed leading PUSHDATA count
+/// does not fit in `u8` (it is bounded by 31).
 pub fn chunkify_code(bytecode: &[u8]) -> Vec<CodeChunk> {
     if bytecode.is_empty() {
         return vec![];
@@ -79,7 +84,9 @@ pub fn chunkify_code(bytecode: &[u8]) -> Vec<CodeChunk> {
         let end = std::cmp::min(start + CODE_CHUNK_DATA_SIZE, bytecode.len());
 
         // How many bytes at the start of this chunk are PUSHDATA from previous chunk?
-        let leading_pushdata = std::cmp::min(pushdata_remaining, end - start) as u8;
+        let leading_pushdata: u8 = std::cmp::min(pushdata_remaining, end - start)
+            .try_into()
+            .expect("leading pushdata count must fit in u8 (<= 31)");
 
         let mut data = [0u8; CODE_CHUNK_DATA_SIZE];
         let chunk_data = &bytecode[start..end];

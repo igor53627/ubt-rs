@@ -29,16 +29,15 @@ jobs:
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
 
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
-            ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
@@ -47,12 +46,21 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Build
-        run: cargo build --all-features
+      - name: Compile (all targets, all features)
+        run: cargo test --all-targets --all-features --no-run
 
       - name: Run unit tests
         run: cargo test --lib
 
+      - name: Run unit tests (no default features)
+        run: cargo test --no-default-features --lib
+
+      - name: Compile (tests, no default features)
+        run: cargo test --no-default-features --tests --no-run
+
+      # Note: we intentionally don't run clippy on test targets under `--no-default-features`
+      # (too noisy for `-D warnings`). We still run unit tests (`--lib`) and compile integration
+      # tests (`--tests --no-run`) under that configuration above.
       - name: Run property tests
         run: cargo test --test proptests
         env:
@@ -67,19 +75,72 @@ jobs:
       - name: Run clippy
         run: cargo clippy -- -D warnings
 
+      - name: Run clippy (no default features, lib)
+        run: cargo clippy --no-default-features --lib -- -D warnings
+
+      # This crate's feature flags are intended to be composable; `--all-features` should build cleanly.
+      - name: Run clippy (all features, lib)
+        run: cargo clippy --all-features --lib -- -D warnings
+
       - name: Build docs
         run: cargo doc --no-deps
 
       - name: Summary
+        if: always()
         run: |
           echo "## Rust CI Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Build | [OK] |" >> $GITHUB_STEP_SUMMARY
-          echo "| Unit Tests | [OK] |" >> $GITHUB_STEP_SUMMARY
-          echo "| Property Tests (256 cases) | [OK] |" >> $GITHUB_STEP_SUMMARY
-          echo "| Integration Tests | [OK] |" >> $GITHUB_STEP_SUMMARY
-          echo "| Formatting | [OK] |" >> $GITHUB_STEP_SUMMARY
-          echo "| Clippy | [OK] |" >> $GITHUB_STEP_SUMMARY
-          echo "| Docs | [OK] |" >> $GITHUB_STEP_SUMMARY
+          echo "This job runs the following checks (see step output for pass/fail):" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Compile (all targets, all features)" >> $GITHUB_STEP_SUMMARY
+          echo "- Unit tests (default features)" >> $GITHUB_STEP_SUMMARY
+          echo "- Unit tests (no default features)" >> $GITHUB_STEP_SUMMARY
+          echo "- Compile (tests, no default features)" >> $GITHUB_STEP_SUMMARY
+          echo "- Property tests (256 cases)" >> $GITHUB_STEP_SUMMARY
+          echo "- Integration tests" >> $GITHUB_STEP_SUMMARY
+          echo "- Formatting" >> $GITHUB_STEP_SUMMARY
+          echo "- Clippy (default features)" >> $GITHUB_STEP_SUMMARY
+          echo "- Clippy (no default features, lib)" >> $GITHUB_STEP_SUMMARY
+          echo "- Clippy (all features, lib)" >> $GITHUB_STEP_SUMMARY
+          echo "- Docs" >> $GITHUB_STEP_SUMMARY
+
+  msrv:
+    name: MSRV (Rust 1.85.0)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install Rust toolchain (MSRV)
+        uses: dtolnay/rust-toolchain@4be9e76fd7c4901c61fb841f559994984270fce7 # stable
+        with:
+          toolchain: 1.85.0
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-msrv-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-msrv-
+
+      - name: Compile (all targets, all features)
+        run: cargo test --all-targets --all-features --no-run
+
+      - name: Run unit tests (library)
+        run: cargo test --lib --all-features
+
+      - name: Run integration smoke tests
+        run: cargo test --test integration_export
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Run clippy
+        run: cargo clippy --lib --all-features -- -D warnings

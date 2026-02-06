@@ -43,11 +43,13 @@ fuzz_target!(|data: &[u8]| {
     for (k, v) in &entries {
         tree.insert(*k, *v);
     }
-    let tree_root = tree.root_hash();
+    let tree_root = tree.root_hash().expect("tree depth within bounds");
 
     // Build via streaming
     let builder: StreamingTreeBuilder<Blake3Hasher> = StreamingTreeBuilder::new();
-    let streaming_root = builder.build_root_hash(entries);
+    let streaming_root = builder
+        .build_root_hash(entries)
+        .expect("tree depth within bounds");
 
     assert_eq!(tree_root, streaming_root, "streaming vs tree mismatch");
 });

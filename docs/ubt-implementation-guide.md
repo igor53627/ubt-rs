@@ -232,7 +232,7 @@ let mut tree = UnifiedBinaryTree::new();
 for (key, value) in millions_of_entries {
     tree.insert(key, value);
 }
-let root = tree.root_hash();  // Full rebuild, O(S log S)
+let root = tree.root_hash().unwrap();  // Full rebuild, O(S log S)
 
 // For block-by-block processing
 let mut tree = UnifiedBinaryTree::new();
@@ -241,7 +241,7 @@ for block in blocks {
     for (key, value) in block.writes {
         tree.insert(key, value);
     }
-    let root = tree.root_hash();  // Incremental, O(D x C)
+    let root = tree.root_hash().unwrap();  // Incremental, O(D x C)
 }
 ```
 
@@ -263,7 +263,7 @@ for (key, value) in block.writes {
 for key in block.deletes {
     tree.delete_with_diff(&key, &mut diff);
 }
-let post_block_root = tree.root_hash();
+let post_block_root = tree.root_hash().unwrap();
 
 // Store diff for potential reorg (e.g., in a ring buffer of last N blocks)
 block_diffs.push(diff);
@@ -294,7 +294,7 @@ For multiple inserts without intermediate root hashes, use batch insert:
 
 ```rust
 let entries: Vec<(TreeKey, B256)> = /* ... */;
-tree.insert_batch(entries);  // Single root recomputation
+tree.insert_batch(entries).unwrap();  // Single root recomputation
 ```
 
 ## Implementation Checklist

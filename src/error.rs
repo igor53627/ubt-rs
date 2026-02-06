@@ -20,6 +20,10 @@ pub enum UbtError {
     #[error("invalid key length: expected 32 bytes, got {0}")]
     InvalidKeyLength(usize),
 
+    /// Tree depth exceeded maximum allowed depth.
+    #[error("tree depth exceeded maximum allowed depth (depth={depth})")]
+    TreeDepthExceeded { depth: usize },
+
     /// Stem collision during insertion (should not happen with proper key derivation)
     #[error("stem collision at {0:?}")]
     StemCollision(Stem),

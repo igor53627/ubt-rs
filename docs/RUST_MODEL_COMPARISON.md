@@ -46,7 +46,7 @@ This document compares the Rust UBT implementation (`src/`) with the formal Rocq
 | `tree.get(&key)` | `sim_tree_get t k` | tree.v:435-439 |
 | `tree.insert(key, value)` | `sim_tree_insert t k v` | tree.v:442-451 |
 | `tree.delete(&key)` | `sim_tree_delete t k` (= insert zero32) | tree.v:454-455 |
-| `tree.root_hash()` | `sim_root_hash t` | tree.v:744-746 |
+| `tree.root_hash().unwrap()` | `sim_root_hash t` | tree.v:744-746 |
 | `tree.insert_with_diff(k, v, diff)` | (not modeled) | tree.rs:741-746 |
 | `tree.delete_with_diff(k, diff)` | (not modeled) | tree.rs:748-753 |
 | `tree.revert_diff(diff)` | (not modeled) | tree.rs:755-768 |

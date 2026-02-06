@@ -48,7 +48,7 @@ impl TestableDatabase for UbtDatabase {
     }
 
     fn sync(&mut self) -> Result<[u8; 32], Self::Error> {
-        let root = self.tree.root_hash();
+        let root = self.tree.root_hash().expect("tree depth within bounds");
         Ok(root.0)
     }
 
@@ -65,7 +65,7 @@ impl TestableDatabase for UbtDatabase {
         if !self.incremental_mode {
             self.tree.enable_incremental_mode();
             // Prime the cache
-            let _ = self.tree.root_hash();
+            let _ = self.tree.root_hash().expect("tree depth within bounds");
             self.incremental_mode = true;
         }
     }
@@ -88,10 +88,10 @@ impl TestableDatabase for UbtDatabase {
             self.tree.disable_incremental_mode();
         }
         // Force a rebuild to clear any cached state
-        let _ = self.tree.root_hash();
+        let _ = self.tree.root_hash().expect("tree depth within bounds");
         if was_incremental {
             self.tree.enable_incremental_mode();
-            let _ = self.tree.root_hash();
+            let _ = self.tree.root_hash().expect("tree depth within bounds");
         }
     }
 
@@ -101,10 +101,10 @@ impl TestableDatabase for UbtDatabase {
         if was_incremental {
             self.tree.disable_incremental_mode();
         }
-        let root = self.tree.root_hash();
+        let root = self.tree.root_hash().expect("tree depth within bounds");
         if was_incremental {
             self.tree.enable_incremental_mode();
-            let _ = self.tree.root_hash(); // Re-prime cache
+            let _ = self.tree.root_hash().expect("tree depth within bounds"); // Re-prime cache
         }
         Ok(root.0)
     }

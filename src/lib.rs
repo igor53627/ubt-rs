@@ -20,8 +20,8 @@
 //! - Last byte: **subindex** (position within the 256-value subtree)
 //!
 //! Node types:
-//! - [`InternalNode`]: Has left_hash and right_hash
-//! - [`StemNode`]: Has stem (31 bytes), left_hash and right_hash for its 256-value subtree
+//! - [`InternalNode`]: Has `left_hash` and `right_hash`
+//! - [`StemNode`]: Has stem (31 bytes), `left_hash` and `right_hash` for its 256-value subtree
 //! - [`LeafNode`]: Contains a 32-byte value or empty
 //! - `EmptyNode`: Represents an empty node/subtree (hash = 0)
 //!
@@ -33,7 +33,7 @@
 //! let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
 //! let key = TreeKey::from_bytes(B256::repeat_byte(0x01));
 //! tree.insert(key, B256::repeat_byte(0x42));
-//! let root = tree.root_hash();
+//! let root = tree.root_hash().unwrap();
 //! ```
 //!
 //! ## Features
@@ -60,7 +60,7 @@
 //!
 //! let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
 //! // ... initial inserts ...
-//! tree.root_hash(); // Initial full build
+//! tree.root_hash().unwrap(); // Initial full build
 //!
 //! // Enable incremental mode for subsequent updates
 //! tree.enable_incremental_mode();
@@ -77,6 +77,14 @@
 //! The [`Hasher`] trait is `Send + Sync` to support parallel hashing contexts.
 
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
+
+// Optional deps used by the `simulate` binary. Rust checks unused deps per-crate,
+// so we reference them here to avoid `unused_crate_dependencies` warnings when the
+// feature is enabled.
+#[cfg(feature = "simulate")]
+use num_cpus as _;
+#[cfg(feature = "simulate")]
+use rand as _;
 
 mod code;
 mod compat_tests;

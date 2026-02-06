@@ -6,6 +6,7 @@
 //! Per go-ethereum reference implementation, SHA256 is used for tree hashing.
 
 use alloy_primitives::B256;
+use sha2::{Digest, Sha256};
 
 /// Trait for hash functions used in the UBT.
 ///
@@ -22,10 +23,10 @@ pub trait Hasher: Clone + Default + Send + Sync {
     /// Hash a 32-byte value (for leaf nodes)
     fn hash_32(&self, value: &B256) -> B256;
 
-    /// Hash a 64-byte value (for internal nodes: left_hash || right_hash)
+    /// Hash a 64-byte value (for internal nodes: `left_hash` || `right_hash`)
     fn hash_64(&self, left: &B256, right: &B256) -> B256;
 
-    /// Hash for stem node: hash(stem || 0x00 || subtree_root)
+    /// Hash for stem node: `hash(stem || 0x00 || subtree_root)`
     fn hash_stem_node(&self, stem: &[u8; 31], subtree_root: &B256) -> B256 {
         let mut input = [0u8; 64];
         input[..31].copy_from_slice(stem);
@@ -50,7 +51,6 @@ impl Hasher for Sha256Hasher {
         if value.is_zero() {
             return B256::ZERO;
         }
-        use sha2::{Digest, Sha256};
         let hash = Sha256::digest(value.as_slice());
         B256::from_slice(&hash)
     }
@@ -60,7 +60,6 @@ impl Hasher for Sha256Hasher {
             return B256::ZERO;
         }
 
-        use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         hasher.update(left.as_slice());
         hasher.update(right.as_slice());
@@ -71,7 +70,6 @@ impl Hasher for Sha256Hasher {
         if input.iter().all(|&b| b == 0) {
             return B256::ZERO;
         }
-        use sha2::{Digest, Sha256};
         B256::from_slice(&Sha256::digest(input))
     }
 }

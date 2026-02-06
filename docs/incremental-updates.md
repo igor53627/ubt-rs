@@ -44,18 +44,18 @@ let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
 for (key, value) in initial_data {
     tree.insert(key, value);
 }
-let initial_root = tree.root_hash(); // Full rebuild
+let initial_root = tree.root_hash().unwrap(); // Full rebuild
 
 // Phase 2: Block execution (switch to incremental)
 tree.enable_incremental_mode();
-tree.root_hash(); // Populates the cache
+tree.root_hash().unwrap(); // Populates the cache
 
 // Now each block's updates are O(D * C) instead of O(S log S)
 for block in blocks {
     for (key, value) in block.state_changes() {
         tree.insert(key, value);
     }
-    let block_root = tree.root_hash(); // Incremental update
+    let block_root = tree.root_hash().unwrap(); // Incremental update
 }
 
 // Phase 3: Back to bulk mode if needed

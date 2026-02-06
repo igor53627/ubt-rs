@@ -167,7 +167,7 @@ fn test_against_ocaml_oracle() {
     let ocaml_result = ffi_insert(&mut ocaml_tree, key_bytes, value_bytes);
     
     // 3. Compare root hashes
-    assert_eq!(rust_result.root_hash(), ocaml_result.root_hash());
+    assert_eq!(rust_result.root_hash().unwrap(), ocaml_result.root_hash());
 }
 ```
 

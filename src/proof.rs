@@ -50,12 +50,22 @@ impl Proof {
     }
 
     /// Verify this proof against an expected root hash.
+    ///
+    /// Returns `Ok(true)` if the computed root matches `expected_root`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the proof is structurally invalid.
     pub fn verify<H: Hasher>(&self, hasher: &H, expected_root: &B256) -> Result<bool> {
         let computed_root = self.compute_root(hasher)?;
         Ok(&computed_root == expected_root)
     }
 
     /// Compute the root hash from this proof.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the proof is structurally invalid.
     pub fn compute_root<H: Hasher>(&self, hasher: &H) -> Result<B256> {
         let mut current_hash = match &self.value {
             Some(v) => hasher.hash_32(v),
@@ -74,6 +84,13 @@ impl Proof {
                     stem,
                     subtree_siblings,
                 } => {
+                    if subtree_siblings.len() != 8 {
+                        return Err(UbtError::InvalidProof(format!(
+                            "stem subtree siblings length must be 8, got {}",
+                            subtree_siblings.len()
+                        )));
+                    }
+
                     // Rebuild subtree hash from siblings
                     for (level, sibling) in subtree_siblings.iter().enumerate() {
                         let bit = (self.key.subindex >> (7 - level)) & 1;
@@ -120,6 +137,7 @@ impl Proof {
 }
 
 /// Generate a proof for a key in a stem node.
+#[must_use]
 pub fn generate_stem_proof<H: Hasher>(
     stem_node: &StemNode,
     subindex: u8,
@@ -224,7 +242,7 @@ impl Witness {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Blake3Hasher, Sha256Hasher};
+    use crate::Sha256Hasher;
 
     #[test]
     fn test_stem_proof_generation() {
@@ -261,19 +279,23 @@ mod tests {
         assert!(size > 0);
     }
 
-    #[test]
-    fn test_proof_verify_simple() {
-        let hasher = Sha256Hasher;
-        let stem = Stem::new([0u8; 31]);
+    /// Build a stem-only proof using `generate_stem_proof`.
+    ///
+    /// Callers that care about proof-shape invariants (e.g., sibling count) should assert on
+    /// `proof.path`.
+    fn build_stem_proof<H: Hasher>(
+        hasher: &H,
+        stem: Stem,
+        subindex: u8,
+        value: B256,
+    ) -> (Proof, B256) {
         let mut node = StemNode::new(stem);
+        node.set_value(subindex, value);
 
-        let value = B256::repeat_byte(0x42);
-        node.set_value(0, value);
+        let (generated_value, siblings) = generate_stem_proof(&node, subindex, hasher);
+        assert_eq!(generated_value, Some(value));
 
-        // Generate proof
-        let (_, siblings) = generate_stem_proof(&node, 0, &hasher);
-
-        let key = TreeKey::new(stem, 0);
+        let key = TreeKey::new(stem, subindex);
         let proof = Proof::new(
             key,
             Some(value),
@@ -283,11 +305,52 @@ mod tests {
             }],
         );
 
-        // The computed root should match the node's hash
-        let expected_root = node.hash(&hasher);
+        (proof, node.hash(hasher))
+    }
+
+    #[test]
+    fn test_proof_verify_simple() {
+        let hasher = Sha256Hasher;
+        let stem = Stem::new([0u8; 31]);
+        let value = B256::repeat_byte(0x42);
+
+        let (proof, expected_root) = build_stem_proof(&hasher, stem, 0, value);
         let result = proof.verify(&hasher, &expected_root);
 
         assert!(result.is_ok());
         assert!(result.unwrap());
+    }
+
+    #[test]
+    fn test_compute_root_rejects_invalid_stem_sibling_lengths() {
+        let hasher = Sha256Hasher;
+        let stem = Stem::new([0u8; 31]);
+        let key = TreeKey::new(stem, 0);
+        let value = B256::repeat_byte(0x42);
+
+        for len in [0usize, 7, 9] {
+            let proof = Proof::new(
+                key,
+                Some(value),
+                vec![ProofNode::Stem {
+                    stem,
+                    subtree_siblings: vec![B256::ZERO; len],
+                }],
+            );
+
+            let err = proof.compute_root(&hasher).unwrap_err();
+            assert!(matches!(err, UbtError::InvalidProof(_)));
+        }
+
+        let (proof_ok, expected_root) = build_stem_proof(&hasher, stem, 0, value);
+        let ProofNode::Stem {
+            subtree_siblings, ..
+        } = proof_ok.path.first().unwrap()
+        else {
+            panic!("expected a stem proof node");
+        };
+        assert_eq!(subtree_siblings.len(), 8);
+
+        assert_eq!(proof_ok.compute_root(&hasher).unwrap(), expected_root);
     }
 }
