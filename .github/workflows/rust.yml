@@ -59,7 +59,8 @@ jobs:
         run: cargo test --no-default-features --tests --no-run
 
       # Note: we intentionally don't run clippy on test targets under `--no-default-features`
-      # (too noisy for `-D warnings`). We still compile tests under that configuration above.
+      # (too noisy for `-D warnings`). We still run unit tests (`--lib`) and compile integration
+      # tests (`--tests --no-run`) under that configuration above.
       - name: Run property tests
         run: cargo test --test proptests
         env:
