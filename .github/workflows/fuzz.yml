@@ -51,6 +51,7 @@ jobs:
           DURATION: ${{ inputs.duration }}
         run: |
           set -euo pipefail
+          set -f
 
           if ! [[ "$DURATION" =~ ^[0-9]+$ ]]; then
             echo "::error::duration must be an integer number of seconds (got: $DURATION)"
@@ -62,7 +63,7 @@ jobs:
             exit 1
           fi
 
-          targets=($FUZZ_TARGETS)
+          read -r -a targets <<<"$FUZZ_TARGETS"
           valid_target=false
           for t in "${targets[@]}"; do
             if [[ "$t" == "$TARGET" ]]; then
@@ -78,8 +79,7 @@ jobs:
           echo "Fuzzing $TARGET for ${DURATION_INT} seconds"
           cargo +nightly-2026-02-01 fuzz run "$TARGET" -- \
             -max_total_time="$DURATION_INT" \
-            -print_final_stats=1
-        continue-on-error: true
+            -print_final_stats=1 || true
 
       - name: Run all fuzz targets
         if: inputs.target == 'all'
@@ -87,6 +87,7 @@ jobs:
           DURATION: ${{ inputs.duration }}
         run: |
           set -euo pipefail
+          set -f
 
           if ! [[ "$DURATION" =~ ^[0-9]+$ ]]; then
             echo "::error::duration must be an integer number of seconds (got: $DURATION)"
@@ -98,13 +99,19 @@ jobs:
             exit 1
           fi
 
-          targets=($FUZZ_TARGETS)
-          if (( ${#targets[@]} == 0 )); then
+          read -r -a targets <<<"$FUZZ_TARGETS"
+          num_targets=${#targets[@]}
+          if (( num_targets == 0 )); then
             echo "::error::FUZZ_TARGETS is empty"
             exit 1
           fi
 
-          DURATION_PER_TARGET=$(( DURATION_INT / ${#targets[@]} ))
+          if (( DURATION_INT < num_targets )); then
+            echo "::error::duration must be >= ${num_targets} seconds when target=all (got: $DURATION_INT)"
+            exit 1
+          fi
+
+          DURATION_PER_TARGET=$(( DURATION_INT / num_targets ))
           if (( DURATION_PER_TARGET < 1 )); then
             DURATION_PER_TARGET=1
           fi
@@ -116,7 +123,6 @@ jobs:
               -max_total_time="$DURATION_PER_TARGET" \
               -print_final_stats=1 || true
           done
-        continue-on-error: true
 
       - name: Upload crash artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
