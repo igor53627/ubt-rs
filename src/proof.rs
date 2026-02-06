@@ -84,6 +84,13 @@ impl Proof {
                     stem,
                     subtree_siblings,
                 } => {
+                    if subtree_siblings.len() != 8 {
+                        return Err(UbtError::InvalidProof(format!(
+                            "stem subtree siblings length must be 8, got {}",
+                            subtree_siblings.len()
+                        )));
+                    }
+
                     // Rebuild subtree hash from siblings
                     for (level, sibling) in subtree_siblings.iter().enumerate() {
                         let bit = (self.key.subindex >> (7 - level)) & 1;

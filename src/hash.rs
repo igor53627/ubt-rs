@@ -6,6 +6,7 @@
 //! Per go-ethereum reference implementation, SHA256 is used for tree hashing.
 
 use alloy_primitives::B256;
+use sha2::{Digest, Sha256};
 
 /// Trait for hash functions used in the UBT.
 ///
@@ -47,8 +48,6 @@ pub struct Sha256Hasher;
 
 impl Hasher for Sha256Hasher {
     fn hash_32(&self, value: &B256) -> B256 {
-        use sha2::{Digest, Sha256};
-
         if value.is_zero() {
             return B256::ZERO;
         }
@@ -57,8 +56,6 @@ impl Hasher for Sha256Hasher {
     }
 
     fn hash_64(&self, left: &B256, right: &B256) -> B256 {
-        use sha2::{Digest, Sha256};
-
         if left.is_zero() && right.is_zero() {
             return B256::ZERO;
         }
@@ -70,8 +67,6 @@ impl Hasher for Sha256Hasher {
     }
 
     fn hash_raw(&self, input: &[u8]) -> B256 {
-        use sha2::{Digest, Sha256};
-
         if input.iter().all(|&b| b == 0) {
             return B256::ZERO;
         }

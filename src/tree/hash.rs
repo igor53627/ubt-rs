@@ -1,7 +1,6 @@
 //! Root-hash computation and rebuild logic for [`UnifiedBinaryTree`].
 
 use alloy_primitives::B256;
-use std::collections::HashSet;
 
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
@@ -18,6 +17,21 @@ fn set_bit_at(mut value: B256, pos: usize) -> B256 {
     let bit_idx = 7 - (pos % 8);
     value.0[byte_idx] |= 1 << bit_idx;
     value
+}
+
+fn b256_matches_prefix(value: &B256, prefix: &B256, depth: usize) -> bool {
+    let full_bytes = depth / 8;
+    if value.0[..full_bytes] != prefix.0[..full_bytes] {
+        return false;
+    }
+
+    let rem_bits = depth % 8;
+    if rem_bits == 0 {
+        return true;
+    }
+
+    let mask = 0xFFu8 << (8 - rem_bits);
+    (value.0[full_bytes] & mask) == (prefix.0[full_bytes] & mask)
 }
 
 impl<H: Hasher> UnifiedBinaryTree<H> {
@@ -250,8 +264,12 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
             return Ok(());
         }
 
-        let dirty_set: HashSet<_> = dirty_stems.iter().copied().collect();
-        let root_hash = self.incremental_hash_update(&stem_hashes, 0, B256::ZERO, &dirty_set)?;
+        let mut dirty_stems_sorted: Vec<_> = dirty_stems.to_vec();
+        dirty_stems_sorted.sort();
+        dirty_stems_sorted.dedup();
+
+        let root_hash =
+            self.incremental_hash_update(&stem_hashes, 0, B256::ZERO, &dirty_stems_sorted)?;
 
         let stems: Vec<_> = stem_hashes.iter().map(|(s, _)| *s).collect();
         let root = self.build_tree_from_sorted_stems(&stems, 0)?;
@@ -262,36 +280,31 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         Ok(())
     }
 
-    /// Check if a stem's path matches the given prefix up to depth bits.
-    fn stem_matches_prefix(stem: &Stem, prefix: B256, depth: usize) -> bool {
-        for i in 0..depth {
-            let stem_bit = stem.bit_at(i);
-            let prefix_bit = {
-                let byte_idx = i / 8;
-                let bit_idx = 7 - (i % 8);
-                (prefix.0[byte_idx] >> bit_idx) & 1 == 1
-            };
-            if stem_bit != prefix_bit {
-                return false;
-            }
-        }
-        true
-    }
-
     /// Recursively update the tree hash, only recomputing paths that contain dirty stems.
     fn incremental_hash_update(
         &mut self,
         stem_hashes: &[(Stem, B256)],
         depth: usize,
         path_prefix: B256,
-        dirty_stems: &HashSet<Stem>,
+        dirty_stems: &[Stem],
     ) -> Result<B256> {
         if stem_hashes.is_empty() {
-            self.node_hash_cache.remove(&(depth, path_prefix));
+            self.prune_node_hash_cache_subtree(depth, path_prefix);
             return Ok(B256::ZERO);
         }
 
+        if dirty_stems.is_empty() {
+            if let Some(hash) = self.node_hash_cache.get(&(depth, path_prefix)).copied() {
+                return Ok(hash);
+            }
+            return self.build_root_hash_with_cache(stem_hashes, depth, path_prefix);
+        }
+
         if stem_hashes.len() == 1 {
+            // When a subtree collapses to a single stem, treat it as a leaf at this depth and
+            // clear any cached descendants to prevent stale entries being reused later.
+            self.prune_node_hash_cache_descendants(depth, path_prefix);
+
             let hash = stem_hashes[0].1;
             self.node_hash_cache.insert((depth, path_prefix), hash);
             return Ok(hash);
@@ -304,43 +317,14 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         let split_point = stem_hashes.partition_point(|(s, _)| !s.bit_at(depth));
         let (left, right) = stem_hashes.split_at(split_point);
 
+        let dirty_split = dirty_stems.partition_point(|s| !s.bit_at(depth));
+        let (left_dirty, right_dirty) = dirty_stems.split_at(dirty_split);
+
         let right_prefix = set_bit_at(path_prefix, depth);
 
-        let left_has_dirty = left.iter().any(|(s, _)| dirty_stems.contains(s))
-            || dirty_stems
-                .iter()
-                .any(|s| !s.bit_at(depth) && Self::stem_matches_prefix(s, path_prefix, depth));
-        let right_has_dirty = right.iter().any(|(s, _)| dirty_stems.contains(s))
-            || dirty_stems
-                .iter()
-                .any(|s| s.bit_at(depth) && Self::stem_matches_prefix(s, path_prefix, depth));
-
-        let left_hash =
-            if left_has_dirty || !self.node_hash_cache.contains_key(&(depth + 1, path_prefix)) {
-                self.incremental_hash_update(left, depth + 1, path_prefix, dirty_stems)?
-            } else if left.is_empty() {
-                B256::ZERO
-            } else {
-                *self
-                    .node_hash_cache
-                    .get(&(depth + 1, path_prefix))
-                    .expect("cache entry guaranteed by contains_key check")
-            };
-
-        let right_hash = if right_has_dirty
-            || !self
-                .node_hash_cache
-                .contains_key(&(depth + 1, right_prefix))
-        {
-            self.incremental_hash_update(right, depth + 1, right_prefix, dirty_stems)?
-        } else if right.is_empty() {
-            B256::ZERO
-        } else {
-            *self
-                .node_hash_cache
-                .get(&(depth + 1, right_prefix))
-                .expect("cache entry guaranteed by contains_key check")
-        };
+        let left_hash = self.incremental_hash_update(left, depth + 1, path_prefix, left_dirty)?;
+        let right_hash =
+            self.incremental_hash_update(right, depth + 1, right_prefix, right_dirty)?;
 
         let node_hash = if left_hash.is_zero() && right_hash.is_zero() {
             B256::ZERO
@@ -354,6 +338,32 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
 
         self.node_hash_cache.insert((depth, path_prefix), node_hash);
         Ok(node_hash)
+    }
+
+    fn prune_node_hash_cache_descendants(&mut self, depth: usize, path_prefix: B256) {
+        let keys_to_remove: Vec<_> = self
+            .node_hash_cache
+            .keys()
+            .filter(|(d, prefix)| *d > depth && b256_matches_prefix(prefix, &path_prefix, depth))
+            .copied()
+            .collect();
+
+        for k in keys_to_remove {
+            self.node_hash_cache.remove(&k);
+        }
+    }
+
+    fn prune_node_hash_cache_subtree(&mut self, depth: usize, path_prefix: B256) {
+        let keys_to_remove: Vec<_> = self
+            .node_hash_cache
+            .keys()
+            .filter(|(d, prefix)| *d >= depth && b256_matches_prefix(prefix, &path_prefix, depth))
+            .copied()
+            .collect();
+
+        for k in keys_to_remove {
+            self.node_hash_cache.remove(&k);
+        }
     }
 
     /// Enable incremental root hash updates.
@@ -426,7 +436,9 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         &mut self,
         entries: impl IntoIterator<Item = (TreeKey, B256)>,
     ) -> Result<()> {
+        let mut inserted_any = false;
         for (key, value) in entries {
+            inserted_any = true;
             let stem_node = self
                 .stems
                 .entry(key.stem)
@@ -434,8 +446,11 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
             stem_node.set_value(key.subindex, value);
             self.dirty_stem_hashes.insert(key.stem);
         }
-        self.rebuild_root()?;
-        self.root_dirty = false;
+        if inserted_any {
+            self.root_dirty = true;
+            self.rebuild_root()?;
+            self.root_dirty = false;
+        }
         Ok(())
     }
 
@@ -450,7 +465,9 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         mut on_progress: impl FnMut(usize),
     ) -> Result<()> {
         let mut count = 0usize;
+        let mut inserted_any = false;
         for (key, value) in entries {
+            inserted_any = true;
             let stem_node = self
                 .stems
                 .entry(key.stem)
@@ -460,8 +477,11 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
             count += 1;
             on_progress(count);
         }
-        self.rebuild_root()?;
-        self.root_dirty = false;
+        if inserted_any {
+            self.root_dirty = true;
+            self.rebuild_root()?;
+            self.root_dirty = false;
+        }
         Ok(())
     }
 }

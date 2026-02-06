@@ -1,10 +1,10 @@
 //! Tree node types for the UBT.
 //!
 //! Four node types per EIP-7864:
-//! - `InternalNode`: Has `left_hash` and `right_hash` (black nodes in diagrams)
-//! - `StemNode`: Has `stem`, `left_hash` and `right_hash` (blue nodes)
-//! - `LeafNode`: Contains a 32-byte value (orange nodes)
-//! - `EmptyNode`: Represents empty subtree (`hash = 0`)
+//! - [`InternalNode`]: Branching node with `left` and `right` child nodes (black nodes in diagrams)
+//! - [`StemNode`]: Contains a `stem` and sparse `values` map for its 256-leaf subtree (blue nodes)
+//! - [`LeafNode`]: Contains a 32-byte `value` (orange nodes)
+//! - Empty node (`Node::Empty`): Represents an empty subtree (`hash = 0`)
 
 use alloy_primitives::B256;
 use std::collections::HashMap;
