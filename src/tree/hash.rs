@@ -19,8 +19,10 @@ fn set_bit_at(mut value: B256, pos: usize) -> B256 {
     value
 }
 
+/// Returns whether `value` shares the first `depth` bits with `prefix`.
+///
+/// Bits are interpreted MSB-first within each byte.
 fn b256_matches_prefix(value: &B256, prefix: &B256, depth: usize) -> bool {
-    // MSRV is pinned (Cargo.toml `rust-version`), so format-string capture is fine here.
     debug_assert!(depth <= 256, "depth must be <= 256, got {depth}");
     if depth > 256 {
         return false;
@@ -575,6 +577,65 @@ mod tests {
             &B256::from(v9),
             &B256::from(p9_bad),
             9
+        ));
+
+        // Depth = 8: compare first byte only.
+        let mut v8 = [0u8; 32];
+        v8[0] = 0xAA;
+        let mut p8_ok = [0u8; 32];
+        p8_ok[0] = 0xAA;
+        let mut p8_bad = [0u8; 32];
+        p8_bad[0] = 0xAB;
+
+        assert!(b256_matches_prefix(&B256::from(v8), &B256::from(p8_ok), 8));
+        assert!(!b256_matches_prefix(
+            &B256::from(v8),
+            &B256::from(p8_bad),
+            8
+        ));
+
+        // Depth = 15: compare first byte plus the top 7 bits of the second byte.
+        let mut v15 = [0u8; 32];
+        v15[0] = 0xAA;
+        v15[1] = 0xFE;
+        let mut p15_ok = [0u8; 32];
+        p15_ok[0] = 0xAA;
+        p15_ok[1] = 0xFF;
+        let mut p15_bad = [0u8; 32];
+        p15_bad[0] = 0xAA;
+        p15_bad[1] = 0x7E;
+
+        assert!(b256_matches_prefix(
+            &B256::from(v15),
+            &B256::from(p15_ok),
+            15
+        ));
+        assert!(!b256_matches_prefix(
+            &B256::from(v15),
+            &B256::from(p15_bad),
+            15
+        ));
+
+        // Depth = 255: compare the first 31 bytes plus the top 7 bits of the last byte.
+        let mut v255 = [0u8; 32];
+        v255[..31].fill(0xAA);
+        v255[31] = 0xFE;
+        let mut p255_ok = [0u8; 32];
+        p255_ok[..31].fill(0xAA);
+        p255_ok[31] = 0xFF;
+        let mut p255_bad = [0u8; 32];
+        p255_bad[..31].fill(0xAA);
+        p255_bad[31] = 0x7E;
+
+        assert!(b256_matches_prefix(
+            &B256::from(v255),
+            &B256::from(p255_ok),
+            255
+        ));
+        assert!(!b256_matches_prefix(
+            &B256::from(v255),
+            &B256::from(p255_bad),
+            255
         ));
     }
 
