@@ -308,4 +308,25 @@ mod tests {
         assert!(result.is_ok());
         assert!(result.unwrap());
     }
+
+    #[test]
+    fn test_compute_root_rejects_invalid_stem_sibling_lengths() {
+        let hasher = Sha256Hasher;
+        let stem = Stem::new([0u8; 31]);
+        let key = TreeKey::new(stem, 0);
+
+        for len in [0usize, 7, 9] {
+            let proof = Proof::new(
+                key,
+                Some(B256::repeat_byte(0x42)),
+                vec![ProofNode::Stem {
+                    stem,
+                    subtree_siblings: vec![B256::ZERO; len],
+                }],
+            );
+
+            let err = proof.compute_root(&hasher).unwrap_err();
+            assert!(matches!(err, UbtError::InvalidProof(_)));
+        }
+    }
 }

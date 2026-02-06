@@ -20,6 +20,7 @@ fn set_bit_at(mut value: B256, pos: usize) -> B256 {
 }
 
 fn b256_matches_prefix(value: &B256, prefix: &B256, depth: usize) -> bool {
+    debug_assert!(depth <= 256);
     let full_bytes = depth / 8;
     if value.0[..full_bytes] != prefix.0[..full_bytes] {
         return false;
@@ -317,6 +318,22 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         let split_point = stem_hashes.partition_point(|(s, _)| !s.bit_at(depth));
         let (left, right) = stem_hashes.split_at(split_point);
 
+        // `dirty_stems` is sorted and already restricted to this subtree's prefix.
+        // That makes `bit_at(depth)` monotone on this slice, so `partition_point` is valid.
+        #[cfg(debug_assertions)]
+        {
+            let mut seen_one = false;
+            for s in dirty_stems {
+                if s.bit_at(depth) {
+                    seen_one = true;
+                } else {
+                    debug_assert!(
+                        !seen_one,
+                        "dirty_stems must be partitioned at depth {depth}",
+                    );
+                }
+            }
+        }
         let dirty_split = dirty_stems.partition_point(|s| !s.bit_at(depth));
         let (left_dirty, right_dirty) = dirty_stems.split_at(dirty_split);
 
@@ -341,29 +358,15 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     }
 
     fn prune_node_hash_cache_descendants(&mut self, depth: usize, path_prefix: B256) {
-        let keys_to_remove: Vec<_> = self
-            .node_hash_cache
-            .keys()
-            .filter(|(d, prefix)| *d > depth && b256_matches_prefix(prefix, &path_prefix, depth))
-            .copied()
-            .collect();
-
-        for k in keys_to_remove {
-            self.node_hash_cache.remove(&k);
-        }
+        self.node_hash_cache.retain(|(d, prefix), _| {
+            !(*d > depth && b256_matches_prefix(prefix, &path_prefix, depth))
+        });
     }
 
     fn prune_node_hash_cache_subtree(&mut self, depth: usize, path_prefix: B256) {
-        let keys_to_remove: Vec<_> = self
-            .node_hash_cache
-            .keys()
-            .filter(|(d, prefix)| *d >= depth && b256_matches_prefix(prefix, &path_prefix, depth))
-            .copied()
-            .collect();
-
-        for k in keys_to_remove {
-            self.node_hash_cache.remove(&k);
-        }
+        self.node_hash_cache.retain(|(d, prefix), _| {
+            !(*d >= depth && b256_matches_prefix(prefix, &path_prefix, depth))
+        });
     }
 
     /// Enable incremental root hash updates.
