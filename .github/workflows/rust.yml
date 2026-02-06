@@ -78,6 +78,7 @@ jobs:
       - name: Run clippy (no default features, lib)
         run: cargo clippy --no-default-features --lib -- -D warnings
 
+      # This crate's feature flags are intended to be composable; `--all-features` should build cleanly.
       - name: Run clippy (all features, lib)
         run: cargo clippy --all-features --lib -- -D warnings
 
