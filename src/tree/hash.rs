@@ -20,9 +20,7 @@ fn set_bit_at(mut value: B256, pos: usize) -> B256 {
 }
 
 fn b256_matches_prefix(value: &B256, prefix: &B256, depth: usize) -> bool {
-    if depth > 256 {
-        return false;
-    }
+    assert!(depth <= 256, "depth must be <= 256, got {depth}");
     let full_bytes = depth / 8;
     if value.0[..full_bytes] != prefix.0[..full_bytes] {
         return false;

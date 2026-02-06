@@ -314,11 +314,12 @@ mod tests {
         let hasher = Sha256Hasher;
         let stem = Stem::new([0u8; 31]);
         let key = TreeKey::new(stem, 0);
+        let value = B256::repeat_byte(0x42);
 
         for len in [0usize, 7, 9] {
             let proof = Proof::new(
                 key,
-                Some(B256::repeat_byte(0x42)),
+                Some(value),
                 vec![ProofNode::Stem {
                     stem,
                     subtree_siblings: vec![B256::ZERO; len],
@@ -329,14 +330,20 @@ mod tests {
             assert!(matches!(err, UbtError::InvalidProof(_)));
         }
 
+        let mut node = StemNode::new(stem);
+        node.set_value(0, value);
+        let (_, siblings) = generate_stem_proof(&node, 0, &hasher);
+        assert_eq!(siblings.len(), 8);
+
         let proof_ok = Proof::new(
             key,
-            Some(B256::repeat_byte(0x42)),
+            Some(value),
             vec![ProofNode::Stem {
                 stem,
-                subtree_siblings: vec![B256::ZERO; 8],
+                subtree_siblings: siblings,
             }],
         );
-        assert!(proof_ok.compute_root(&hasher).is_ok());
+        let expected_root = node.hash(&hasher);
+        assert_eq!(proof_ok.compute_root(&hasher).unwrap(), expected_root);
     }
 }
