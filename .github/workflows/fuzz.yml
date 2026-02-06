@@ -35,16 +35,16 @@ jobs:
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@881ba7bf39a41cda34ac9e123fb41b44ed08232f # nightly
         with:
-          toolchain: nightly
+          toolchain: nightly-2026-02-01
 
       - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz
+        run: cargo install cargo-fuzz --version 0.13.1 --locked
 
       - name: Run fuzzing - ${{ inputs.target }}
         if: inputs.target != 'all'
         run: |
           echo "Fuzzing ${{ inputs.target }} for ${{ inputs.duration }} seconds"
-          cargo +nightly fuzz run ${{ inputs.target }} -- \
+          cargo +nightly-2026-02-01 fuzz run ${{ inputs.target }} -- \
             -max_total_time=${{ inputs.duration }} \
             -print_final_stats=1
         continue-on-error: true
@@ -57,7 +57,7 @@ jobs:
           
           for target in fuzz_tree_ops fuzz_proof_decode fuzz_code_chunk fuzz_basic_data fuzz_streaming fuzz_embedding; do
             echo "=== Fuzzing $target for ${DURATION_PER_TARGET}s ==="
-            cargo +nightly fuzz run $target -- \
+            cargo +nightly-2026-02-01 fuzz run $target -- \
               -max_total_time=${DURATION_PER_TARGET} \
               -print_final_stats=1 || true
           done

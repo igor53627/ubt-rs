@@ -38,7 +38,6 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
-            ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
@@ -102,7 +101,6 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
-            ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
@@ -116,6 +114,9 @@ jobs:
 
       - name: Run unit tests (library)
         run: cargo test --lib --all-features
+
+      - name: Run integration smoke tests
+        run: cargo test --test integration_export --all-features
 
       - name: Check formatting
         run: cargo fmt --check
