@@ -362,7 +362,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     }
 
     fn prune_node_hash_cache_descendants(&mut self, depth: usize, path_prefix: B256) {
-        if depth > 256 {
+        if depth > MAX_DEPTH {
             // `depth` should be bounded by `MAX_DEPTH`; if it is ever invalid, clear the cache
             // to avoid reusing stale entries.
             self.node_hash_cache.clear();
@@ -374,7 +374,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     }
 
     fn prune_node_hash_cache_subtree(&mut self, depth: usize, path_prefix: B256) {
-        if depth > 256 {
+        if depth > MAX_DEPTH {
             // See `prune_node_hash_cache_descendants`.
             self.node_hash_cache.clear();
             return;
@@ -543,12 +543,48 @@ mod tests {
     }
 
     #[test]
+    fn test_b256_matches_prefix_partial_depths() {
+        // Depth = 1: compare MSB of the first byte.
+        let mut v1 = [0u8; 32];
+        v1[0] = 0x80;
+        let mut p1_ok = [0u8; 32];
+        p1_ok[0] = 0x80;
+        let mut p1_bad = [0u8; 32];
+        p1_bad[0] = 0x00;
+
+        assert!(b256_matches_prefix(&B256::from(v1), &B256::from(p1_ok), 1));
+        assert!(!b256_matches_prefix(
+            &B256::from(v1),
+            &B256::from(p1_bad),
+            1
+        ));
+
+        // Depth = 9: compare first byte plus MSB of the second byte.
+        let mut v9 = [0u8; 32];
+        v9[0] = 0xAA;
+        v9[1] = 0x80;
+        let mut p9_ok = [0u8; 32];
+        p9_ok[0] = 0xAA;
+        p9_ok[1] = 0x80;
+        let mut p9_bad = [0u8; 32];
+        p9_bad[0] = 0xAA;
+        p9_bad[1] = 0x00;
+
+        assert!(b256_matches_prefix(&B256::from(v9), &B256::from(p9_ok), 9));
+        assert!(!b256_matches_prefix(
+            &B256::from(v9),
+            &B256::from(p9_bad),
+            9
+        ));
+    }
+
+    #[test]
     fn test_prune_node_hash_cache_invalid_depth_clears_cache() {
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
         tree.node_hash_cache
             .insert((0, B256::ZERO), B256::repeat_byte(1));
 
-        tree.prune_node_hash_cache_subtree(257, B256::ZERO);
+        tree.prune_node_hash_cache_subtree(MAX_DEPTH + 1, B256::ZERO);
         assert!(tree.node_hash_cache.is_empty());
     }
 }

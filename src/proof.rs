@@ -292,7 +292,8 @@ mod tests {
         let mut node = StemNode::new(stem);
         node.set_value(subindex, value);
 
-        let (_, siblings) = generate_stem_proof(&node, subindex, hasher);
+        let (generated_value, siblings) = generate_stem_proof(&node, subindex, hasher);
+        assert_eq!(generated_value, Some(value));
 
         let key = TreeKey::new(stem, subindex);
         let proof = Proof::new(
