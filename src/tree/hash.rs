@@ -662,7 +662,12 @@ mod tests {
         let right_prefix = set_bit_at(B256::ZERO, 0);
         assert!(tree.node_hash_cache.contains_key(&(1, right_prefix)));
 
-        // Simulate a subtree becoming empty while "dirty stem" information is lost.
+        // Make the right subtree empty, but simulate "lost dirty info" by not providing any
+        // dirty stems to the incremental update logic.
+        tree.delete(&key_right);
+        tree.dirty_stem_hashes.clear();
+        tree.stem_hash_cache.remove(&key_right.stem);
+
         let out = tree
             .incremental_hash_update(&[], 1, right_prefix, &[])
             .unwrap();
