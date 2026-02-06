@@ -299,7 +299,11 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         dirty_stems: &[Stem],
     ) -> Result<B256> {
         if stem_hashes.is_empty() {
-            self.prune_node_hash_cache_subtree(depth, path_prefix);
+            // Avoid scanning the entire cache for subtrees that are and always were empty.
+            // If this subtree became empty due to deletions, `dirty_stems` will be non-empty.
+            if !dirty_stems.is_empty() {
+                self.prune_node_hash_cache_subtree(depth, path_prefix);
+            }
             return Ok(B256::ZERO);
         }
 
