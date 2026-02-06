@@ -13,8 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added `rust-toolchain.toml` pinning local development to `1.85.0`
 
 ### Changed
-- **MSRV bumped to Rust 1.85**
-  - Updated `Cargo.toml` `rust-version` to `1.85` to match dependency requirements (edition 2024 crates)
+- **MSRV is Rust 1.85**
+  - `Cargo.toml` declares `rust-version = "1.85"` to match dependency requirements (edition 2024 crates)
 
 ## [0.2.3] - 2025-12-24
 

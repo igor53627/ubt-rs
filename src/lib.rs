@@ -78,6 +78,14 @@
 
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 
+// Optional deps used by the `simulate` binary. Rust checks unused deps per-crate,
+// so we reference them here to avoid `unused_crate_dependencies` warnings when the
+// feature is enabled.
+#[cfg(feature = "simulate")]
+use num_cpus as _;
+#[cfg(feature = "simulate")]
+use rand as _;
+
 mod code;
 mod compat_tests;
 mod embedding;
