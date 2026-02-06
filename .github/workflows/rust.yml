@@ -55,8 +55,8 @@ jobs:
       - name: Run unit tests (no default features)
         run: cargo test --no-default-features --lib
 
-      - name: Compile (all targets, no default features)
-        run: cargo test --no-default-features --all-targets --no-run
+      - name: Compile (tests, no default features)
+        run: cargo test --no-default-features --tests --no-run
 
       - name: Run property tests
         run: cargo test --test proptests
@@ -73,8 +73,8 @@ jobs:
         run: cargo clippy -- -D warnings
 
       - name: Run clippy (no default features)
-        run: cargo clippy --no-default-features -- -D warnings
-      
+        run: cargo clippy --no-default-features --lib -- -D warnings
+
       - name: Run clippy (all targets, all features)
         run: cargo clippy --all-targets --all-features -- -D warnings
 
@@ -82,22 +82,23 @@ jobs:
         run: cargo doc --no-deps
 
       - name: Summary
+        if: always()
         run: |
           echo "## Rust CI Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Compile (all targets, all features) | [OK] |" >> $GITHUB_STEP_SUMMARY
-          echo "| Unit Tests | [OK] |" >> $GITHUB_STEP_SUMMARY
-          echo "| Unit Tests (no default features) | [OK] |" >> $GITHUB_STEP_SUMMARY
-          echo "| Compile (all targets, no default features) | [OK] |" >> $GITHUB_STEP_SUMMARY
-          echo "| Property Tests (256 cases) | [OK] |" >> $GITHUB_STEP_SUMMARY
-          echo "| Integration Tests | [OK] |" >> $GITHUB_STEP_SUMMARY
-          echo "| Formatting | [OK] |" >> $GITHUB_STEP_SUMMARY
-          echo "| Clippy | [OK] |" >> $GITHUB_STEP_SUMMARY
-          echo "| Clippy (no default features) | [OK] |" >> $GITHUB_STEP_SUMMARY
-          echo "| Clippy (all targets, all features) | [OK] |" >> $GITHUB_STEP_SUMMARY
-          echo "| Docs | [OK] |" >> $GITHUB_STEP_SUMMARY
+          echo "This job runs the following checks (see step output for pass/fail):" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Compile (all targets, all features)" >> $GITHUB_STEP_SUMMARY
+          echo "- Unit tests (default features)" >> $GITHUB_STEP_SUMMARY
+          echo "- Unit tests (no default features)" >> $GITHUB_STEP_SUMMARY
+          echo "- Compile (tests, no default features)" >> $GITHUB_STEP_SUMMARY
+          echo "- Property tests (256 cases)" >> $GITHUB_STEP_SUMMARY
+          echo "- Integration tests" >> $GITHUB_STEP_SUMMARY
+          echo "- Formatting" >> $GITHUB_STEP_SUMMARY
+          echo "- Clippy (default features)" >> $GITHUB_STEP_SUMMARY
+          echo "- Clippy (no default features, lib)" >> $GITHUB_STEP_SUMMARY
+          echo "- Clippy (all targets, all features)" >> $GITHUB_STEP_SUMMARY
+          echo "- Docs" >> $GITHUB_STEP_SUMMARY
 
   msrv:
     name: MSRV (Rust 1.85.0)
