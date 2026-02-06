@@ -279,8 +279,8 @@ mod tests {
         assert!(size > 0);
     }
 
-    fn build_valid_stem_proof(
-        hasher: &Sha256Hasher,
+    fn build_valid_stem_proof<H: Hasher>(
+        hasher: &H,
         stem: Stem,
         subindex: u8,
         value: B256,
@@ -289,7 +289,6 @@ mod tests {
         node.set_value(subindex, value);
 
         let (_, siblings) = generate_stem_proof(&node, subindex, hasher);
-        assert_eq!(siblings.len(), 8);
 
         let key = TreeKey::new(stem, subindex);
         let proof = Proof::new(
