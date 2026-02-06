@@ -279,19 +279,19 @@ mod tests {
         assert!(size > 0);
     }
 
-    #[test]
-    fn test_proof_verify_simple() {
-        let hasher = Sha256Hasher;
-        let stem = Stem::new([0u8; 31]);
+    fn build_valid_stem_proof(
+        hasher: &Sha256Hasher,
+        stem: Stem,
+        subindex: u8,
+        value: B256,
+    ) -> (Proof, B256) {
         let mut node = StemNode::new(stem);
+        node.set_value(subindex, value);
 
-        let value = B256::repeat_byte(0x42);
-        node.set_value(0, value);
+        let (_, siblings) = generate_stem_proof(&node, subindex, hasher);
+        assert_eq!(siblings.len(), 8);
 
-        // Generate proof
-        let (_, siblings) = generate_stem_proof(&node, 0, &hasher);
-
-        let key = TreeKey::new(stem, 0);
+        let key = TreeKey::new(stem, subindex);
         let proof = Proof::new(
             key,
             Some(value),
@@ -301,8 +301,16 @@ mod tests {
             }],
         );
 
-        // The computed root should match the node's hash
-        let expected_root = node.hash(&hasher);
+        (proof, node.hash(hasher))
+    }
+
+    #[test]
+    fn test_proof_verify_simple() {
+        let hasher = Sha256Hasher;
+        let stem = Stem::new([0u8; 31]);
+        let value = B256::repeat_byte(0x42);
+
+        let (proof, expected_root) = build_valid_stem_proof(&hasher, stem, 0, value);
         let result = proof.verify(&hasher, &expected_root);
 
         assert!(result.is_ok());
@@ -330,20 +338,15 @@ mod tests {
             assert!(matches!(err, UbtError::InvalidProof(_)));
         }
 
-        let mut node = StemNode::new(stem);
-        node.set_value(0, value);
-        let (_, siblings) = generate_stem_proof(&node, 0, &hasher);
-        assert_eq!(siblings.len(), 8);
+        let (proof_ok, expected_root) = build_valid_stem_proof(&hasher, stem, 0, value);
+        let ProofNode::Stem {
+            subtree_siblings, ..
+        } = proof_ok.path.first().unwrap()
+        else {
+            panic!("expected a stem proof node");
+        };
+        assert_eq!(subtree_siblings.len(), 8);
 
-        let proof_ok = Proof::new(
-            key,
-            Some(value),
-            vec![ProofNode::Stem {
-                stem,
-                subtree_siblings: siblings,
-            }],
-        );
-        let expected_root = node.hash(&hasher);
         assert_eq!(proof_ok.compute_root(&hasher).unwrap(), expected_root);
     }
 }
