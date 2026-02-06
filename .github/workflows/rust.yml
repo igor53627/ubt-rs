@@ -72,9 +72,10 @@ jobs:
       - name: Run clippy
         run: cargo clippy -- -D warnings
 
-      - name: Run clippy (no default features)
+      - name: Run clippy (no default features, lib)
         run: cargo clippy --no-default-features --lib -- -D warnings
 
+      # Ensure the crate and its tests build cleanly without default features (serial mode).
       - name: Run clippy (no default features, tests)
         run: cargo clippy --no-default-features --tests -- -D warnings
 
