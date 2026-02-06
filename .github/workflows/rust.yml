@@ -46,14 +46,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Build
-        run: cargo build --all-features
+      - name: Compile (all targets, all features)
+        run: cargo test --all-targets --all-features --no-run
 
       - name: Run unit tests
         run: cargo test --lib
 
       - name: Run unit tests (no default features)
         run: cargo test --no-default-features --lib
+
+      - name: Compile (all targets, no default features)
+        run: cargo test --no-default-features --all-targets --no-run
 
       - name: Run property tests
         run: cargo test --test proptests
@@ -71,6 +74,9 @@ jobs:
 
       - name: Run clippy (no default features)
         run: cargo clippy --no-default-features -- -D warnings
+      
+      - name: Run clippy (all targets, all features)
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Build docs
         run: cargo doc --no-deps
@@ -81,12 +87,16 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Build | [OK] |" >> $GITHUB_STEP_SUMMARY
+          echo "| Compile (all targets, all features) | [OK] |" >> $GITHUB_STEP_SUMMARY
           echo "| Unit Tests | [OK] |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests (no default features) | [OK] |" >> $GITHUB_STEP_SUMMARY
+          echo "| Compile (all targets, no default features) | [OK] |" >> $GITHUB_STEP_SUMMARY
           echo "| Property Tests (256 cases) | [OK] |" >> $GITHUB_STEP_SUMMARY
           echo "| Integration Tests | [OK] |" >> $GITHUB_STEP_SUMMARY
           echo "| Formatting | [OK] |" >> $GITHUB_STEP_SUMMARY
           echo "| Clippy | [OK] |" >> $GITHUB_STEP_SUMMARY
+          echo "| Clippy (no default features) | [OK] |" >> $GITHUB_STEP_SUMMARY
+          echo "| Clippy (all targets, all features) | [OK] |" >> $GITHUB_STEP_SUMMARY
           echo "| Docs | [OK] |" >> $GITHUB_STEP_SUMMARY
 
   msrv:

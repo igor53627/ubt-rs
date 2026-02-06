@@ -13,7 +13,7 @@
 //! | Operation | Full Rebuild | Incremental Mode |
 //! |-----------|--------------|------------------|
 //! | Insert    | O(1)         | O(1)             |
-//! | `root_hash` | O(S log S)   | O(S log S) + O(D * C) |
+//! | `root_hash` | O(S log S)   | O(S log S) + O(D * C) (structure + hash) |
 //!
 //! Where S = total stems, D = 248 (tree depth), C = changed stems since last rebuild.
 //!
