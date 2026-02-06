@@ -664,7 +664,7 @@ mod tests {
 
         // Make the right subtree empty, but simulate "lost dirty info" by not providing any
         // dirty stems to the incremental update logic.
-        tree.delete(&key_right);
+        let () = tree.delete(&key_right);
         assert!(tree.get(&key_right).is_none());
         tree.dirty_stem_hashes.clear();
 
