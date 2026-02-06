@@ -75,7 +75,7 @@ jobs:
       - name: Run clippy (no default features, lib)
         run: cargo clippy --no-default-features --lib -- -D warnings
 
-      # Ensure clippy passes for tests without default features (rayon disabled).
+      # Ensure clippy passes for tests without default features.
       - name: Run clippy (no default features, tests)
         run: cargo clippy --no-default-features --tests -- -D warnings
 
