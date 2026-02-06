@@ -18,7 +18,7 @@
 //! Where S = total stems, D = 248 (tree depth), C = changed stems since last rebuild.
 //!
 //! Note: incremental mode improves hash recomputation to O(D * C), but the current
-//! implementation still sorts stems and rebuilds structure (O(S log S)).
+//! implementation still sorts stems and rebuilds structure (O(S log S)), hence the sum above.
 
 mod build;
 mod hash;
