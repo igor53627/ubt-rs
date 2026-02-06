@@ -258,7 +258,9 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         if stem_hashes.is_empty() {
             // Avoid scanning the entire cache for subtrees that are and always were empty.
             // If this subtree became empty due to deletions, `dirty_stems` will be non-empty.
-            if !dirty_stems.is_empty() {
+            // If we have cached state for this subtree root, prune it even if dirty information
+            // was lost, to avoid reusing stale entries.
+            if !dirty_stems.is_empty() || self.node_hash_cache.contains_key(&(depth, path_prefix)) {
                 self.prune_node_hash_cache_subtree(depth, path_prefix);
             }
             return Ok(B256::ZERO);
@@ -598,5 +600,43 @@ mod tests {
 
         tree.prune_node_hash_cache_subtree(MAX_DEPTH + 1, B256::ZERO);
         assert!(tree.node_hash_cache.is_empty());
+    }
+
+    #[test]
+    fn test_incremental_delete_prunes_empty_subtree_cache() {
+        let mut key_right_bytes = [0u8; 32];
+        key_right_bytes[0] = 0x80;
+
+        let key_left = TreeKey::from_bytes(B256::ZERO);
+        let key_right = TreeKey::from_bytes(B256::from_slice(&key_right_bytes));
+
+        let left_value = B256::repeat_byte(0x11);
+        let right_value = B256::repeat_byte(0x22);
+
+        let mut tree_inc: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        tree_inc.insert(key_left, left_value);
+        tree_inc.insert(key_right, right_value);
+        tree_inc.enable_incremental_mode();
+        tree_inc.root_hash().unwrap(); // Populate cache
+
+        let right_prefix = set_bit_at(B256::ZERO, 0);
+        assert!(tree_inc.node_hash_cache.contains_key(&(1, right_prefix)));
+
+        tree_inc.delete(&key_right);
+        let root_inc = tree_inc.root_hash().unwrap();
+
+        let mut tree_full: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        tree_full.insert(key_left, left_value);
+        tree_full.insert(key_right, right_value);
+        tree_full.delete(&key_right);
+        let root_full = tree_full.root_hash().unwrap();
+
+        assert_eq!(root_inc, root_full);
+
+        let has_right_cache_entries =
+            tree_inc.node_hash_cache.iter().any(|((depth, prefix), _)| {
+                *depth >= 1 && b256_matches_prefix(prefix, &right_prefix, 1)
+            });
+        assert!(!has_right_cache_entries);
     }
 }
