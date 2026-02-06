@@ -78,6 +78,9 @@ jobs:
       - name: Run clippy (no default features, lib)
         run: cargo clippy --no-default-features --lib -- -D warnings
 
+      - name: Run clippy (all features, lib)
+        run: cargo clippy --all-features --lib -- -D warnings
+
       - name: Build docs
         run: cargo doc --no-deps
 
@@ -97,6 +100,7 @@ jobs:
           echo "- Formatting" >> $GITHUB_STEP_SUMMARY
           echo "- Clippy (default features)" >> $GITHUB_STEP_SUMMARY
           echo "- Clippy (no default features, lib)" >> $GITHUB_STEP_SUMMARY
+          echo "- Clippy (all features, lib)" >> $GITHUB_STEP_SUMMARY
           echo "- Docs" >> $GITHUB_STEP_SUMMARY
 
   msrv:
