@@ -64,6 +64,11 @@ jobs:
           fi
 
           read -r -a targets <<<"$FUZZ_TARGETS"
+          num_targets=${#targets[@]}
+          if (( num_targets == 0 )); then
+            echo "::error::FUZZ_TARGETS is empty"
+            exit 1
+          fi
           valid_target=false
           for t in "${targets[@]}"; do
             if [[ "$t" == "$TARGET" ]]; then
@@ -76,12 +81,11 @@ jobs:
             exit 1
           fi
 
-          echo "FUZZ_TARGET=$TARGET" >> "$GITHUB_ENV"
-          echo "FUZZ_DURATION_INT=$DURATION_INT" >> "$GITHUB_ENV"
+          printf '%s=%s\n' "FUZZ_TARGET" "$TARGET" >>"$GITHUB_ENV"
+          printf '%s=%s\n' "FUZZ_DURATION_INT" "$DURATION_INT" >>"$GITHUB_ENV"
 
       - name: Run fuzz (single target)
         if: inputs.target != 'all'
-        continue-on-error: true
         run: |
           set -euo pipefail
 
@@ -124,11 +128,10 @@ jobs:
           if (( DURATION_PER_TARGET < 1 )); then
             DURATION_PER_TARGET=1
           fi
-          echo "FUZZ_DURATION_PER_TARGET=$DURATION_PER_TARGET" >> "$GITHUB_ENV"
+          printf '%s=%s\n' "FUZZ_DURATION_PER_TARGET" "$DURATION_PER_TARGET" >>"$GITHUB_ENV"
 
       - name: Run fuzz (all targets)
         if: inputs.target == 'all'
-        continue-on-error: true
         run: |
           set -euo pipefail
           set -f
