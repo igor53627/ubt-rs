@@ -7,14 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- **MSRV enforcement**
-  - Added a Rust `1.85.0` CI job to ensure `rust-version` stays accurate
-  - Added `rust-toolchain.toml` pinning local development to `1.85.0`
+## [0.3.0] - 2026-02-11
 
 ### Changed
-- **MSRV is Rust 1.85**
-  - `Cargo.toml` declares `rust-version = "1.85"` to match dependency requirements (edition 2024 crates)
+- **Breaking API update for root hash computation**
+  - `UnifiedBinaryTree::root_hash()` now returns `Result<B256>`
+  - Streaming root-hash builders now use fallible return types
+- **Toolchain and compatibility baseline**
+  - MSRV aligned to Rust 1.85 (`rust-version = "1.85"` and `rust-toolchain.toml`)
+  - Internal tree implementation split into `src/tree/` submodules (`mod.rs`, `hash.rs`, `build.rs`)
+  - Added `#[must_use]` on key APIs to prevent accidental ignored results
+- **Build and lint policy updates**
+  - Added release profile optimizations (`lto = "thin"`, `codegen-units = 1`)
+  - Added `rustfmt.toml` and enabled pedantic clippy linting (warn-level with allow-list)
+
+### Fixed
+- **Depth error handling and incremental behavior hardening**
+  - Replaced public tree-depth panics with `UbtError::TreeDepthExceeded { depth }`
+  - Tightened depth guards and incremental empty-subtree cache pruning with expanded tests
+
+### Added
+- **CI and fuzzing hardening**
+  - Pinned GitHub Actions references to SHAs and stabilized MSRV/no-default-features coverage
+  - Hardened fuzz workflow input validation, duration parsing, and failure propagation semantics
+- **Documentation updates**
+  - Added maintenance kanban documentation and refreshed README badges
 
 ## [0.2.3] - 2025-12-24
 

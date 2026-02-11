@@ -1,6 +1,6 @@
 [package]
 name = "ubt"
-version = "0.2.3"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.85"
 description = "Unified Binary Tree implementation based on EIP-7864"
