@@ -19,7 +19,9 @@
 //!
 //! Per go-ethereum reference implementation, keys are derived using SHA256:
 //! ```text
-//! key = SHA256(zeroHash[:12] || address[:] || inputKey[:31])
+//! buf[i] = inputKey[30-i]  for i in 0..31  // reverse to little-endian
+//! buf[31] = overflow ? 1 : 0
+//! key = SHA256(zeroHash[:12] || address[:] || buf[:])  // 64-byte preimage
 //! key[31] = inputKey[31]  // subindex preserved
 //! ```
 
@@ -57,16 +59,34 @@ const ZERO_PREFIX: [u8; 12] = [0u8; 12];
 
 /// Derive a tree key using the go-ethereum algorithm.
 ///
-/// Per reference implementation:
+/// Per reference implementation (`trie/bintrie/key_encoding.go`):
 /// ```text
-/// key = SHA256(zeroHash[:12] || address[:] || inputKey[:31])
-/// key[31] = inputKey[31]
+/// buf[i] = offset[30-i]  for i in 0..31  (reverse first 31 bytes to LE)
+/// buf[31] = overflow ? 1 : 0
+/// key = SHA256(zeroHash[:12] || address[:] || buf[:])   (64-byte preimage)
+/// key[31] = offset[31]                                  (preserve subindex)
 /// ```
 pub fn get_binary_tree_key(address: &Address, input_key: &[u8; 32]) -> TreeKey {
+    get_binary_tree_key_inner(address, input_key, false)
+}
+
+/// Inner key derivation with overflow flag, matching Geth's `getBinaryTreeKey`.
+fn get_binary_tree_key_inner(address: &Address, input_key: &[u8; 32], overflow: bool) -> TreeKey {
     let mut hasher = Sha256::new();
     hasher.update(ZERO_PREFIX);
     hasher.update(address.as_slice());
-    hasher.update(&input_key[..31]);
+
+    // Reverse first 31 bytes (big-endian → little-endian), matching Geth:
+    //   buf[i] = offset[30-i]  for i in 0..31
+    //   buf[31] = 1 if overflow, else 0
+    let mut buf = [0u8; 32];
+    for i in 0..31 {
+        buf[i] = input_key[30 - i];
+    }
+    if overflow {
+        buf[31] = 1;
+    }
+    hasher.update(buf);
 
     let hash = hasher.finalize();
     let mut stem_bytes = [0u8; STEM_LEN];
@@ -123,14 +143,15 @@ pub fn get_storage_slot_key(address: &Address, slot: &[u8; 32]) -> TreeKey {
         }
 
         // Byte 0: 1 (from 256^30) + slot[0], modulo 256.
-        // Per EIP-7864, storage keys are full 256-bit values, so we must
-        // support all possible slot[0] values including 0xff. Adding 1 to
-        // the most significant byte corresponds to adding 256^30 to the
-        // 31-byte tree_index, modulo 256^31.
+        // When slot[0] == 0xff, this wraps to 0 and we track overflow
+        // out-of-band, matching Geth's getBinaryTreeKey overflow parameter.
+        let overflow = slot[0] == 0xff;
         k[0] = slot[0].wrapping_add(1);
 
         // subindex = slot % 256 = slot[31]
         k[31] = slot[31];
+
+        return get_binary_tree_key_inner(address, &k, overflow);
     }
 
     get_binary_tree_key(address, &k)
@@ -296,6 +317,49 @@ pub use get_storage_slot_key_u256 as storage_key;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn hex_to_b256(s: &str) -> B256 {
+        let bytes = hex::decode(s).expect("valid hex");
+        B256::from_slice(&bytes)
+    }
+
+    /// Test key derivation against values computed from Geth's algorithm:
+    /// SHA256(zero[:12] || addr || reversed(key[:31]) || overflow)
+    #[test]
+    fn test_key_derivation_geth_vectors() {
+        let address = Address::repeat_byte(0x42);
+
+        // Basic data key: input_key = all zeros, reversed = all zeros, buf = [0;32]
+        let key = get_basic_data_key(&address);
+        let expected =
+            hex_to_b256("5851f2118c28d2a77e2535442cd4bcf21c7ad2de368b7d0609833d9d2eea1500");
+        assert_eq!(key.to_bytes(), expected, "basic_data_key must match Geth");
+
+        // Main storage slot 100: offset=[1,0,...,0,100], reversed buf=[0,...,0,1,0]
+        let mut slot_bytes = [0u8; 32];
+        slot_bytes[31] = 100;
+        let key = get_storage_slot_key(&address, &slot_bytes);
+        let expected =
+            hex_to_b256("7254eaede3e09db532fff12affd6e83b02354608264472882f9c64e9b18abc64");
+        assert_eq!(
+            key.to_bytes(),
+            expected,
+            "storage_slot_key(100) must match Geth"
+        );
+
+        // Storage slot with overflow: slot[0]=0xff wraps, overflow flag set
+        let mut slot_bytes = [0u8; 32];
+        slot_bytes[0] = 0xff;
+        slot_bytes[31] = 0x20;
+        let key = get_storage_slot_key(&address, &slot_bytes);
+        let expected =
+            hex_to_b256("f7dc034274011114ac420c79e0b8450a85750ee9ccd93cff48bbc61323e00220");
+        assert_eq!(
+            key.to_bytes(),
+            expected,
+            "storage_slot_key(0xff..0020) with overflow must match Geth"
+        );
+    }
 
     #[test]
     fn test_basic_data_roundtrip() {
