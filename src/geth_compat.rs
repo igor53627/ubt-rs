@@ -126,25 +126,25 @@ mod tests {
         let mut tree: UnifiedBinaryTree<Sha256Hasher> = UnifiedBinaryTree::new();
 
         // Both keys start with bit 0 → both go left at depth 0, right subtree is empty
-        let key1 = hex_to_b256(
-            "0000000000000000000000000000000000000000000000000000000000000001",
-        );
-        let key2 = hex_to_b256(
-            "0100000000000000000000000000000000000000000000000000000000000001",
-        );
+        let key1 = hex_to_b256("0000000000000000000000000000000000000000000000000000000000000001");
+        let key2 = hex_to_b256("0100000000000000000000000000000000000000000000000000000000000001");
 
-        tree.insert_b256(key1, hex_to_b256(
-            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        ));
-        tree.insert_b256(key2, hex_to_b256(
-            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-        ));
+        tree.insert_b256(
+            key1,
+            hex_to_b256("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+        );
+        tree.insert_b256(
+            key2,
+            hex_to_b256("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
+        );
 
         let root = tree.root_hash().unwrap();
-        let expected = hex_to_b256(
-            "eb3937998684b2dbf1f87c9b48ff3dd0282ca3073d3f87611e06586b88297c91",
+        let expected =
+            hex_to_b256("eb3937998684b2dbf1f87c9b48ff3dd0282ca3073d3f87611e06586b88297c91");
+        assert_eq!(
+            root, expected,
+            "one-sided subtree root must match go-ethereum (issue #70)"
         );
-        assert_eq!(root, expected, "one-sided subtree root must match go-ethereum (issue #70)");
     }
 
     /// Same test via StreamingTreeBuilder for #70 coverage.
@@ -154,28 +154,22 @@ mod tests {
 
         let builder = StreamingTreeBuilder::<Sha256Hasher>::new();
 
-        let key1 = hex_to_b256(
-            "0000000000000000000000000000000000000000000000000000000000000001",
-        );
-        let key2 = hex_to_b256(
-            "0100000000000000000000000000000000000000000000000000000000000001",
-        );
-        let val1 = hex_to_b256(
-            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        );
-        let val2 = hex_to_b256(
-            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-        );
+        let key1 = hex_to_b256("0000000000000000000000000000000000000000000000000000000000000001");
+        let key2 = hex_to_b256("0100000000000000000000000000000000000000000000000000000000000001");
+        let val1 = hex_to_b256("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        let val2 = hex_to_b256("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
 
         let entries = vec![
             (TreeKey::from_bytes(key1), val1),
             (TreeKey::from_bytes(key2), val2),
         ];
         let root = builder.build_root_hash(entries).unwrap();
-        let expected = hex_to_b256(
-            "eb3937998684b2dbf1f87c9b48ff3dd0282ca3073d3f87611e06586b88297c91",
+        let expected =
+            hex_to_b256("eb3937998684b2dbf1f87c9b48ff3dd0282ca3073d3f87611e06586b88297c91");
+        assert_eq!(
+            root, expected,
+            "streaming one-sided subtree root must match go-ethereum (issue #70)"
         );
-        assert_eq!(root, expected, "streaming one-sided subtree root must match go-ethereum (issue #70)");
     }
 
     /// Test hash determinism with SHA256
