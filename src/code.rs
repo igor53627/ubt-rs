@@ -47,15 +47,6 @@ impl CodeChunk {
     }
 }
 
-/// PUSH opcodes and their data sizes.
-fn push_size(opcode: u8) -> usize {
-    if (0x60..=0x7f).contains(&opcode) {
-        (opcode - 0x5f) as usize // PUSH1 = 0x60 pushes 1 byte, PUSH32 = 0x7f pushes 32 bytes
-    } else {
-        0
-    }
-}
-
 /// Chunkify bytecode into 31-byte chunks with PUSHDATA tracking.
 ///
 /// Returns a vector of code chunks. Each chunk contains:
@@ -76,44 +67,45 @@ pub fn chunkify_code(bytecode: &[u8]) -> Vec<CodeChunk> {
     let num_chunks = bytecode.len().div_ceil(CODE_CHUNK_DATA_SIZE);
     let mut chunks = Vec::with_capacity(num_chunks);
 
-    // Track how many bytes of PUSHDATA remain from previous instruction
-    let mut pushdata_remaining: usize = 0;
+    // Mirrors Geth's chunkOffset / codeOffset tracking exactly.
+    let mut chunk_offset: usize = 0;
+    let mut code_offset: usize = 0;
 
-    for chunk_idx in 0..num_chunks {
-        let start = chunk_idx * CODE_CHUNK_DATA_SIZE;
-        let end = std::cmp::min(start + CODE_CHUNK_DATA_SIZE, bytecode.len());
-
-        // How many bytes at the start of this chunk are PUSHDATA from previous chunk?
-        let leading_pushdata: u8 = std::cmp::min(pushdata_remaining, end - start)
-            .try_into()
-            .expect("leading pushdata count must fit in u8 (<= 31)");
+    for i in 0..num_chunks {
+        let end = std::cmp::min(bytecode.len(), CODE_CHUNK_DATA_SIZE * (i + 1));
 
         let mut data = [0u8; CODE_CHUNK_DATA_SIZE];
-        let chunk_data = &bytecode[start..end];
-        data[..chunk_data.len()].copy_from_slice(chunk_data);
+        let src = &bytecode[CODE_CHUNK_DATA_SIZE * i..end];
+        data[..src.len()].copy_from_slice(src);
 
-        chunks.push(CodeChunk::new(leading_pushdata, data));
+        if chunk_offset > CODE_CHUNK_DATA_SIZE {
+            // PUSH data overflows this entire chunk — metadata = StemSize (31)
+            #[allow(clippy::cast_possible_truncation)]
+            let md = CODE_CHUNK_DATA_SIZE as u8; // 31 always fits in u8
+            chunks.push(CodeChunk::new(md, data));
+            chunk_offset = 1;
+            continue;
+        }
 
-        // Update pushdata_remaining for next chunk
-        if pushdata_remaining > CODE_CHUNK_DATA_SIZE {
-            pushdata_remaining -= CODE_CHUNK_DATA_SIZE;
-        } else {
-            // Scan this chunk for PUSH instructions
-            pushdata_remaining = 0;
-            let mut i = pushdata_remaining.max(leading_pushdata as usize);
-            while i < chunk_data.len() {
-                let opcode = chunk_data[i];
-                let push_bytes = push_size(opcode);
-                if push_bytes > 0 {
-                    let bytes_in_chunk = chunk_data.len() - i - 1;
-                    if push_bytes > bytes_in_chunk {
-                        pushdata_remaining = push_bytes - bytes_in_chunk;
-                    }
-                    i += push_bytes + 1;
-                } else {
-                    i += 1;
+        // Normal case: metadata = chunk_offset
+        #[allow(clippy::cast_possible_truncation)]
+        let leading = chunk_offset as u8;
+        chunks.push(CodeChunk::new(leading, data));
+        chunk_offset = 0;
+
+        // Scan for PUSH instructions in the bytecode covered by this chunk
+        while code_offset < end {
+            let opcode = bytecode[code_offset];
+            if (0x60..=0x7f).contains(&opcode) {
+                // PUSH1..PUSH32
+                code_offset += (opcode - 0x60 + 1) as usize;
+                if code_offset + 1 >= CODE_CHUNK_DATA_SIZE * (i + 1) {
+                    code_offset += 1;
+                    chunk_offset = code_offset - CODE_CHUNK_DATA_SIZE * (i + 1);
+                    break;
                 }
             }
+            code_offset += 1;
         }
     }
 
@@ -173,6 +165,23 @@ mod tests {
         let chunks = chunkify_code(&original);
         let recovered = dechunkify_code(&chunks, original.len());
         assert_eq!(original, recovered);
+    }
+
+    #[test]
+    fn test_multi_chunk_push_overflow() {
+        // From issue #71: code where PUSH data overflows across multiple chunk boundaries
+        let code = hex::decode(
+            "d76cd86a332eccc8fc09612a4bee018df261bf00aa5076287faf5f09b0737f\
+             4224338e894f4f24665e21d39d4c6ec40310ffefe6923cdcc93ab9709d0c58\
+             4d11f505f95d4a42bf22c7",
+        )
+        .unwrap();
+
+        let chunks = chunkify_code(&code);
+
+        assert_eq!(chunks[0].leading_pushdata, 0x00);
+        assert_eq!(chunks[1].leading_pushdata, 0x0f); // 15
+        assert_eq!(chunks[2].leading_pushdata, 0x0e); // 14 - must match Geth
     }
 
     #[test]
