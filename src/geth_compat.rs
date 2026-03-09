@@ -38,14 +38,11 @@ mod tests {
         let expected =
             hex_to_b256("aab1060e04cb4f5dc6f697ae93156a95714debbf77d54238766adc5709282b6f");
 
-        println!("Single entry root (SHA256): {}", root);
-        println!("go-ethereum expected:       {}", expected);
-
         // Verify tree has the value
         assert_eq!(tree.get_by_b256(&ZERO_KEY), Some(one_key()));
 
-        // Note: Root may differ slightly due to tree structure differences
-        // The key test is that our hash is deterministic and follows the spec
+        // Root must match go-ethereum exactly
+        assert_eq!(root, expected, "single entry root must match go-ethereum");
     }
 
     /// TestTwoEntriesDiffFirstBit from go-ethereum
@@ -64,10 +61,8 @@ mod tests {
         let expected =
             hex_to_b256("dfc69c94013a8b3c65395625a719a87534a7cfd38719251ad8c8ea7fe79f065e");
 
-        println!("Two entries root (SHA256): {}", root);
-        println!("go-ethereum expected:      {}", expected);
-
         assert_eq!(tree.len(), 2);
+        assert_eq!(root, expected, "two entries root must match go-ethereum");
         assert_eq!(tree.get_by_b256(&ZERO_KEY), Some(one_key()));
         assert_eq!(tree.get_by_b256(&key2), Some(two_key()));
     }
@@ -120,6 +115,67 @@ mod tests {
         let root = tree.root_hash().unwrap();
         println!("Colocated values root: {}", root);
         assert_ne!(root, B256::ZERO);
+    }
+
+    /// Regression test for #70: one-sided subtrees must hash_64 against zero,
+    /// not short-circuit by returning the non-empty child's hash directly.
+    /// Two stems that both start with bit 0 produce a one-sided tree at depth 0.
+    /// Expected root from go-ethereum: eb3937998684b2dbf1f87c9b48ff3dd0282ca3073d3f87611e06586b88297c91
+    #[test]
+    fn test_one_sided_subtree_hashes_against_zero() {
+        let mut tree: UnifiedBinaryTree<Sha256Hasher> = UnifiedBinaryTree::new();
+
+        // Both keys start with bit 0 → both go left at depth 0, right subtree is empty
+        let key1 = hex_to_b256(
+            "0000000000000000000000000000000000000000000000000000000000000001",
+        );
+        let key2 = hex_to_b256(
+            "0100000000000000000000000000000000000000000000000000000000000001",
+        );
+
+        tree.insert_b256(key1, hex_to_b256(
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        ));
+        tree.insert_b256(key2, hex_to_b256(
+            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        ));
+
+        let root = tree.root_hash().unwrap();
+        let expected = hex_to_b256(
+            "eb3937998684b2dbf1f87c9b48ff3dd0282ca3073d3f87611e06586b88297c91",
+        );
+        assert_eq!(root, expected, "one-sided subtree root must match go-ethereum (issue #70)");
+    }
+
+    /// Same test via StreamingTreeBuilder for #70 coverage.
+    #[test]
+    fn test_one_sided_subtree_streaming() {
+        use crate::{StreamingTreeBuilder, TreeKey};
+
+        let builder = StreamingTreeBuilder::<Sha256Hasher>::new();
+
+        let key1 = hex_to_b256(
+            "0000000000000000000000000000000000000000000000000000000000000001",
+        );
+        let key2 = hex_to_b256(
+            "0100000000000000000000000000000000000000000000000000000000000001",
+        );
+        let val1 = hex_to_b256(
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        );
+        let val2 = hex_to_b256(
+            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        );
+
+        let entries = vec![
+            (TreeKey::from_bytes(key1), val1),
+            (TreeKey::from_bytes(key2), val2),
+        ];
+        let root = builder.build_root_hash(entries).unwrap();
+        let expected = hex_to_b256(
+            "eb3937998684b2dbf1f87c9b48ff3dd0282ca3073d3f87611e06586b88297c91",
+        );
+        assert_eq!(root, expected, "streaming one-sided subtree root must match go-ethereum (issue #70)");
     }
 
     /// Test hash determinism with SHA256
