@@ -55,10 +55,8 @@ impl CodeChunk {
 ///
 /// This allows code analysis to skip PUSHDATA bytes when looking for valid opcodes.
 ///
-/// # Panics
-///
-/// Panics if an internal invariant is violated and the computed leading PUSHDATA count
-/// does not fit in `u8` (it is bounded by 31).
+/// The leading PUSHDATA count is always bounded by `CODE_CHUNK_DATA_SIZE` (31),
+/// so all casts to `u8` are safe.
 pub fn chunkify_code(bytecode: &[u8]) -> Vec<CodeChunk> {
     if bytecode.is_empty() {
         return vec![];
@@ -182,6 +180,37 @@ mod tests {
         assert_eq!(chunks[0].leading_pushdata, 0x00);
         assert_eq!(chunks[1].leading_pushdata, 0x0f); // 15
         assert_eq!(chunks[2].leading_pushdata, 0x0e); // 14 - must match Geth
+    }
+
+    #[test]
+    fn test_push32_full_chunk_overflow() {
+        // PUSH32 at last byte of chunk 0: its 32 bytes of data span all of chunk 1
+        // and 1 byte into chunk 2. Chunk 1 should have metadata = 31 (full overflow).
+        let mut code = vec![0x00; 30]; // 30 bytes of filler
+        code.push(0x7f); // PUSH32 at byte 30 (last byte of chunk 0)
+        code.extend_from_slice(&[0xAA; 32]); // 32 bytes of push data
+
+        let chunks = chunkify_code(&code);
+
+        assert_eq!(chunks.len(), 3);
+        assert_eq!(chunks[0].leading_pushdata, 0); // no leading pushdata
+        assert_eq!(chunks[1].leading_pushdata, 31); // entire chunk is pushdata
+        assert_eq!(chunks[2].leading_pushdata, 1); // 1 byte of pushdata remains
+    }
+
+    #[test]
+    fn test_truncated_push_at_eof() {
+        // PUSH4 at byte 29 of a 31-byte chunk: opcode needs 4 immediate bytes
+        // but only 1 byte remains in the bytecode. The chunk should still
+        // record the correct overflow (even though the data is truncated).
+        let mut code = vec![0x00; 29]; // 29 bytes of filler
+        code.push(0x63); // PUSH4 at byte 29
+        code.push(0xBB); // 1 byte of push data (only 1 of 4 available)
+
+        let chunks = chunkify_code(&code);
+
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].leading_pushdata, 0);
     }
 
     #[test]
