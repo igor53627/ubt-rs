@@ -80,9 +80,8 @@ fn get_binary_tree_key_inner(address: &Address, input_key: &[u8; 32], overflow: 
     //   buf[i] = offset[30-i]  for i in 0..31
     //   buf[31] = 1 if overflow, else 0
     let mut buf = [0u8; 32];
-    for i in 0..31 {
-        buf[i] = input_key[30 - i];
-    }
+    buf[..31].copy_from_slice(&input_key[..31]);
+    buf[..31].reverse();
     if overflow {
         buf[31] = 1;
     }
@@ -121,9 +120,10 @@ pub fn get_storage_slot_key(address: &Address, slot: &[u8; 32]) -> TreeKey {
     // Check if key belongs to account header (first 31 bytes zero, last byte < 64)
     let is_header_slot = slot[..31].iter().all(|&b| b == 0) && slot[31] < 64;
 
-    if is_header_slot {
+    let overflow = if is_header_slot {
         // Header storage: pos = 64 + slot, tree_index = 0, subindex = 64 + slot
         k[31] = HEADER_STORAGE_OFFSET + slot[31];
+        false
     } else {
         // Main storage: pos = MAIN_STORAGE_OFFSET + slot = 256^31 + slot
         // tree_index = pos // 256 = 256^30 + slot // 256
@@ -132,12 +132,7 @@ pub fn get_storage_slot_key(address: &Address, slot: &[u8; 32]) -> TreeKey {
         // 256^30 as 31-byte big-endian: byte 0 = 1, rest = 0
         // slot // 256 as 31-byte big-endian: [slot[0], slot[1], ..., slot[30]]
         // Sum: tree_index[0] = 1 + slot[0], tree_index[1..31] = slot[1..31]
-        // (with carry propagation)
 
-        // Start with slot[0..31] shifted: tree_index = slot >> 8
-        // Then add 256^30 (which is 1 in byte 0)
-
-        // First, compute tree_index bytes 1..31 = slot[1..31] (no addition needed here)
         for i in (1..31).rev() {
             k[i] = slot[i];
         }
@@ -145,16 +140,13 @@ pub fn get_storage_slot_key(address: &Address, slot: &[u8; 32]) -> TreeKey {
         // Byte 0: 1 (from 256^30) + slot[0], modulo 256.
         // When slot[0] == 0xff, this wraps to 0 and we track overflow
         // out-of-band, matching Geth's getBinaryTreeKey overflow parameter.
-        let overflow = slot[0] == 0xff;
         k[0] = slot[0].wrapping_add(1);
-
-        // subindex = slot % 256 = slot[31]
         k[31] = slot[31];
 
-        return get_binary_tree_key_inner(address, &k, overflow);
-    }
+        slot[0] == 0xff
+    };
 
-    get_binary_tree_key(address, &k)
+    get_binary_tree_key_inner(address, &k, overflow)
 }
 
 /// Get the tree key for a storage slot from U256.
