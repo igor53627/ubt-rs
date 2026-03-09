@@ -364,10 +364,6 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
 
         if left_hash.is_zero() && right_hash.is_zero() {
             Ok(B256::ZERO)
-        } else if left_hash.is_zero() {
-            Ok(right_hash)
-        } else if right_hash.is_zero() {
-            Ok(left_hash)
         } else {
             Ok(self.hasher.hash_64(&left_hash, &right_hash))
         }

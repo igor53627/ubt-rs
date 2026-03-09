@@ -111,10 +111,6 @@ fn build_tree_hash(hasher: &Blake3Hasher, stem_hashes: &[(Stem, B256)], depth: u
 
     if left_hash.is_zero() && right_hash.is_zero() {
         B256::ZERO
-    } else if left_hash.is_zero() {
-        right_hash
-    } else if right_hash.is_zero() {
-        left_hash
     } else {
         hasher.hash_64(&left_hash, &right_hash)
     }
