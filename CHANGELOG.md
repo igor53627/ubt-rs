@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-03-10
+
+### Fixed
+- **Root hash divergence from Geth for single-child subtrees** ([#70](https://github.com/igor53627/ubt-rs/issues/70))
+  - Always compute `hash_64(left, right)` for non-empty internal nodes, even when one child is zero, matching Geth's `InternalNode.Hash()`. Previously short-circuited by returning the non-empty child's hash directly, causing ~75% of non-trivial trees to diverge.
+- **`chunkify_code` metadata divergence for multi-chunk PUSH overflow** ([#71](https://github.com/igor53627/ubt-rs/issues/71))
+  - Rewrote `chunkify_code` to match Geth's exact `chunkOffset`/`codeOffset` tracking algorithm. The previous subtract-chunk-size approach produced incorrect metadata when PUSH instruction data spanned 2+ chunk boundaries.
+- **Key derivation mismatch with Geth** ([#69](https://github.com/igor53627/ubt-rs/issues/69))
+  - `get_binary_tree_key` now reverses bytes 0-30 to little-endian and hashes a full 64-byte preimage, matching Geth's `getBinaryTreeKey`. Previously hashed only 63 bytes without byte reversal.
+  - Added overflow flag for storage slots where `slot[0] == 0xff`, matching Geth's out-of-band overflow tracking.
+
+### Added
+- Geth-compatible test vectors for key derivation (basic data, storage slot, overflow)
+- Hard assertions against Geth root hashes in `geth_compat` tests
+- Regression tests for one-sided subtrees (issue #70 repro) via both `UnifiedBinaryTree` and `StreamingTreeBuilder`
+- Tests for full-chunk PUSH overflow and truncated PUSH at EOF
+
 ## [0.3.0] - 2026-02-11
 
 ### Changed
