@@ -109,32 +109,24 @@ impl Hasher for Blake3Hasher {
     }
 }
 
-/// Poseidon2 hasher (placeholder for future implementation).
+/// Poseidon2 hasher (EXPERIMENTAL stub for future implementation).
 ///
-/// **Note**: This is a stub implementation. Poseidon2 is a candidate hash function
-/// for EIP-7864 that could provide 3x-100x proving performance improvement.
-/// This will be fully implemented when:
+/// ⚠️ **WARNING**: This is a stub implementation that currently falls back to BLAKE3.
+/// Do not use in production expecting actual Poseidon2 hashes.
+///
+/// Poseidon2 is a candidate hash function for EIP-7864 that could provide
+/// 3x-100x proving performance improvement. This will be fully implemented when:
 /// 1. A stable, well-audited Poseidon2 crate is available
 /// 2. EIP-7864 finalizes on Poseidon2 as the hash function
 /// 3. Security audits are complete
-///
-/// For now, this type is provided for API compatibility and testing.
-/// It currently falls back to BLAKE3 with a compile-time warning.
 #[derive(Clone, Default)]
 pub struct Poseidon2Hasher;
 
 impl Hasher for Poseidon2Hasher {
     fn hash_32(&self, value: &B256) -> B256 {
-        #[cfg(feature = "poseidon2")]
-        {
-            // TODO: Implement actual Poseidon2 hashing when crate is available
-            // For now, fall back to BLAKE3
-            Blake3Hasher.hash_32(value)
-        }
-        #[cfg(not(feature = "poseidon2"))]
-        {
-            Blake3Hasher.hash_32(value)
-        }
+        // TODO: Implement actual Poseidon2 hashing when crate is available
+        // For now, fall back to BLAKE3
+        Blake3Hasher.hash_32(value)
     }
 
     fn hash_64(&self, left: &B256, right: &B256) -> B256 {
