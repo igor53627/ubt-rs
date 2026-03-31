@@ -1,0 +1,66 @@
+# Deny configuration for cargo-deny
+# See: https://embarkstudios.github.io/cargo-deny/
+# For cargo-deny 0.18.x (version 2 schema)
+
+[advisories]
+version = 2
+# Ignore RUSTSEC-2024-0436: paste is unmaintained
+# This is a transitive dependency via alloy-primitives, we need to wait for upstream fix
+ignore = ["RUSTSEC-2024-0436"]
+
+[licenses]
+version = 2
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-DFS-2016",
+    "Unicode-3.0",
+    "Unlicense",
+    "MPL-2.0",
+    "CC0-1.0",
+    "Zlib",
+    "OpenSSL",
+]
+
+confidence-threshold = 0.8
+
+# Exceptions for specific crates
+[[licenses.exceptions]]
+name = "byteorder"
+version = "*"
+allow = ["Unlicense", "MIT"]
+
+[[licenses.exceptions]]
+name = "sha3-asm"
+version = "*"
+allow = ["Apache-2.0"]
+
+[[licenses.exceptions]]
+name = "keccak-asm"
+version = "*"
+allow = ["Apache-2.0"]
+
+# Check for banned/duplicate dependencies
+[bans]
+multiple-versions = "warn"
+wildcards = "warn"
+highlight = "all"
+
+# Skip duplicate version check for cpufeatures (transitive via blake3 vs others)
+skip = [
+    { name = "cpufeatures" },
+]
+
+# Check for suspicious sources
+[sources]
+unknown-registry = "warn"
+unknown-git = "warn"
+
+# Allow specific git sources
+allow-git = [
+    "https://github.com",
+]

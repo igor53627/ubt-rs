@@ -85,6 +85,11 @@ jobs:
       - name: Build docs
         run: cargo doc --no-deps
 
+      - name: Check dependencies (cargo-deny)
+        uses: EmbarkStudios/cargo-deny-action@34899fc7ba5161837469299c5d9e8c40d77694f # v2
+        with:
+          command: check
+
       - name: Summary
         if: always()
         run: |

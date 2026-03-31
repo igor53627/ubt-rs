@@ -99,7 +99,7 @@ impl OpCounters {
 
     pub fn to_prometheus(&self) -> String {
         format!(
-            r#"# HELP ubt_sim_op_insert_total Insert operations
+            r"# HELP ubt_sim_op_insert_total Insert operations
 # TYPE ubt_sim_op_insert_total counter
 ubt_sim_op_insert_total {}
 
@@ -178,7 +178,7 @@ ubt_sim_chaos_mode_switch_storm_total {}
 # HELP ubt_sim_chaos_verify_last_root_total Verify last root
 # TYPE ubt_sim_chaos_verify_last_root_total counter
 ubt_sim_chaos_verify_last_root_total {}
-"#,
+",
             self.insert.load(Ordering::Relaxed),
             self.get.load(Ordering::Relaxed),
             self.delete.load(Ordering::Relaxed),
@@ -335,7 +335,7 @@ impl Metrics {
         };
 
         let base_metrics = format!(
-            r#"# HELP ubt_sim_operations_total Total operations executed
+            r"# HELP ubt_sim_operations_total Total operations executed
 # TYPE ubt_sim_operations_total counter
 ubt_sim_operations_total {}
 
@@ -379,7 +379,7 @@ ubt_sim_uptime_seconds {:.2}
 # TYPE ubt_sim_chaos_ops_total counter
 ubt_sim_chaos_ops_total {}
 
-"#,
+",
             ops,
             ops_per_sec,
             completed,
