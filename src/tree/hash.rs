@@ -9,6 +9,11 @@ use crate::{error::Result, Hasher, Node, Stem, StemNode, TreeKey, UbtError};
 
 use super::{UnifiedBinaryTree, MAX_DEPTH};
 
+/// Minimum number of stems before using parallel processing.
+/// Below this threshold, sequential processing is faster due to rayon overhead.
+#[cfg(feature = "parallel")]
+const PARALLEL_STEM_THRESHOLD: usize = 100;
+
 /// Set bit at the given position in a B256 (MSB-first ordering).
 /// Position 0 is the MSB of the first byte.
 fn set_bit_at(mut value: B256, pos: usize) -> B256 {
@@ -74,10 +79,18 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
 
     #[cfg(feature = "parallel")]
     fn compute_stem_updates(&self, dirty_stems: &[Stem]) -> Vec<(Stem, B256)> {
-        dirty_stems
-            .par_iter()
-            .map(|stem| (*stem, self.compute_stem_hash(stem)))
-            .collect()
+        // Only use parallel processing if we have enough stems to offset rayon overhead
+        if dirty_stems.len() >= PARALLEL_STEM_THRESHOLD {
+            dirty_stems
+                .par_iter()
+                .map(|stem| (*stem, self.compute_stem_hash(stem)))
+                .collect()
+        } else {
+            dirty_stems
+                .iter()
+                .map(|stem| (*stem, self.compute_stem_hash(stem)))
+                .collect()
+        }
     }
 
     /// Rebuild the root from all stem nodes.

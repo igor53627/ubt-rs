@@ -3,6 +3,7 @@
 //! Provides reference model and verification for simulation-based testing.
 //! The key invariant: root hash from mutable tree must equal root hash from
 //! fresh tree built from reference model.
+#![allow(dead_code)] // Test infrastructure with room for future expansion
 
 use std::collections::BTreeMap;
 use ubt::{Blake3Hasher, Hasher, StreamingTreeBuilder, TreeKey, B256};

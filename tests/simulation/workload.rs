@@ -1,4 +1,5 @@
 //! Workload runner for simulation testing.
+#![allow(dead_code)] // Test infrastructure with room for future expansion
 
 use crate::simulation::context::WorkloadContext;
 use crate::simulation::metrics::SharedMetrics;

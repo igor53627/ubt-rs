@@ -751,10 +751,10 @@ Proof.
     + exists 0%nat. simpl. split; [lia | exact Hneq_head].
 Qed.
 
-(** [ADMITTED:ROCQ9] Helper lemmas for Z bit operations need scope fixes for Rocq 9.0.
-    These are mathematically correct but require careful handling of Z vs nat scopes.
+(** Helper lemmas for Z bit operations.
     
-    TODO: Fix Z scopes throughout these bit-level proofs. *)
+    Note: All Z and nat scopes are explicitly annotated with %Z and %nat
+    to ensure compatibility with Rocq 9.0 and avoid scope ambiguity. *)
 
 (** Helper: xor of bytes in range is bounded.
     For bytes b1, b2 in [0, 256), their xor is also in [0, 256). *)

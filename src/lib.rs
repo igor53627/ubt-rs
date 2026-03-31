@@ -99,7 +99,7 @@ mod streaming;
 mod tree;
 
 pub use error::UbtError;
-pub use hash::{Blake3Hasher, Hasher, Sha256Hasher};
+pub use hash::{Blake3Hasher, Hasher, Poseidon2Hasher, Sha256Hasher};
 pub use key::{Stem, SubIndex, TreeKey, STEM_LEN, SUBINDEX_BITS};
 pub use node::{InternalNode, LeafNode, Node, StemNode};
 

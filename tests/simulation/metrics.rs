@@ -1,4 +1,5 @@
 //! Prometheus metrics for simulation monitoring.
+#![allow(dead_code)] // Test infrastructure with room for future expansion
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;

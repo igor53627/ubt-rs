@@ -28,6 +28,11 @@ use rayon::prelude::*;
 
 use crate::{error::Result, Blake3Hasher, Hasher, Stem, SubIndex, TreeKey, UbtError, STEM_LEN};
 
+/// Minimum number of stems before using parallel processing.
+/// Below this threshold, sequential processing is faster due to rayon overhead.
+#[cfg(feature = "parallel")]
+const PARALLEL_STEM_THRESHOLD: usize = 100;
+
 /// A streaming tree builder that computes root hash with minimal memory.
 ///
 /// This builder is designed for one-shot root hash computation from sorted entries,
@@ -168,14 +173,24 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
             return Ok(B256::ZERO);
         }
 
-        // Compute stem hashes in parallel
-        let mut stem_hashes: Vec<(Stem, B256)> = stem_groups
-            .into_par_iter()
-            .map(|(stem, values)| {
-                let hash = self.compute_stem_hash(&stem, &values);
-                (stem, hash)
-            })
-            .collect();
+        // Compute stem hashes in parallel (only if enough stems to offset rayon overhead)
+        let mut stem_hashes: Vec<(Stem, B256)> = if stem_groups.len() >= PARALLEL_STEM_THRESHOLD {
+            stem_groups
+                .into_par_iter()
+                .map(|(stem, values)| {
+                    let hash = self.compute_stem_hash(&stem, &values);
+                    (stem, hash)
+                })
+                .collect()
+        } else {
+            stem_groups
+                .into_iter()
+                .map(|(stem, values)| {
+                    let hash = self.compute_stem_hash(&stem, &values);
+                    (stem, hash)
+                })
+                .collect()
+        };
 
         // Sort by stem for deterministic order (parallel collect doesn't preserve order)
         stem_hashes.sort_by(|a, b| a.0.cmp(&b.0));
