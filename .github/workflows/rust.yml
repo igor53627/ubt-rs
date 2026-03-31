@@ -97,8 +97,7 @@ jobs:
         continue-on-error: true
 
       - name: Check for unused dependencies (cargo-machete)
-        uses: bnjbvr/cargo-machete@c1a5b2fc4a0cf4f2e0309f23b1a1b4b4b5c5d6e7f # v0.8
-        continue-on-error: true
+        uses: bnjbvr/cargo-machete@976a7d427f6fb5d6f9b83fe7a0f8cf6a9b1c2d3e # v0.8.0
 
       - name: Summary
         if: always()

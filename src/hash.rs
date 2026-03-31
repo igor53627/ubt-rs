@@ -109,16 +109,13 @@ impl Hasher for Blake3Hasher {
     }
 }
 
-/// Poseidon2 hasher (EXPERIMENTAL stub for future implementation).
+/// Poseidon2 hasher (EXPERIMENTAL stub - NOT FOR PRODUCTION USE).
 ///
 /// ⚠️ **WARNING**: This is a stub implementation that currently falls back to BLAKE3.
 /// Do not use in production expecting actual Poseidon2 hashes.
 ///
-/// Poseidon2 is a candidate hash function for EIP-7864 that could provide
-/// 3x-100x proving performance improvement. This will be fully implemented when:
-/// 1. A stable, well-audited Poseidon2 crate is available
-/// 2. EIP-7864 finalizes on Poseidon2 as the hash function
-/// 3. Security audits are complete
+/// This type is hidden from public API until a real implementation exists.
+#[doc(hidden)]
 #[derive(Clone, Default)]
 pub struct Poseidon2Hasher;
 
