@@ -15,11 +15,11 @@ priority: medium
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Add Poseidon2 hash function implementation (feature-gated) for future-proofing. EIP-7864 may switch to Poseidon2 if security audits pass. This gives 3x-100x proving performance improvement.
+Add Poseidon2 hash function stub for future-proofing. EIP-7864 may switch to Poseidon2 if security audits pass. This gives 3x-100x proving performance improvement.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Added Poseidon2Hasher stub that falls back to BLAKE3. Exported in lib.rs. Full implementation pending stable crate and EIP-7864 finalization.
+Added Poseidon2Hasher stub that falls back to BLAKE3. Marked #[doc(hidden)] - not exported in public API. Full implementation pending stable crate and EIP-7864 finalization.
 <!-- SECTION:NOTES:END -->

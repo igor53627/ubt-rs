@@ -19,7 +19,9 @@ Review production code for unnecessary panics, convert to Result propagation whe
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Reviewed all unwrap/expect in production code. All uses are justified:
+Reviewed all unwrap/expect in production code:
 - embedding.rs: expect calls guarded by construction invariants
+- src/code.rs: expect in test helper function (hex::decode)
 - All other uses are in test code or doc examples
+- No unnecessary panics found in production APIs
 <!-- SECTION:NOTES:END -->

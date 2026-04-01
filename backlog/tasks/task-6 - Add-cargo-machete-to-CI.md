@@ -1,7 +1,7 @@
 ---
 id: TASK-6
 title: Add cargo-machete to CI
-status: Done
+status: Incomplete
 assignee: []
 created_date: '2026-03-31 20:55'
 updated_date: '2026-03-31 21:42'

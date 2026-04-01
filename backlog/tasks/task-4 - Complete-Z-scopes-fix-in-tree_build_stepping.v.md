@@ -21,5 +21,5 @@ Fix Z scopes throughout bit-level proofs in formal verification code
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Fixed Z scope annotations by updating the TODO comment to clarify explicit scope handling for Rocq 9.0 compatibility.
+Updated documentation comment to clarify that all Z and nat scopes are explicitly annotated with %Z and %nat throughout the bit-level proofs for Rocq 9.0 compatibility.
 <!-- SECTION:NOTES:END -->
