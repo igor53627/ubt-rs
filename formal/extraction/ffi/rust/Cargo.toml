@@ -10,8 +10,8 @@ name = "ubt_ffi"
 crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
-blake3 = "1.5"
-sha2 = "0.10"
+blake3 = "1.8.2"
+sha2 = "0.10.9"
 
 [dev-dependencies]
 # None needed for basic tests

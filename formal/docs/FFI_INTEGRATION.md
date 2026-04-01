@@ -48,7 +48,7 @@ This document describes the integration between the formally verified OCaml code
                             ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                    UBT Rust Crate                                       │
-│  (/Users/user/pse/paradigm/ubt/src/)                                    │
+│  (./src/)                                    │
 │                                                                         │
 │  • Full tree implementation (tree.rs)                                   │
 │  • Key types (key.rs: Stem, TreeKey)                                    │
@@ -114,7 +114,7 @@ This document describes the integration between the formally verified OCaml code
 ### 1. Build Rust FFI Library
 
 ```bash
-cd /Users/user/pse/paradigm/ubt/formal/extraction/ffi/rust
+cd formal/extraction/ffi/rust  # From repo root
 cargo build --release
 ```
 
@@ -130,7 +130,7 @@ This produces:
 opam install ctypes ctypes-foreign
 
 # Compile with FFI support
-cd /Users/user/pse/paradigm/ubt/formal/extraction
+cd formal/extraction  # From repo root
 ocamlfind ocamlopt -package ctypes,ctypes-foreign -linkpkg \
   extracted.ml ffi/ffi_bridge.ml ffi/ffi_stubs.ml \
   -o test_ffi
@@ -142,7 +142,7 @@ The FFI bridge includes placeholder implementations that work without
 the Rust library, useful for testing the extraction layer:
 
 ```bash
-cd /Users/user/pse/paradigm/ubt/formal
+cd formal
 eval $(opam env --switch=rocq-9)
 make extract
 cd extraction
