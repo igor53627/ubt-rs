@@ -94,9 +94,13 @@ jobs:
           if [ -f scripts/count_axioms.sh ]; then
             ./scripts/count_axioms.sh > base-counts.txt 2>/dev/null || echo -e "ADMITTED:0\nAXIOMS:0\nPARAMETERS:0\nADMITS:0" > base-counts.txt
             
-            BASE_ADMITTED=$(grep "^ADMITTED:" base-counts.txt | cut -d: -f2 || echo "0")
-            BASE_AXIOMS=$(grep "^AXIOMS:" base-counts.txt | cut -d: -f2 || echo "0")
-            BASE_ADMITS=$(grep "^ADMITS:" base-counts.txt | cut -d: -f2 || echo "0")
+            # Extract counts with proper fallback (pipeline exit code is from last command)
+            BASE_ADMITTED=$(grep "^ADMITTED:" base-counts.txt 2>/dev/null | cut -d: -f2)
+            BASE_ADMITTED=${BASE_ADMITTED:-0}
+            BASE_AXIOMS=$(grep "^AXIOMS:" base-counts.txt 2>/dev/null | cut -d: -f2)
+            BASE_AXIOMS=${BASE_AXIOMS:-0}
+            BASE_ADMITS=$(grep "^ADMITS:" base-counts.txt 2>/dev/null | cut -d: -f2)
+            BASE_ADMITS=${BASE_ADMITS:-0}
             
             # Restore current branch
             git checkout ${{ github.sha }} -- .
