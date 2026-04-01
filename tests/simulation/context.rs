@@ -1,4 +1,5 @@
 //! Simulation context providing deterministic randomness and timing.
+#![allow(dead_code)] // Test infrastructure with room for future expansion
 
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use std::collections::BTreeMap;

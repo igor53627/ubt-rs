@@ -9,6 +9,7 @@ on:
       - 'benches/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - 'deny.toml'
       - '.github/workflows/rust.yml'
   pull_request:
     branches: [main, master]
@@ -18,6 +19,7 @@ on:
       - 'benches/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - 'deny.toml'
       - '.github/workflows/rust.yml'
 
 env:
@@ -84,6 +86,16 @@ jobs:
 
       - name: Build docs
         run: cargo doc --no-deps
+
+      - name: Check dependencies (cargo-deny)
+        uses: EmbarkStudios/cargo-deny-action@34899fc7ba81ca6268d5947a7a16b4649013fea1 # v2.0.11
+        with:
+          command: check
+        continue-on-error: true  # CVSS 4.0 parsing issue upstream
+
+      - name: Run benchmarks (non-blocking)
+        run: cargo bench -- --test
+        continue-on-error: true
 
       - name: Summary
         if: always()

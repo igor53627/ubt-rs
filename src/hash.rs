@@ -109,6 +109,32 @@ impl Hasher for Blake3Hasher {
     }
 }
 
+/// Poseidon2 hasher (EXPERIMENTAL stub - NOT FOR PRODUCTION USE).
+///
+/// ⚠️ **WARNING**: This is a stub implementation that currently falls back to BLAKE3.
+/// Do not use in production expecting actual Poseidon2 hashes.
+///
+/// This type is hidden from public API until a real implementation exists.
+#[doc(hidden)]
+#[derive(Clone, Default)]
+pub struct Poseidon2Hasher;
+
+impl Hasher for Poseidon2Hasher {
+    fn hash_32(&self, value: &B256) -> B256 {
+        // TODO: Implement actual Poseidon2 hashing when crate is available
+        // For now, fall back to BLAKE3
+        Blake3Hasher.hash_32(value)
+    }
+
+    fn hash_64(&self, left: &B256, right: &B256) -> B256 {
+        Blake3Hasher.hash_64(left, right)
+    }
+
+    fn hash_raw(&self, input: &[u8]) -> B256 {
+        Blake3Hasher.hash_raw(input)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

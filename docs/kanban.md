@@ -1,8 +1,10 @@
 # UBT Maintenance & Best Practices Kanban
 
+> For detailed task breakdowns and ecosystem tracking, see [backlog.md](./backlog.md)
+
 ## Backlog
 
-_Empty_
+See [backlog.md](./backlog.md) for prioritized action items.
 
 ---
 
@@ -13,6 +15,20 @@ _Empty_
 ---
 
 ## Done
+
+### [BK-01] Fix clippy warnings (needless_raw_string_hashes)
+**Priority:** High  
+Fixed clippy `needless_raw_string_hashes` warnings in `tests/simulation/metrics.rs` by removing unnecessary `#` characters from raw string literals.
+
+### [BK-02] Review and update dependencies
+**Priority:** High  
+Updated dependencies via `cargo update`. Key updates: `blake3` 1.8.3→1.8.4, `alloy-primitives` 1.5.4→1.5.7. All tests pass.
+
+### [BK-03] Add cargo-deny to CI
+**Priority:** Medium  
+Added `deny.toml` configuration and cargo-deny CI job for security advisory checking, license compliance, and duplicate dependency detection.
+
+---
 
 ### [KB-01] Convert tree-depth panics to Result returns
 **Priority:** Medium
