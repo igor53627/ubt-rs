@@ -202,7 +202,7 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 | **Theorems (Qed)** | ~20 | **641** | +3105% |
 | **Total Axioms** | 50+ | **185** | All documented |
 | **Linking Axioms** | N/A | **45** | Minimal trust base |
-| **Admitted** | 10+ | **0** | 0 in linking/simulations/proofs (82 total in RocqOfRust src/ and specs) |
+| **Admitted** | 10+ | **91** | 0 `admit.` tactics in linking/simulations/proofs; 91 `Admitted.` theorems in generated code ([details](formal/docs/ADMITS_TRACKING.md)) |
 | **QuickChick Properties** | 5 | **22 CI / 50 total** | 11k/500k tests |
 | **Verification Confidence** | - | **95%** | Complete |
 

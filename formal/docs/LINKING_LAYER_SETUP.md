@@ -85,7 +85,7 @@ make check-deps
 Expected output:
 ```
 Rocq version: The Rocq Prover, version 9.0.1
-RocqOfRust: /Users/user/pse/paradigm/rocq-of-rust/RocqOfRust
+RocqOfRust: ~/rocq-of-rust/RocqOfRust (or your path)
 RocqOfRust library: compiled
 ```
 
@@ -111,7 +111,7 @@ make ci  # Runs: clean all linking
 
 If RocqOfRust is not found:
 ```
-Error: RocqOfRust not found at /Users/user/pse/paradigm/rocq-of-rust/RocqOfRust
+Error: RocqOfRust not found at ~/rocq-of-rust/RocqOfRust (or your path)
 Build it first: cd rocq-of-rust/RocqOfRust && make
 ```
 
