@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-04-01
+
+### Changed
+- **Performance**: Added `PARALLEL_STEM_THRESHOLD=100` to avoid rayon overhead for small trees
+- **Dependencies**: Updated `blake3` to 1.8.4, `alloy-primitives` to 1.5.7
+
+### Added
+- **CI/CD**: Added cargo-deny for supply chain security (non-blocking due to upstream CVSS 4.0 parsing issue)
+- **CI/CD**: Added benchmark smoke tests to CI
+- **Documentation**: Added `backlog.md` project management with 19 tasks
+- **Future Prep**: Added `Poseidon2Hasher` stub (doc-hidden, delegates to BLAKE3)
+
+### Fixed
+- **Clippy**: Fixed `needless_raw_string_hashes` warnings in simulation metrics
+- **Warnings**: Suppressed dead code warnings in simulation test modules
+- **Formal Verification**: Updated Z scope documentation in `tree_build_stepping.v`
+
 ## [0.4.0] - 2026-03-10
 
 ### Fixed
