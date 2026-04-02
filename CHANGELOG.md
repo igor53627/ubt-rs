@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-04-02
+
 ### Fixed
 - **Exclusion proof verification in formal model** ([#20](backlog/tasks/task-20 - Fix-exclusion-proof-verification-for-ExclNoSubindex-case.md))
   - Fixed `verify_exclusion_proof` and `verify_exclusion_proof_b` in `formal/simulations/tree.v` to correctly handle `ExclNoSubindex` and `ExclNoStem` cases. Previously, the verification logic ignored the stem proof and always assumed a zero hash for the stem, causing valid proofs to fail when the stem existed but the subindex did not.
