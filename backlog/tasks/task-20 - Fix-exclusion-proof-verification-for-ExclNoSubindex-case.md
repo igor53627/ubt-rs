@@ -29,7 +29,7 @@ The `verify_exclusion_proof` function in `formal/simulations/tree.v` incorrectly
 **Expected Behavior:**
 For `ExclNoSubindex` case:
 ```coq
-let stem_root := compute_root_from_witness (hash_value some_value) (ep_stem_proof proof) in
+let stem_root := compute_root_from_witness zero32 (ep_stem_proof proof) in
 let stem_hash := hash_stem (tk_stem (ep_key proof)) stem_root in
 ```
 
@@ -43,7 +43,7 @@ Reference: GitHub PR #3 roborev review comment
 - [x] Update `verify_exclusion_proof_b` boolean version accordingly
 - [x] Update or add proof lemmas that depend on these definitions
 - [x] Verify fix against Rust implementation behavior
-- [ ] Close roborev review thread on PR #3
+- [x] Close roborev review thread on PR #3
 <!-- SECTION:CRITERIA:END -->
 
 ## Implementation Notes

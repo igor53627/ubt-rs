@@ -1433,16 +1433,20 @@ Definition verify_inclusion_proof (proof : InclusionProof) (root : Bytes32) : Pr
   let stem_hash := hash_stem (tk_stem (ip_key proof)) stem_root in
   compute_root_from_witness stem_hash (ip_tree_proof proof) = root.
 
-(** Verify an exclusion proof *)
-Definition verify_exclusion_proof (proof : ExclusionProof) (root : Bytes32) : Prop :=
+(** Reconstruct the expected root hash from an exclusion proof *)
+Definition exclusion_proof_reconstructed_root (proof : ExclusionProof) : Bytes32 :=
   match ep_case proof with
   | ExclNoStem =>
-      compute_root_from_witness zero32 (ep_tree_proof proof) = root
+      compute_root_from_witness zero32 (ep_tree_proof proof)
   | ExclNoSubindex =>
       let stem_root := compute_root_from_witness zero32 (ep_stem_proof proof) in
       let stem_hash := hash_stem (tk_stem (ep_key proof)) stem_root in
-      compute_root_from_witness stem_hash (ep_tree_proof proof) = root
+      compute_root_from_witness stem_hash (ep_tree_proof proof)
   end.
+
+(** Verify an exclusion proof *)
+Definition verify_exclusion_proof (proof : ExclusionProof) (root : Bytes32) : Prop :=
+  exclusion_proof_reconstructed_root proof = root.
 
 (** ** Decidability for Proof Verification *)
 
@@ -1455,14 +1459,7 @@ Definition verify_inclusion_proof_b (proof : InclusionProof) (root : Bytes32) : 
 
 (** Boolean version of exclusion proof verification *)
 Definition verify_exclusion_proof_b (proof : ExclusionProof) (root : Bytes32) : bool :=
-  match ep_case proof with
-  | ExclNoStem =>
-      bytes32_eqb (compute_root_from_witness zero32 (ep_tree_proof proof)) root
-  | ExclNoSubindex =>
-      let stem_root := compute_root_from_witness zero32 (ep_stem_proof proof) in
-      let stem_hash := hash_stem (tk_stem (ep_key proof)) stem_root in
-      bytes32_eqb (compute_root_from_witness stem_hash (ep_tree_proof proof)) root
-  end.
+  bytes32_eqb (exclusion_proof_reconstructed_root proof) root.
 
 (** verify_inclusion_proof_b reflects verify_inclusion_proof *)
 Lemma verify_inclusion_proof_b_spec : forall proof root,
@@ -1479,9 +1476,7 @@ Lemma verify_exclusion_proof_b_spec : forall proof root,
 Proof.
   intros proof root.
   unfold verify_exclusion_proof_b, verify_exclusion_proof.
-  destruct (ep_case proof).
-  - apply bytes32_eqb_eq.
-  - apply bytes32_eqb_eq.
+  apply bytes32_eqb_eq.
 Qed.
 
 (** Decidability for inclusion proof verification *)
