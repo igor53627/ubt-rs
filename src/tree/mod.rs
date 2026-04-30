@@ -158,14 +158,19 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
     }
 
     /// Create a new tree with a custom storage backend.
+    ///
+    /// If the store already contains stems, they are marked dirty so that
+    /// the next [`root_hash`](Self::root_hash) call computes correctly.
     pub fn with_store(store: S) -> Self {
+        let dirty_stem_hashes: HashSet<Stem> = store.iter().map(|(s, _)| *s).collect();
+        let root_dirty = !dirty_stem_hashes.is_empty();
         Self {
             root: Node::Empty,
             hasher: H::default(),
             store,
-            root_dirty: false,
+            root_dirty,
             stem_hash_cache: HashMap::new(),
-            dirty_stem_hashes: HashSet::new(),
+            dirty_stem_hashes,
             root_hash_cached: B256::ZERO,
             node_hash_cache: HashMap::new(),
             incremental_enabled: false,
@@ -173,14 +178,19 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
     }
 
     /// Create a new tree with a custom hasher and storage backend.
+    ///
+    /// If the store already contains stems, they are marked dirty so that
+    /// the next [`root_hash`](Self::root_hash) call computes correctly.
     pub fn with_hasher_and_store(hasher: H, store: S) -> Self {
+        let dirty_stem_hashes: HashSet<Stem> = store.iter().map(|(s, _)| *s).collect();
+        let root_dirty = !dirty_stem_hashes.is_empty();
         Self {
             root: Node::Empty,
             hasher,
             store,
-            root_dirty: false,
+            root_dirty,
             stem_hash_cache: HashMap::new(),
-            dirty_stem_hashes: HashSet::new(),
+            dirty_stem_hashes,
             root_hash_cached: B256::ZERO,
             node_hash_cache: HashMap::new(),
             incremental_enabled: false,
@@ -871,6 +881,38 @@ mod tests {
         assert_ne!(h1, B256::ZERO);
 
         tree.delete(&key);
+        assert_eq!(tree.root_hash().unwrap(), B256::ZERO);
+    }
+
+    #[test]
+    fn test_with_store_populated() {
+        use crate::store::InMemoryStore;
+
+        let mut tree1: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        let k1 = TreeKey::from_bytes(B256::repeat_byte(0x01));
+        let k2 = TreeKey::from_bytes(B256::repeat_byte(0x02));
+        tree1.insert(k1, B256::repeat_byte(0x11));
+        tree1.insert(k2, B256::repeat_byte(0x22));
+        let expected_root = tree1.root_hash().unwrap();
+
+        let store = tree1.into_store();
+        assert_eq!(store.len(), 2);
+
+        let mut tree2: UnifiedBinaryTree<Blake3Hasher, InMemoryStore> =
+            UnifiedBinaryTree::with_store(store);
+        assert_eq!(tree2.stem_count(), 2);
+        assert_eq!(tree2.get(&k1), Some(B256::repeat_byte(0x11)));
+        let root = tree2.root_hash().unwrap();
+        assert_eq!(root, expected_root, "with_store on populated store must produce correct root_hash");
+    }
+
+    #[test]
+    fn test_with_store_empty() {
+        use crate::store::InMemoryStore;
+
+        let mut tree: UnifiedBinaryTree<Blake3Hasher, InMemoryStore> =
+            UnifiedBinaryTree::with_store(InMemoryStore::new());
+        assert!(tree.is_empty());
         assert_eq!(tree.root_hash().unwrap(), B256::ZERO);
     }
 }
