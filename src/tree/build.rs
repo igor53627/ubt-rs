@@ -1,10 +1,11 @@
 //! Tree structure construction helpers.
 
+use crate::store::NodeStore;
 use crate::{error::Result, Hasher, InternalNode, Node, Stem, UbtError};
 
 use super::{UnifiedBinaryTree, MAX_DEPTH};
 
-impl<H: Hasher> UnifiedBinaryTree<H> {
+impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
     /// Build the tree structure from a sorted list of stems using slice partitioning.
     /// This is O(n) per level with no allocations, compared to the previous O(n) allocations per level.
     pub(super) fn build_tree_from_sorted_stems(
@@ -18,7 +19,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
 
         if stems.len() == 1 {
             let stem = &stems[0];
-            if let Some(stem_node) = self.stems.get(stem) {
+            if let Some(stem_node) = self.store.get(stem) {
                 return Ok(Node::Stem(stem_node.clone()));
             }
             return Ok(Node::Empty);

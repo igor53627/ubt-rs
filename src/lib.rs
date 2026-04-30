@@ -95,6 +95,7 @@ mod hash;
 mod key;
 mod node;
 mod proof;
+mod store;
 mod streaming;
 mod tree;
 
@@ -114,6 +115,7 @@ pub use embedding::{
 pub use proof::{generate_stem_proof, Direction, MultiProof, Proof, ProofNode, Witness};
 #[doc(hidden)]
 pub use std::collections::HashMap;
+pub use store::{InMemoryStore, NodeStore};
 pub use streaming::StreamingTreeBuilder;
 pub use tree::UnifiedBinaryTree;
 
