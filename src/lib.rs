@@ -12,6 +12,7 @@
 //! - **ZK-friendly**: Designed for efficient proving in ZK circuits
 //! - **Parallel hashing**: Uses rayon for concurrent stem hash computation (default feature)
 //! - **Incremental updates**: O(D*C) root updates instead of O(S log S) rebuilds
+//! - **Pluggable storage**: [`NodeStore`] trait allows custom backends for persistent state
 //!
 //! ## Tree Structure
 //!
