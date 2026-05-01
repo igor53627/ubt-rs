@@ -1,31 +1,40 @@
 //! Compact binary encoding for UBT nodes.
 //!
-//! Provides encode/decode for [`StemNode`] using a bitmap-based format
-//! suitable for persistent storage backends.
+//! All node types use a 1-byte type tag prefix:
 //!
-//! ## `StemNode` Wire Format
+//! | Tag | Type | Size |
+//! |-----|------|------|
+//! | `0x00` | Empty | 1 byte |
+//! | `0x01` | Internal | 65 bytes (tag + two 32B hashes) |
+//! | `0x02` | Stem | 64 + N×32 bytes (tag + stem + bitmap + values) |
+//! | `0x03` | Leaf | 33 bytes (tag + 32B value) |
+//!
+//! ## `StemNode` layout
 //!
 //! ```text
 //! [1B type=0x02] [31B stem] [32B bitmap] [N×32B values]
 //! ```
 //!
-//! - **Type byte**: `0x02` identifies a stem node
-//! - **Stem**: 31 raw stem bytes
-//! - **Bitmap**: 256 bits (32 bytes). Bit `i` is set when subindex `i` has a value.
-//!   Bit ordering: `byte[i/8] & (1 << (i%8))`
-//! - **Values**: `N` raw 32-byte values in ascending subindex order,
-//!   where `N` = popcount(bitmap)
-//!
-//! Total size: `64 + N×32` bytes.
+//! Bitmap: 256 bits, bit `i` set = subindex `i` present.
+//! Bit ordering: `byte[i/8] & (1 << (i%8))`.
+//! Values in ascending subindex order, only for set bits.
 
 use alloy_primitives::B256;
 
 use crate::{error::Result, Stem, StemNode, UbtError, STEM_LEN};
 
-/// Type tag for stem nodes.
+/// Type tag for empty nodes.
+pub const EMPTY_NODE_TAG: u8 = 0x00;
+/// Type tag for internal nodes (two child hashes).
+pub const INTERNAL_NODE_TAG: u8 = 0x01;
+/// Type tag for stem nodes (bitmap + values).
 pub const STEM_NODE_TAG: u8 = 0x02;
+/// Type tag for leaf nodes (single value).
+pub const LEAF_NODE_TAG: u8 = 0x03;
 
-const HEADER_SIZE: usize = 1 + STEM_LEN + 32;
+const STEM_HEADER_SIZE: usize = 1 + STEM_LEN + 32;
+const INTERNAL_SIZE: usize = 1 + 32 + 32;
+const LEAF_SIZE: usize = 1 + 32;
 
 /// Encode a [`StemNode`] into compact binary format.
 ///
@@ -42,7 +51,7 @@ const HEADER_SIZE: usize = 1 + STEM_LEN + 32;
 /// assert_eq!(bytes.len(), 64 + 32); // header + 1 value
 /// ```
 pub fn encode_stem_node(node: &StemNode) -> Vec<u8> {
-    let mut buf = Vec::with_capacity(HEADER_SIZE + node.values.len() * 32);
+    let mut buf = Vec::with_capacity(STEM_HEADER_SIZE + node.values.len() * 32);
 
     buf.push(STEM_NODE_TAG);
     buf.extend_from_slice(node.stem.as_bytes());
@@ -69,9 +78,9 @@ pub fn encode_stem_node(node: &StemNode) -> Vec<u8> {
 /// Returns [`UbtError::InvalidEncoding`] if the buffer is too short,
 /// has a wrong type tag, or contains inconsistent bitmap/value data.
 pub fn decode_stem_node(bytes: &[u8]) -> Result<StemNode> {
-    if bytes.len() < HEADER_SIZE {
+    if bytes.len() < STEM_HEADER_SIZE {
         return Err(UbtError::InvalidEncoding(format!(
-            "buffer too short: expected at least {HEADER_SIZE} bytes, got {}",
+            "buffer too short: expected at least {STEM_HEADER_SIZE} bytes, got {}",
             bytes.len()
         )));
     }
@@ -87,10 +96,10 @@ pub fn decode_stem_node(bytes: &[u8]) -> Result<StemNode> {
     stem_bytes.copy_from_slice(&bytes[1..=STEM_LEN]);
     let stem = Stem::new(stem_bytes);
 
-    let bitmap = &bytes[1 + STEM_LEN..HEADER_SIZE];
+    let bitmap = &bytes[1 + STEM_LEN..STEM_HEADER_SIZE];
     let value_count: usize = bitmap.iter().map(|b| b.count_ones() as usize).sum();
 
-    let expected_size = HEADER_SIZE + value_count * 32;
+    let expected_size = STEM_HEADER_SIZE + value_count * 32;
     if bytes.len() < expected_size {
         return Err(UbtError::InvalidEncoding(format!(
             "buffer too short for {value_count} values: expected {expected_size} bytes, got {}",
@@ -99,7 +108,7 @@ pub fn decode_stem_node(bytes: &[u8]) -> Result<StemNode> {
     }
 
     let mut node = StemNode::new(stem);
-    let mut offset = HEADER_SIZE;
+    let mut offset = STEM_HEADER_SIZE;
     for subindex in 0u8..=255 {
         if bitmap[subindex as usize / 8] & (1 << (subindex % 8)) != 0 {
             let value = B256::from_slice(&bytes[offset..offset + 32]);
@@ -114,7 +123,124 @@ pub fn decode_stem_node(bytes: &[u8]) -> Result<StemNode> {
 /// Returns the encoded size of a stem node without allocating.
 #[must_use]
 pub fn encoded_stem_size(node: &StemNode) -> usize {
-    HEADER_SIZE + node.values.len() * 32
+    STEM_HEADER_SIZE + node.values.len() * 32
+}
+
+/// Encode an internal node as `[0x01] [32B left_hash] [32B right_hash]`.
+pub fn encode_internal_node(left_hash: &B256, right_hash: &B256) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(INTERNAL_SIZE);
+    buf.push(INTERNAL_NODE_TAG);
+    buf.extend_from_slice(left_hash.as_slice());
+    buf.extend_from_slice(right_hash.as_slice());
+    buf
+}
+
+/// Decode an internal node from `[0x01] [32B left_hash] [32B right_hash]`.
+///
+/// # Errors
+///
+/// Returns [`UbtError::InvalidEncoding`] on wrong tag or insufficient bytes.
+pub fn decode_internal_node(bytes: &[u8]) -> Result<(B256, B256)> {
+    if bytes.len() < INTERNAL_SIZE {
+        return Err(UbtError::InvalidEncoding(format!(
+            "internal node: expected {INTERNAL_SIZE} bytes, got {}",
+            bytes.len()
+        )));
+    }
+    if bytes[0] != INTERNAL_NODE_TAG {
+        return Err(UbtError::InvalidEncoding(format!(
+            "expected internal node tag 0x{INTERNAL_NODE_TAG:02x}, got 0x{:02x}",
+            bytes[0]
+        )));
+    }
+    let left = B256::from_slice(&bytes[1..33]);
+    let right = B256::from_slice(&bytes[33..65]);
+    Ok((left, right))
+}
+
+/// Encode a leaf node as `[0x03] [32B value]`.
+pub fn encode_leaf_node(value: &B256) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(LEAF_SIZE);
+    buf.push(LEAF_NODE_TAG);
+    buf.extend_from_slice(value.as_slice());
+    buf
+}
+
+/// Decode a leaf node from `[0x03] [32B value]`.
+///
+/// # Errors
+///
+/// Returns [`UbtError::InvalidEncoding`] on wrong tag or insufficient bytes.
+pub fn decode_leaf_node(bytes: &[u8]) -> Result<B256> {
+    if bytes.len() < LEAF_SIZE {
+        return Err(UbtError::InvalidEncoding(format!(
+            "leaf node: expected {LEAF_SIZE} bytes, got {}",
+            bytes.len()
+        )));
+    }
+    if bytes[0] != LEAF_NODE_TAG {
+        return Err(UbtError::InvalidEncoding(format!(
+            "expected leaf node tag 0x{LEAF_NODE_TAG:02x}, got 0x{:02x}",
+            bytes[0]
+        )));
+    }
+    Ok(B256::from_slice(&bytes[1..33]))
+}
+
+/// Encode an empty node as `[0x00]`.
+#[must_use]
+pub fn encode_empty_node() -> Vec<u8> {
+    vec![EMPTY_NODE_TAG]
+}
+
+/// A decoded node from the wire format.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DecodedNode {
+    /// Empty node.
+    Empty,
+    /// Internal node with left and right child hashes.
+    Internal {
+        /// Left child hash.
+        left_hash: B256,
+        /// Right child hash.
+        right_hash: B256,
+    },
+    /// Stem node with values.
+    Stem(StemNode),
+    /// Leaf node with a value.
+    Leaf {
+        /// The 32-byte value.
+        value: B256,
+    },
+}
+
+/// Decode any node type by dispatching on the type tag.
+///
+/// # Errors
+///
+/// Returns [`UbtError::InvalidEncoding`] if the buffer is empty,
+/// has an unknown tag, or is malformed.
+pub fn decode_node(bytes: &[u8]) -> Result<DecodedNode> {
+    if bytes.is_empty() {
+        return Err(UbtError::InvalidEncoding("empty buffer".to_string()));
+    }
+    match bytes[0] {
+        EMPTY_NODE_TAG => Ok(DecodedNode::Empty),
+        INTERNAL_NODE_TAG => {
+            let (left, right) = decode_internal_node(bytes)?;
+            Ok(DecodedNode::Internal {
+                left_hash: left,
+                right_hash: right,
+            })
+        }
+        STEM_NODE_TAG => Ok(DecodedNode::Stem(decode_stem_node(bytes)?)),
+        LEAF_NODE_TAG => Ok(DecodedNode::Leaf {
+            value: decode_leaf_node(bytes)?,
+        }),
+        tag => Err(UbtError::InvalidEncoding(format!(
+            "unknown node type tag: 0x{tag:02x}"
+        ))),
+    }
 }
 
 #[cfg(test)]
@@ -125,7 +251,7 @@ mod tests {
     fn test_roundtrip_empty() {
         let node = StemNode::new(Stem::new([0xAA; 31]));
         let bytes = encode_stem_node(&node);
-        assert_eq!(bytes.len(), HEADER_SIZE);
+        assert_eq!(bytes.len(), STEM_HEADER_SIZE);
 
         let decoded = decode_stem_node(&bytes).unwrap();
         assert_eq!(decoded.stem, node.stem);
@@ -138,7 +264,7 @@ mod tests {
         node.set_value(42, B256::repeat_byte(0xFF));
 
         let bytes = encode_stem_node(&node);
-        assert_eq!(bytes.len(), HEADER_SIZE + 32);
+        assert_eq!(bytes.len(), STEM_HEADER_SIZE + 32);
 
         let decoded = decode_stem_node(&bytes).unwrap();
         assert_eq!(decoded.stem, node.stem);
@@ -154,7 +280,7 @@ mod tests {
         node.set_value(255, B256::repeat_byte(0x03));
 
         let bytes = encode_stem_node(&node);
-        assert_eq!(bytes.len(), HEADER_SIZE + 3 * 32);
+        assert_eq!(bytes.len(), STEM_HEADER_SIZE + 3 * 32);
 
         let decoded = decode_stem_node(&bytes).unwrap();
         assert_eq!(decoded.get_value(0), Some(B256::repeat_byte(0x01)));
@@ -172,7 +298,7 @@ mod tests {
         }
 
         let bytes = encode_stem_node(&node);
-        assert_eq!(bytes.len(), HEADER_SIZE + 256 * 32);
+        assert_eq!(bytes.len(), STEM_HEADER_SIZE + 256 * 32);
 
         let decoded = decode_stem_node(&bytes).unwrap();
         assert_eq!(decoded.values.len(), 256);
@@ -187,11 +313,11 @@ mod tests {
     #[test]
     fn test_encoded_size() {
         let mut node = StemNode::new(Stem::new([0; 31]));
-        assert_eq!(encoded_stem_size(&node), HEADER_SIZE);
+        assert_eq!(encoded_stem_size(&node), STEM_HEADER_SIZE);
 
         node.set_value(0, B256::repeat_byte(1));
         node.set_value(100, B256::repeat_byte(2));
-        assert_eq!(encoded_stem_size(&node), HEADER_SIZE + 2 * 32);
+        assert_eq!(encoded_stem_size(&node), STEM_HEADER_SIZE + 2 * 32);
         assert_eq!(encode_stem_node(&node).len(), encoded_stem_size(&node));
     }
 
@@ -203,7 +329,7 @@ mod tests {
 
     #[test]
     fn test_decode_wrong_tag() {
-        let mut bytes = vec![0x00; HEADER_SIZE];
+        let mut bytes = vec![0x00; STEM_HEADER_SIZE];
         bytes[0] = 0xFF;
         let err = decode_stem_node(&bytes).unwrap_err();
         assert!(matches!(err, UbtError::InvalidEncoding(_)));
@@ -215,7 +341,7 @@ mod tests {
         node.set_value(0, B256::repeat_byte(0x42));
         let bytes = encode_stem_node(&node);
 
-        let truncated = &bytes[..HEADER_SIZE + 16];
+        let truncated = &bytes[..STEM_HEADER_SIZE + 16];
         let err = decode_stem_node(truncated).unwrap_err();
         assert!(matches!(err, UbtError::InvalidEncoding(_)));
     }
@@ -242,5 +368,70 @@ mod tests {
         // Values in order: subindex 0 first, then subindex 8
         assert_eq!(&bytes[64..96], B256::repeat_byte(0x11).as_slice());
         assert_eq!(&bytes[96..128], B256::repeat_byte(0x22).as_slice());
+    }
+
+    #[test]
+    fn test_internal_roundtrip() {
+        let left = B256::repeat_byte(0xAA);
+        let right = B256::repeat_byte(0xBB);
+        let bytes = encode_internal_node(&left, &right);
+        assert_eq!(bytes.len(), INTERNAL_SIZE);
+
+        let (l, r) = decode_internal_node(&bytes).unwrap();
+        assert_eq!(l, left);
+        assert_eq!(r, right);
+    }
+
+    #[test]
+    fn test_leaf_roundtrip() {
+        let value = B256::repeat_byte(0x42);
+        let bytes = encode_leaf_node(&value);
+        assert_eq!(bytes.len(), LEAF_SIZE);
+
+        let decoded = decode_leaf_node(&bytes).unwrap();
+        assert_eq!(decoded, value);
+    }
+
+    #[test]
+    fn test_empty_roundtrip() {
+        let bytes = encode_empty_node();
+        assert_eq!(bytes.len(), 1);
+        assert_eq!(bytes[0], EMPTY_NODE_TAG);
+
+        let decoded = decode_node(&bytes).unwrap();
+        assert_eq!(decoded, DecodedNode::Empty);
+    }
+
+    #[test]
+    fn test_decode_node_dispatches() {
+        let stem_bytes = encode_stem_node(&StemNode::new(Stem::new([0; 31])));
+        assert!(matches!(
+            decode_node(&stem_bytes).unwrap(),
+            DecodedNode::Stem(_)
+        ));
+
+        let internal_bytes = encode_internal_node(&B256::ZERO, &B256::ZERO);
+        assert!(matches!(
+            decode_node(&internal_bytes).unwrap(),
+            DecodedNode::Internal { .. }
+        ));
+
+        let leaf_bytes = encode_leaf_node(&B256::repeat_byte(1));
+        assert!(matches!(
+            decode_node(&leaf_bytes).unwrap(),
+            DecodedNode::Leaf { .. }
+        ));
+    }
+
+    #[test]
+    fn test_decode_node_unknown_tag() {
+        let err = decode_node(&[0xFF]).unwrap_err();
+        assert!(matches!(err, UbtError::InvalidEncoding(_)));
+    }
+
+    #[test]
+    fn test_decode_node_empty_buffer() {
+        let err = decode_node(&[]).unwrap_err();
+        assert!(matches!(err, UbtError::InvalidEncoding(_)));
     }
 }
