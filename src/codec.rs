@@ -80,7 +80,7 @@ pub fn encode_stem_node(node: &StemNode) -> Vec<u8> {
 pub fn decode_stem_node(bytes: &[u8]) -> Result<StemNode> {
     if bytes.len() < STEM_HEADER_SIZE {
         return Err(UbtError::InvalidEncoding(format!(
-            "buffer too short: expected at least {STEM_HEADER_SIZE} bytes, got {}",
+            "stem node: expected at least {STEM_HEADER_SIZE} bytes, got {}",
             bytes.len()
         )));
     }
@@ -100,9 +100,9 @@ pub fn decode_stem_node(bytes: &[u8]) -> Result<StemNode> {
     let value_count: usize = bitmap.iter().map(|b| b.count_ones() as usize).sum();
 
     let expected_size = STEM_HEADER_SIZE + value_count * 32;
-    if bytes.len() < expected_size {
+    if bytes.len() != expected_size {
         return Err(UbtError::InvalidEncoding(format!(
-            "buffer too short for {value_count} values: expected {expected_size} bytes, got {}",
+            "stem node: expected {expected_size} bytes, got {}",
             bytes.len()
         )));
     }
@@ -141,7 +141,7 @@ pub fn encode_internal_node(left_hash: &B256, right_hash: &B256) -> Vec<u8> {
 ///
 /// Returns [`UbtError::InvalidEncoding`] on wrong tag or insufficient bytes.
 pub fn decode_internal_node(bytes: &[u8]) -> Result<(B256, B256)> {
-    if bytes.len() < INTERNAL_SIZE {
+    if bytes.len() != INTERNAL_SIZE {
         return Err(UbtError::InvalidEncoding(format!(
             "internal node: expected {INTERNAL_SIZE} bytes, got {}",
             bytes.len()
@@ -172,7 +172,7 @@ pub fn encode_leaf_node(value: &B256) -> Vec<u8> {
 ///
 /// Returns [`UbtError::InvalidEncoding`] on wrong tag or insufficient bytes.
 pub fn decode_leaf_node(bytes: &[u8]) -> Result<B256> {
-    if bytes.len() < LEAF_SIZE {
+    if bytes.len() != LEAF_SIZE {
         return Err(UbtError::InvalidEncoding(format!(
             "leaf node: expected {LEAF_SIZE} bytes, got {}",
             bytes.len()
@@ -225,7 +225,11 @@ pub fn decode_node(bytes: &[u8]) -> Result<DecodedNode> {
         return Err(UbtError::InvalidEncoding("empty buffer".to_string()));
     }
     match bytes[0] {
-        EMPTY_NODE_TAG => Ok(DecodedNode::Empty),
+        EMPTY_NODE_TAG if bytes.len() == 1 => Ok(DecodedNode::Empty),
+        EMPTY_NODE_TAG => Err(UbtError::InvalidEncoding(format!(
+            "empty node: expected 1 byte, got {}",
+            bytes.len()
+        ))),
         INTERNAL_NODE_TAG => {
             let (left, right) = decode_internal_node(bytes)?;
             Ok(DecodedNode::Internal {
@@ -433,5 +437,22 @@ mod tests {
     fn test_decode_node_empty_buffer() {
         let err = decode_node(&[]).unwrap_err();
         assert!(matches!(err, UbtError::InvalidEncoding(_)));
+    }
+
+    #[test]
+    fn test_reject_trailing_bytes() {
+        let mut leaf = encode_leaf_node(&B256::repeat_byte(0x42));
+        leaf.push(0xDE);
+        assert!(decode_leaf_node(&leaf).is_err());
+
+        let mut internal = encode_internal_node(&B256::ZERO, &B256::ZERO);
+        internal.push(0xDE);
+        assert!(decode_internal_node(&internal).is_err());
+
+        let mut stem = encode_stem_node(&StemNode::new(Stem::new([0; 31])));
+        stem.push(0xDE);
+        assert!(decode_stem_node(&stem).is_err());
+
+        assert!(decode_node(&[EMPTY_NODE_TAG, 0xFF]).is_err());
     }
 }
