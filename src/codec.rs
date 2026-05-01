@@ -62,10 +62,10 @@ pub fn encode_stem_node(node: &StemNode) -> Vec<u8> {
     }
     buf.extend_from_slice(&bitmap);
 
-    let mut indices: Vec<u8> = node.values.keys().copied().collect();
-    indices.sort_unstable();
-    for idx in indices {
-        buf.extend_from_slice(node.values[&idx].as_slice());
+    for subindex in 0u8..=255 {
+        if bitmap[subindex as usize / 8] & (1 << (subindex % 8)) != 0 {
+            buf.extend_from_slice(node.values[&subindex].as_slice());
+        }
     }
 
     buf
@@ -108,6 +108,7 @@ pub fn decode_stem_node(bytes: &[u8]) -> Result<StemNode> {
     }
 
     let mut node = StemNode::new(stem);
+    node.values.reserve(value_count);
     let mut offset = STEM_HEADER_SIZE;
     for subindex in 0u8..=255 {
         if bitmap[subindex as usize / 8] & (1 << (subindex % 8)) != 0 {
