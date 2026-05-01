@@ -151,6 +151,29 @@ use ubt::{NodeStore, UnifiedBinaryTree, Blake3Hasher};
 
 The `with_store()` constructor correctly handles both empty and pre-populated stores. You can also extract the store back with `into_store()`.
 
+### Binary Codec
+
+The `codec` module provides compact binary encode/decode for all node types, suitable for persistent storage backends:
+
+| Tag | Type | Size |
+|-----|------|------|
+| `0x00` | Empty | 1 byte |
+| `0x01` | Internal | 65 bytes |
+| `0x02` | Stem | 64 + N×32 bytes (bitmap-based) |
+| `0x03` | Leaf | 33 bytes |
+
+```rust
+use ubt::{Stem, StemNode, B256};
+use ubt::codec::{encode_stem_node, decode_stem_node};
+
+let mut node = StemNode::new(Stem::new([0u8; 31]));
+node.set_value(0, B256::repeat_byte(0x42));
+
+let bytes = encode_stem_node(&node);
+let decoded = decode_stem_node(&bytes).unwrap();
+assert_eq!(decoded.get_value(0), node.get_value(0));
+```
+
 ### Working with Accounts
 
 ```rust
@@ -330,6 +353,7 @@ ubt/
 ├── src/             # Rust implementation
 │   ├── tree/        # Main tree structure (mod, build, hash)
 │   ├── store.rs     # NodeStore trait and InMemoryStore
+│   ├── codec.rs     # Compact binary node encoding
 │   ├── node.rs      # Node types
 │   ├── key.rs       # Tree keys and stems
 │   ├── hash.rs      # Hash trait and implementations
