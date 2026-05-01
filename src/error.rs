@@ -50,6 +50,10 @@ pub enum UbtError {
         account: alloy_primitives::Address,
         slot: alloy_primitives::U256,
     },
+
+    /// Invalid binary encoding
+    #[error("invalid encoding: {0}")]
+    InvalidEncoding(String),
 }
 
 /// Result type alias for UBT operations.

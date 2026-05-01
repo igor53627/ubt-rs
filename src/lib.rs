@@ -88,6 +88,7 @@ use num_cpus as _;
 use rand as _;
 
 mod code;
+pub mod codec;
 mod compat_tests;
 mod embedding;
 mod error;
