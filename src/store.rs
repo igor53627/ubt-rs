@@ -1,7 +1,7 @@
 //! Storage backend abstraction for the UBT.
 //!
 //! The [`NodeStore`] trait abstracts how stem nodes are stored, enabling
-//! custom backends (e.g., RocksDB, redb) for persistent storage.
+//! custom backends (e.g., `RocksDB`, `redb`) for persistent storage.
 //! The default [`InMemoryStore`] uses a `HashMap`.
 
 use std::collections::HashMap;
@@ -14,7 +14,7 @@ use crate::{Stem, StemNode};
 /// Implementations provide the key-value store that [`crate::UnifiedBinaryTree`]
 /// uses for its stem node data. The default [`InMemoryStore`] wraps a `HashMap`.
 ///
-/// A persistent store (e.g., backed by RocksDB or redb) would implement this
+/// A persistent store (e.g., backed by `RocksDB` or `redb`) would implement this
 /// trait with an internal read-through cache: load stems into memory on access,
 /// and flush dirty nodes via a store-specific `commit()` method accessible
 /// through [`UnifiedBinaryTree::store_mut`](crate::UnifiedBinaryTree::store_mut).

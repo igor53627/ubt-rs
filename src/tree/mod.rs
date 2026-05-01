@@ -46,7 +46,7 @@ type NodeCacheKey = (usize, B256);
 /// # Storage Backend
 ///
 /// The tree is generic over [`NodeStore`], which abstracts stem node storage.
-/// The default [`InMemoryStore`] uses a `HashMap`. Custom backends (e.g., RocksDB)
+/// The default [`InMemoryStore`] uses a `HashMap`. Custom backends (e.g., `RocksDB`)
 /// can be plugged in by implementing `NodeStore` and constructing the tree with
 /// [`with_store`](Self::with_store).
 ///
