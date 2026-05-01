@@ -5,6 +5,7 @@
 
 use proptest::prelude::*;
 use ubt::{
+    codec::{decode_node, decode_stem_node, encode_stem_node, encoded_stem_size, DecodedNode},
     get_basic_data_key, get_code_chunk_key, get_storage_slot_key, Address, Blake3Hasher, Hasher,
     Stem, StreamingTreeBuilder, TreeKey, UnifiedBinaryTree, B256,
 };
@@ -1275,6 +1276,64 @@ proptest! {
         } else {
             // Main storage: subindex = slot % 256 = slot[31]
             prop_assert_eq!(key.subindex, slot[31]);
+        }
+    }
+}
+
+// ============================================================================
+// Codec properties
+// ============================================================================
+
+fn arb_stem_node() -> impl Strategy<Value = StemNode> {
+    let arb_values = prop::collection::hash_map(
+        any::<u8>(),
+        prop::array::uniform32(1u8..=255).prop_map(B256::from),
+        0..=64,
+    );
+    (arb_stem(), arb_values).prop_map(|(stem, values)| {
+        let mut node = StemNode::new(stem);
+        for (subindex, value) in values {
+            node.set_value(subindex, value);
+        }
+        node
+    })
+}
+
+proptest! {
+    /// P58: encode/decode round-trip preserves StemNode exactly
+    #[test]
+    fn prop_codec_stem_roundtrip(node in arb_stem_node()) {
+        let bytes = encode_stem_node(&node);
+        let decoded = decode_stem_node(&bytes).unwrap();
+        prop_assert_eq!(&decoded.stem, &node.stem);
+        prop_assert_eq!(decoded.values.len(), node.values.len());
+        for (&subindex, &value) in &node.values {
+            prop_assert_eq!(decoded.get_value(subindex), Some(value));
+        }
+    }
+
+    /// P59: encoded_stem_size matches actual encoded length
+    #[test]
+    fn prop_codec_size_matches(node in arb_stem_node()) {
+        prop_assert_eq!(encoded_stem_size(&node), encode_stem_node(&node).len());
+    }
+
+    /// P60: encode is canonical — same node always produces same bytes
+    #[test]
+    fn prop_codec_deterministic(node in arb_stem_node()) {
+        let a = encode_stem_node(&node);
+        let b = encode_stem_node(&node);
+        prop_assert_eq!(a, b);
+    }
+
+    /// P61: decode_node dispatches stem correctly
+    #[test]
+    fn prop_codec_decode_node_stem(node in arb_stem_node()) {
+        let bytes = encode_stem_node(&node);
+        let decoded = decode_node(&bytes).unwrap();
+        match decoded {
+            DecodedNode::Stem(s) => prop_assert_eq!(s.stem, node.stem),
+            other => prop_assert!(false, "expected Stem, got {:?}", other),
         }
     }
 }
