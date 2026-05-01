@@ -12,6 +12,7 @@
 //! - **ZK-friendly**: Designed for efficient proving in ZK circuits
 //! - **Parallel hashing**: Uses rayon for concurrent stem hash computation (default feature)
 //! - **Incremental updates**: O(D*C) root updates instead of O(S log S) rebuilds
+//! - **Pluggable storage**: [`NodeStore`] trait allows custom backends for persistent state
 //!
 //! ## Tree Structure
 //!
@@ -95,6 +96,7 @@ mod hash;
 mod key;
 mod node;
 mod proof;
+mod store;
 mod streaming;
 mod tree;
 
@@ -114,6 +116,7 @@ pub use embedding::{
 pub use proof::{generate_stem_proof, Direction, MultiProof, Proof, ProofNode, Witness};
 #[doc(hidden)]
 pub use std::collections::HashMap;
+pub use store::{InMemoryStore, NodeStore};
 pub use streaming::StreamingTreeBuilder;
 pub use tree::UnifiedBinaryTree;
 

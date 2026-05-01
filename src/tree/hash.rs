@@ -5,7 +5,8 @@ use alloy_primitives::B256;
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 
-use crate::{error::Result, Hasher, Node, Stem, StemNode, TreeKey, UbtError};
+use crate::store::NodeStore;
+use crate::{error::Result, Hasher, Node, Stem, TreeKey, UbtError};
 
 use super::{UnifiedBinaryTree, MAX_DEPTH};
 
@@ -49,7 +50,7 @@ fn b256_matches_prefix(value: &B256, prefix: &B256, depth: usize) -> bool {
     (value.0[full_bytes] & mask) == (prefix.0[full_bytes] & mask)
 }
 
-impl<H: Hasher> UnifiedBinaryTree<H> {
+impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
     /// Get the root hash of the tree.
     ///
     /// This will trigger a rebuild of the tree structure if any modifications
@@ -70,7 +71,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
 
     /// Compute the hash for a stem node.
     fn compute_stem_hash(&self, stem: &Stem) -> B256 {
-        if let Some(stem_node) = self.stems.get(stem) {
+        if let Some(stem_node) = self.store.get(stem) {
             stem_node.hash(&self.hasher)
         } else {
             B256::ZERO
@@ -432,10 +433,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         let mut inserted_any = false;
         for (key, value) in entries {
             inserted_any = true;
-            let stem_node = self
-                .stems
-                .entry(key.stem)
-                .or_insert_with(|| StemNode::new(key.stem));
+            let stem_node = self.store.get_or_create(key.stem);
             stem_node.set_value(key.subindex, value);
             self.dirty_stem_hashes.insert(key.stem);
         }
@@ -461,10 +459,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
         let mut inserted_any = false;
         for (key, value) in entries {
             inserted_any = true;
-            let stem_node = self
-                .stems
-                .entry(key.stem)
-                .or_insert_with(|| StemNode::new(key.stem));
+            let stem_node = self.store.get_or_create(key.stem);
             stem_node.set_value(key.subindex, value);
             self.dirty_stem_hashes.insert(key.stem);
             count += 1;

@@ -20,6 +20,7 @@ This crate provides a binary tree structure intended to replace Ethereum's hexar
 - **ZK-friendly**: Designed for efficient proving in ZK circuits
 - **Parallel hashing**: Uses rayon for concurrent stem hash computation (enabled by default)
 - **Incremental updates**: O(D*C) root updates instead of O(S log S) full rebuilds
+- **Pluggable storage**: `NodeStore` trait allows custom backends (RocksDB, redb) for persistent state
 - **Formally verified**: Core operations proven correct using the Rocq proof assistant
 
 ## Requirements
@@ -128,6 +129,27 @@ tree.root_hash().unwrap(); // Only recomputes paths to changed stems
 ```
 
 See [docs/incremental-updates.md](docs/incremental-updates.md) for benchmarks and when to use each mode.
+
+### Custom Storage Backend
+
+The tree is generic over the `NodeStore` trait, which abstracts stem node storage. The default `InMemoryStore` uses a `HashMap`. To integrate with a persistent database, implement `NodeStore` for your backend:
+
+```rust
+use ubt::{NodeStore, UnifiedBinaryTree, Blake3Hasher};
+
+// Implement NodeStore for your backend
+// struct MyStore { /* RocksDB handle, etc. */ }
+// impl NodeStore for MyStore { /* ... */ }
+
+// Construct tree with custom store
+// let store = MyStore::open("path/to/db");
+// let mut tree = UnifiedBinaryTree::<Blake3Hasher, MyStore>::with_store(store);
+
+// Access the store directly for backend-specific operations (e.g., commit/flush)
+// tree.store_mut().flush();
+```
+
+The `with_store()` constructor correctly handles both empty and pre-populated stores. You can also extract the store back with `into_store()`.
 
 ### Working with Accounts
 
@@ -306,7 +328,8 @@ formal/
 ```
 ubt/
 ├── src/             # Rust implementation
-│   ├── tree.rs      # Main tree structure
+│   ├── tree/        # Main tree structure (mod, build, hash)
+│   ├── store.rs     # NodeStore trait and InMemoryStore
 │   ├── node.rs      # Node types
 │   ├── key.rs       # Tree keys and stems
 │   ├── hash.rs      # Hash trait and implementations

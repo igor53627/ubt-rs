@@ -27,6 +27,7 @@ mod hash;
 use alloy_primitives::B256;
 use std::collections::{HashMap, HashSet};
 
+use crate::store::{InMemoryStore, NodeStore};
 use crate::{Blake3Hasher, Hasher, Node, Stem, StemNode, TreeKey, STEM_LEN};
 
 /// Maximum tree depth (248 bits = 31 bytes * 8)
@@ -42,19 +43,14 @@ type NodeCacheKey = (usize, B256);
 /// A binary tree that stores 32-byte values at 32-byte keys.
 /// Keys are split into a 31-byte stem (tree path) and 1-byte subindex (within subtree).
 ///
-/// # Implementation Notes
+/// # Storage Backend
 ///
-/// ## `HashMap` vs `BTreeMap` for stems
+/// The tree is generic over [`NodeStore`], which abstracts stem node storage.
+/// The default [`InMemoryStore`] uses a `HashMap`. Custom backends (e.g., `RocksDB`)
+/// can be plugged in by implementing `NodeStore` and constructing the tree with
+/// [`with_store`](Self::with_store).
 ///
-/// The tree uses `HashMap` for `stems` and `stem_hash_cache` rather than `BTreeMap`.
-/// While `BTreeMap` would maintain sorted order (avoiding O(S log S) sort on rebuild),
-/// `HashMap` provides O(1) insert vs O(log S) for `BTreeMap`.
-///
-/// For typical block processing with many inserts per rebuild cycle, `HashMap` is
-/// often faster overall. If your workload is rebuild-heavy with few inserts,
-/// consider a `BTreeMap`-based variant.
-///
-/// ## Incremental Mode
+/// # Incremental Mode
 ///
 /// When `enable_incremental_mode()` is called, the tree caches intermediate node
 /// hashes in `node_hash_cache`. This makes hash recomputation O(D * C) where D=248
@@ -65,13 +61,13 @@ type NodeCacheKey = (usize, B256);
 ///
 /// This is the recommended approach for block-by-block state updates.
 #[derive(Clone, Debug)]
-pub struct UnifiedBinaryTree<H: Hasher = Blake3Hasher> {
+pub struct UnifiedBinaryTree<H: Hasher = Blake3Hasher, S: NodeStore = InMemoryStore> {
     /// Root node of the tree (kept for potential proof generation)
     root: Node,
     /// Hasher instance
     hasher: H,
-    /// Cached stem nodes for efficient access
-    stems: HashMap<Stem, StemNode>,
+    /// Stem node storage backend
+    store: S,
     /// Whether the root hash needs to be recomputed
     root_dirty: bool,
     /// Cache of stem hashes - maps stem to its computed hash
@@ -89,83 +85,115 @@ pub struct UnifiedBinaryTree<H: Hasher = Blake3Hasher> {
     incremental_enabled: bool,
 }
 
-impl<H: Hasher> Default for UnifiedBinaryTree<H> {
+impl<H: Hasher, S: NodeStore + Default> Default for UnifiedBinaryTree<H, S> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<H: Hasher> UnifiedBinaryTree<H> {
+impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
     /// Create a new empty tree.
-    pub fn new() -> Self {
-        Self {
-            root: Node::Empty,
-            hasher: H::default(),
-            stems: HashMap::new(),
-            root_dirty: false,
-            stem_hash_cache: HashMap::new(),
-            dirty_stem_hashes: HashSet::new(),
-            root_hash_cached: B256::ZERO,
-            node_hash_cache: HashMap::new(),
-            incremental_enabled: false,
-        }
+    pub fn new() -> Self
+    where
+        S: Default,
+    {
+        Self::with_store(S::default())
     }
 
     /// Create a new tree with a custom hasher.
-    pub fn with_hasher(hasher: H) -> Self {
-        Self {
-            root: Node::Empty,
-            hasher,
-            stems: HashMap::new(),
-            root_dirty: false,
-            stem_hash_cache: HashMap::new(),
-            dirty_stem_hashes: HashSet::new(),
-            root_hash_cached: B256::ZERO,
-            node_hash_cache: HashMap::new(),
-            incremental_enabled: false,
-        }
+    pub fn with_hasher(hasher: H) -> Self
+    where
+        S: Default,
+    {
+        Self::with_hasher_and_store(hasher, S::default())
     }
 
     /// Create a new empty tree with pre-allocated capacity for stems.
     ///
     /// Use this when you know approximately how many unique stems will be inserted,
-    /// such as during bulk migrations. This avoids `HashMap` resizing overhead.
+    /// such as during bulk migrations. This avoids resizing overhead.
     ///
     /// # Example
     /// ```
     /// use ubt::{UnifiedBinaryTree, Blake3Hasher};
     /// let tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::with_capacity(1_000_000);
     /// ```
-    pub fn with_capacity(capacity: usize) -> Self {
+    pub fn with_capacity(capacity: usize) -> Self
+    where
+        S: Default,
+    {
+        let mut store = S::default();
+        store.reserve(capacity);
         Self {
             root: Node::Empty,
             hasher: H::default(),
-            stems: HashMap::with_capacity(capacity),
+            store,
             root_dirty: false,
             stem_hash_cache: HashMap::with_capacity(capacity),
             dirty_stem_hashes: HashSet::new(),
             root_hash_cached: B256::ZERO,
-            // For node_hash_cache, we estimate roughly 2x stems worth of internal nodes,
-            // which is an upper bound for a dense binary tree with S leaves. A more
-            // precise bound would be O(S), but 2x is a simple, conservative heuristic.
             node_hash_cache: HashMap::with_capacity(capacity * 2),
             incremental_enabled: false,
         }
     }
 
     /// Create a new tree with a custom hasher and pre-allocated capacity.
-    pub fn with_hasher_and_capacity(hasher: H, capacity: usize) -> Self {
+    pub fn with_hasher_and_capacity(hasher: H, capacity: usize) -> Self
+    where
+        S: Default,
+    {
+        let mut store = S::default();
+        store.reserve(capacity);
         Self {
             root: Node::Empty,
             hasher,
-            stems: HashMap::with_capacity(capacity),
+            store,
             root_dirty: false,
             stem_hash_cache: HashMap::with_capacity(capacity),
             dirty_stem_hashes: HashSet::new(),
             root_hash_cached: B256::ZERO,
-            // For node_hash_cache, we estimate roughly 2x stems worth of internal nodes,
-            // which is an upper bound for a dense binary tree with S leaves. A more
-            // precise bound would be O(S), but 2x is a simple, conservative heuristic.
+            node_hash_cache: HashMap::with_capacity(capacity * 2),
+            incremental_enabled: false,
+        }
+    }
+
+    /// Create a new tree with a custom storage backend.
+    ///
+    /// If the store already contains stems, they are marked dirty so that
+    /// the next [`root_hash`](Self::root_hash) call computes correctly.
+    pub fn with_store(store: S) -> Self {
+        let capacity = store.len();
+        let dirty_stem_hashes: HashSet<Stem> = store.iter().map(|(s, _)| *s).collect();
+        let root_dirty = !dirty_stem_hashes.is_empty();
+        Self {
+            root: Node::Empty,
+            hasher: H::default(),
+            store,
+            root_dirty,
+            stem_hash_cache: HashMap::with_capacity(capacity),
+            dirty_stem_hashes,
+            root_hash_cached: B256::ZERO,
+            node_hash_cache: HashMap::with_capacity(capacity * 2),
+            incremental_enabled: false,
+        }
+    }
+
+    /// Create a new tree with a custom hasher and storage backend.
+    ///
+    /// If the store already contains stems, they are marked dirty so that
+    /// the next [`root_hash`](Self::root_hash) call computes correctly.
+    pub fn with_hasher_and_store(hasher: H, store: S) -> Self {
+        let capacity = store.len();
+        let dirty_stem_hashes: HashSet<Stem> = store.iter().map(|(s, _)| *s).collect();
+        let root_dirty = !dirty_stem_hashes.is_empty();
+        Self {
+            root: Node::Empty,
+            hasher,
+            store,
+            root_dirty,
+            stem_hash_cache: HashMap::with_capacity(capacity),
+            dirty_stem_hashes,
+            root_hash_cached: B256::ZERO,
             node_hash_cache: HashMap::with_capacity(capacity * 2),
             incremental_enabled: false,
         }
@@ -175,25 +203,25 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     ///
     /// Useful when you discover more stems will be needed after initial creation.
     pub fn reserve_stems(&mut self, additional: usize) {
-        self.stems.reserve(additional);
+        self.store.reserve(additional);
         self.stem_hash_cache.reserve(additional);
         self.node_hash_cache.reserve(additional * 2);
     }
 
     /// Returns the number of unique stems in the tree.
     pub fn stem_count(&self) -> usize {
-        self.stems.len()
+        self.store.len()
     }
 
     /// Check if the tree is empty.
     pub fn is_empty(&self) -> bool {
-        self.stems.is_empty()
+        self.store.is_empty()
     }
 
     /// Get a value by its full 32-byte key.
     #[must_use]
     pub fn get(&self, key: &TreeKey) -> Option<B256> {
-        self.stems
+        self.store
             .get(&key.stem)
             .and_then(|stem_node| stem_node.get_value(key.subindex))
     }
@@ -206,10 +234,7 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
 
     /// Insert a value at the given key.
     pub fn insert(&mut self, key: TreeKey, value: B256) {
-        let stem_node = self
-            .stems
-            .entry(key.stem)
-            .or_insert_with(|| StemNode::new(key.stem));
+        let stem_node = self.store.get_or_create(key.stem);
         stem_node.set_value(key.subindex, value);
         self.dirty_stem_hashes.insert(key.stem);
         self.root_dirty = true;
@@ -222,11 +247,11 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
 
     /// Delete a value at the given key.
     pub fn delete(&mut self, key: &TreeKey) {
-        if let Some(stem_node) = self.stems.get_mut(&key.stem) {
+        if let Some(stem_node) = self.store.get_mut(&key.stem) {
             stem_node.set_value(key.subindex, B256::ZERO);
 
             if stem_node.values.is_empty() {
-                self.stems.remove(&key.stem);
+                self.store.remove(&key.stem);
             }
         }
         self.dirty_stem_hashes.insert(key.stem);
@@ -240,14 +265,12 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
     pub fn get_or_create_stem(&mut self, stem: Stem) -> &mut StemNode {
         self.dirty_stem_hashes.insert(stem);
         self.root_dirty = true;
-        self.stems
-            .entry(stem)
-            .or_insert_with(|| StemNode::new(stem))
+        self.store.get_or_create(stem)
     }
 
     /// Iterate over all (key, value) pairs in the tree.
     pub fn iter(&self) -> impl Iterator<Item = (TreeKey, B256)> + '_ {
-        self.stems.iter().flat_map(|(stem, stem_node)| {
+        self.store.iter().flat_map(|(stem, stem_node)| {
             stem_node
                 .values
                 .iter()
@@ -257,12 +280,32 @@ impl<H: Hasher> UnifiedBinaryTree<H> {
 
     /// Get the number of non-empty values in the tree.
     pub fn len(&self) -> usize {
-        self.stems.values().map(|s| s.values.len()).sum()
+        self.store.value_count()
     }
 
     /// Verify a value exists at a key.
     pub fn contains_key(&self, key: &TreeKey) -> bool {
         self.get(key).is_some()
+    }
+
+    /// Get a reference to the underlying storage backend.
+    pub fn store(&self) -> &S {
+        &self.store
+    }
+
+    /// Get a mutable reference to the underlying storage backend.
+    ///
+    /// Use this to call store-specific methods (e.g., `commit()` on a
+    /// persistent backend). Modifications to the store are not automatically
+    /// tracked — call [`insert`](Self::insert) or [`delete`](Self::delete)
+    /// to keep the tree's dirty-tracking consistent.
+    pub fn store_mut(&mut self) -> &mut S {
+        &mut self.store
+    }
+
+    /// Consume the tree and return the storage backend.
+    pub fn into_store(self) -> S {
+        self.store
     }
 }
 
@@ -840,6 +883,41 @@ mod tests {
         assert_ne!(h1, B256::ZERO);
 
         tree.delete(&key);
+        assert_eq!(tree.root_hash().unwrap(), B256::ZERO);
+    }
+
+    #[test]
+    fn test_with_store_populated() {
+        use crate::store::InMemoryStore;
+
+        let mut tree1: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        let k1 = TreeKey::from_bytes(B256::repeat_byte(0x01));
+        let k2 = TreeKey::from_bytes(B256::repeat_byte(0x02));
+        tree1.insert(k1, B256::repeat_byte(0x11));
+        tree1.insert(k2, B256::repeat_byte(0x22));
+        let expected_root = tree1.root_hash().unwrap();
+
+        let store = tree1.into_store();
+        assert_eq!(store.len(), 2);
+
+        let mut tree2: UnifiedBinaryTree<Blake3Hasher, InMemoryStore> =
+            UnifiedBinaryTree::with_store(store);
+        assert_eq!(tree2.stem_count(), 2);
+        assert_eq!(tree2.get(&k1), Some(B256::repeat_byte(0x11)));
+        let root = tree2.root_hash().unwrap();
+        assert_eq!(
+            root, expected_root,
+            "with_store on populated store must produce correct root_hash"
+        );
+    }
+
+    #[test]
+    fn test_with_store_empty() {
+        use crate::store::InMemoryStore;
+
+        let mut tree: UnifiedBinaryTree<Blake3Hasher, InMemoryStore> =
+            UnifiedBinaryTree::with_store(InMemoryStore::new());
+        assert!(tree.is_empty());
         assert_eq!(tree.root_hash().unwrap(), B256::ZERO);
     }
 }
