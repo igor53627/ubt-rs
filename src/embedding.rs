@@ -17,10 +17,10 @@
 //!
 //! ## Key Derivation
 //!
-//! Per go-ethereum reference implementation, keys are derived using SHA256:
+//! Per go-ethereum V3 algorithm (`trie/bintrie/key_encoding.go`, commit `735bfd12`):
 //! ```text
-//! buf[i] = inputKey[30-i]  for i in 0..31  // reverse to little-endian
-//! buf[31] = overflow ? 1 : 0
+//! buf[0]    = overflow ? 1 : 0
+//! buf[1:32] = inputKey[0:31]   // right-shift by 1 byte
 //! key = SHA256(zeroHash[:12] || address[:] || buf[:])  // 64-byte preimage
 //! key[31] = inputKey[31]  // subindex preserved
 //! ```
