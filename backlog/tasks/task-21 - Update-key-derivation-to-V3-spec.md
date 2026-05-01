@@ -1,5 +1,5 @@
 ---
-id: TASK-20
+id: TASK-21
 title: Update key derivation to V3 spec (remove LE reversal)
 status: In Progress
 assignee: []
