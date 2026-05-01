@@ -903,7 +903,10 @@ mod tests {
         assert_eq!(tree2.stem_count(), 2);
         assert_eq!(tree2.get(&k1), Some(B256::repeat_byte(0x11)));
         let root = tree2.root_hash().unwrap();
-        assert_eq!(root, expected_root, "with_store on populated store must produce correct root_hash");
+        assert_eq!(
+            root, expected_root,
+            "with_store on populated store must produce correct root_hash"
+        );
     }
 
     #[test]
