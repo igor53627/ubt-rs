@@ -1284,12 +1284,14 @@ proptest! {
 // Codec properties
 // ============================================================================
 
+fn arb_nonzero_b256() -> impl Strategy<Value = B256> {
+    prop::array::uniform32(any::<u8>())
+        .prop_map(B256::from)
+        .prop_filter("zero values are treated as deletes", |v| !v.is_zero())
+}
+
 fn arb_stem_node() -> impl Strategy<Value = StemNode> {
-    let arb_values = prop::collection::hash_map(
-        any::<u8>(),
-        prop::array::uniform32(1u8..=255).prop_map(B256::from),
-        0..=64,
-    );
+    let arb_values = prop::collection::hash_map(any::<u8>(), arb_nonzero_b256(), 0..=256);
     (arb_stem(), arb_values).prop_map(|(stem, values)| {
         let mut node = StemNode::new(stem);
         for (subindex, value) in values {
