@@ -228,9 +228,9 @@ The following invariants should be proven:
 
 | File | Lines | Panic Points |
 |------|-------|--------------|
-| tree/ (mod.rs, hash.rs, build.rs) | 1639 | 1 debug_assert |
-| node.rs | 236 | 4 array indices |
-| streaming.rs | 544 | 2 debug_assert, 4 array indices |
+| tree/ (mod.rs, hash.rs) | 1456 | 1 debug_assert |
+| node.rs | 214 | 4 array indices |
+| streaming.rs | 453 | 2 debug_assert, 4 array indices |
 | proof.rs | 356 | 4 array indices, 1 unwrap (test) |
 | key.rs | 190 | 1 debug_assert, 1 copy_from_slice |
 | hash.rs | 191 | 0 |

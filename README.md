@@ -352,12 +352,13 @@ formal/
 ```
 ubt/
 ├── src/             # Rust implementation
-│   ├── tree/        # Main tree structure (mod, build, hash)
+│   ├── tree/        # Main tree structure (mod, hash)
 │   ├── store.rs     # NodeStore trait and InMemoryStore
 │   ├── codec.rs     # Compact binary node encoding
 │   ├── node.rs      # Node types
 │   ├── key.rs       # Tree keys and stems
 │   ├── hash.rs      # Hash trait and implementations
+│   ├── merkle.rs    # Shared stem hash and root recursion
 │   ├── embedding.rs # State embedding
 │   ├── streaming.rs # Streaming tree builder
 │   └── ...

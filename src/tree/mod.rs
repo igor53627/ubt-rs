@@ -18,17 +18,16 @@
 //! Where S = total stems, D = 248 (tree depth), C = changed stems since last rebuild.
 //!
 //! Note: incremental mode improves hash recomputation to O(D * C), but the current
-//! implementation still sorts stems and rebuilds structure (O(S log S)), so incremental
+//! implementation still collects and sorts all stem hashes (O(S log S)), so incremental
 //! `root_hash` time is written as `O(S log S + D * C)`.
 
-mod build;
 mod hash;
 
 use alloy_primitives::B256;
 use std::collections::{HashMap, HashSet};
 
 use crate::store::{InMemoryStore, NodeStore};
-use crate::{Blake3Hasher, Hasher, Node, Stem, StemNode, TreeKey, STEM_LEN};
+use crate::{Blake3Hasher, Hasher, Stem, StemNode, TreeKey, STEM_LEN};
 
 /// Maximum tree depth (248 bits = 31 bytes * 8)
 const MAX_DEPTH: usize = STEM_LEN * 8;
@@ -56,14 +55,12 @@ type NodeCacheKey = (usize, B256);
 /// hashes in `node_hash_cache`. This makes hash recomputation O(D * C) where D=248
 /// (tree depth) and C=changed stems per block.
 ///
-/// Note: the current rebuild path still does structural work (sorting/rebuilding),
+/// Note: the current rebuild path still collects and sorts all stem hashes,
 /// so end-to-end `root_hash()` may remain O(S log S).
 ///
 /// This is the recommended approach for block-by-block state updates.
 #[derive(Clone, Debug)]
 pub struct UnifiedBinaryTree<H: Hasher = Blake3Hasher, S: NodeStore = InMemoryStore> {
-    /// Root node of the tree (kept for potential proof generation)
-    root: Node,
     /// Hasher instance
     hasher: H,
     /// Stem node storage backend
@@ -79,7 +76,7 @@ pub struct UnifiedBinaryTree<H: Hasher = Blake3Hasher, S: NodeStore = InMemorySt
     /// Cache of intermediate node hashes for incremental updates.
     /// Key: (depth, `path_prefix`), Value: hash at that node.
     /// This enables O(D * C) hash recomputation where D=248 depth and C=changed stems.
-    /// Note: end-to-end rebuilds still include structural work (e.g., sorting/rebuilding).
+    /// Note: end-to-end rebuilds still collect and sort all stem hashes.
     node_hash_cache: HashMap<NodeCacheKey, B256>,
     /// Whether incremental mode is active (cache is populated and valid)
     incremental_enabled: bool,
@@ -125,7 +122,6 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
         let mut store = S::default();
         store.reserve(capacity);
         Self {
-            root: Node::Empty,
             hasher: H::default(),
             store,
             root_dirty: false,
@@ -145,7 +141,6 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
         let mut store = S::default();
         store.reserve(capacity);
         Self {
-            root: Node::Empty,
             hasher,
             store,
             root_dirty: false,
@@ -166,7 +161,6 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
         let dirty_stem_hashes: HashSet<Stem> = store.iter().map(|(s, _)| *s).collect();
         let root_dirty = !dirty_stem_hashes.is_empty();
         Self {
-            root: Node::Empty,
             hasher: H::default(),
             store,
             root_dirty,
@@ -187,7 +181,6 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
         let dirty_stem_hashes: HashSet<Stem> = store.iter().map(|(s, _)| *s).collect();
         let root_dirty = !dirty_stem_hashes.is_empty();
         Self {
-            root: Node::Empty,
             hasher,
             store,
             root_dirty,

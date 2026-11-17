@@ -125,7 +125,7 @@ This document compares the Rust UBT implementation (`src/`) with the formal Rocq
 | Feature | Rust Location | Status |
 |---------|---------------|--------|
 | `rebuild_root()` logic | src/tree/hash.rs | Not modeled (tree shape abstracted) |
-| `build_tree_from_sorted_stems()` | src/tree/build.rs | Not modeled |
+| `root_from_sorted_stem_hashes()` | src/merkle.rs | Not modeled |
 | Batch insert optimization | src/tree/hash.rs | Not separately modeled |
 | Proof generation | proof.rs | Not modeled |
 | Iterator implementation | src/tree/mod.rs | Not modeled |

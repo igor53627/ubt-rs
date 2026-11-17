@@ -6,7 +6,7 @@ use alloy_primitives::B256;
 use rayon::prelude::*;
 
 use crate::store::NodeStore;
-use crate::{error::Result, Hasher, Node, Stem, TreeKey, UbtError};
+use crate::{error::Result, Hasher, Stem, TreeKey, UbtError};
 
 use super::{UnifiedBinaryTree, MAX_DEPTH};
 
@@ -53,7 +53,7 @@ fn b256_matches_prefix(value: &B256, prefix: &B256, depth: usize) -> bool {
 impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
     /// Get the root hash of the tree.
     ///
-    /// This will trigger a rebuild of the tree structure if any modifications
+    /// This will trigger a recomputation of the root hash if any modifications
     /// have been made since the last call to `root_hash()`.
     ///
     /// # Errors
@@ -123,7 +123,6 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
         }
 
         if self.stem_hash_cache.is_empty() {
-            self.root = Node::Empty;
             self.root_hash_cached = B256::ZERO;
             self.node_hash_cache.clear();
             self.dirty_stem_hashes.clear();
@@ -144,11 +143,7 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
                 self.build_root_hash_from_stem_hashes(&stem_hashes, 0)?
             };
 
-            let stems: Vec<_> = stem_hashes.iter().map(|(s, _)| *s).collect();
-            let root = self.build_tree_from_sorted_stems(&stems, 0)?;
-
             self.root_hash_cached = root_hash;
-            self.root = root;
         }
 
         self.dirty_stem_hashes.clear();
@@ -233,7 +228,6 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
         stem_hashes.sort_by_key(|(s, _)| *s);
 
         if stem_hashes.is_empty() {
-            self.root = Node::Empty;
             self.root_hash_cached = B256::ZERO;
             self.node_hash_cache.clear();
             return Ok(());
@@ -246,12 +240,7 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
         let root_hash =
             self.incremental_hash_update(&stem_hashes, 0, B256::ZERO, &dirty_stems_sorted)?;
 
-        let stems: Vec<_> = stem_hashes.iter().map(|(s, _)| *s).collect();
-        let root = self.build_tree_from_sorted_stems(&stems, 0)?;
-
         self.root_hash_cached = root_hash;
-        self.root = root;
-
         Ok(())
     }
 
@@ -363,7 +352,7 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
     ///
     /// When enabled, intermediate node hashes are cached to allow O(D * C) hash
     /// recomputation where D is tree depth (248) and C is the number of changed stems.
-    /// Note: the current rebuild path still sorts stems and rebuilds the tree structure,
+    /// Note: the current rebuild path still collects and sorts all stem hashes,
     /// so end-to-end updates may remain O(S log S).
     ///
     /// This is the recommended mode for block-by-block state updates where only
@@ -388,7 +377,7 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
     /// tree.enable_incremental_mode();
     /// tree.root_hash().unwrap(); // Populates cache
     ///
-    /// // Subsequent updates do O(D * C) hash recomputation (structure rebuild is still O(S log S))
+    /// // Subsequent updates do O(D * C) hash recomputation (the stem sort is still O(S log S))
     /// tree.insert(TreeKey::from_bytes(B256::repeat_byte(0x02)), B256::repeat_byte(0x43));
     /// tree.root_hash().unwrap(); // Only recomputes affected paths
     /// ```

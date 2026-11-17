@@ -353,8 +353,7 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
 
     /// Build tree hash from sorted slice of (stem, hash) pairs.
     ///
-    /// Uses `partition_point` + `split_at` for `O(n)` splits with no allocation,
-    /// matching the optimization in `UnifiedBinaryTree::build_tree_from_sorted_stems`.
+    /// Uses `partition_point` + `split_at` for `O(n)` splits with no allocation.
     fn build_tree_hash(&self, stem_hashes: &[(Stem, B256)], depth: usize) -> Result<B256> {
         if stem_hashes.is_empty() {
             return Ok(B256::ZERO);
