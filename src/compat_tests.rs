@@ -49,9 +49,8 @@ mod tests {
         let expected =
             hex_to_b256("aab1060e04cb4f5dc6f697ae93156a95714debbf77d54238766adc5709282b6f");
 
-        // Note: This test will fail if hash function differs from go-ethereum
-        // go-ethereum uses a specific hash function; we use BLAKE3
-        // The structure should be the same, but hashes will differ
+        // The root is printed, not asserted: go-ethereum uses SHA256 and this test
+        // uses BLAKE3, so the two roots differ. `geth_compat` asserts the SHA256 roots.
         println!("Single entry root (BLAKE3): {root}");
         println!("go-ethereum expected (their hash): {expected}");
 

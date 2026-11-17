@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation matched to the current code: file paths (`src/tree/`, `src/hash.rs`), line references, removed APIs, axiom and theorem status, and the V3 key derivation
 - `README.md`: `new_executes`, `get_executes`, `insert_executes`, and inclusion/exclusion proof soundness are shown as axioms, as declared in `formal/linking/operations.v` and `formal/simulations/tree.v`. A note states that `formal/src/` models the crate source before 0.5.0.
 - `docs/eip-7864-implementations.md`: go-ethereum status updated (binary trie removed from `master` on 2026-11-10)
+- Internal cleanup of `src/` with no change to the public API: the test-only modules `compat_tests` and `geth_compat` are compiled only for tests
 
 ### Removed
 - Git submodule `formal/lib/rocq-of-rust-interp`. The upstream repository no longer exists and no `.v` file imported it. `INTERP_LIB_PATH` is removed from `formal/Makefile`.

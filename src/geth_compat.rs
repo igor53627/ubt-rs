@@ -1,8 +1,7 @@
 //! Go-ethereum compatibility tests using their test vectors.
 //!
-//! These tests ensure our SHA256-based hashing and stem layout are
-//! deterministic and structurally compatible with go-ethereum's
-//! bintrie. Root hashes may differ due to tree structure differences.
+//! These tests use `Sha256Hasher` and assert that root hashes are equal to the
+//! roots that go-ethereum's bintrie produces for the same entries.
 
 #[cfg(test)]
 mod tests {

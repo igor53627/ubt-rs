@@ -89,9 +89,11 @@ use rand as _;
 
 mod code;
 pub mod codec;
+#[cfg(test)]
 mod compat_tests;
 mod embedding;
 mod error;
+#[cfg(test)]
 mod geth_compat;
 mod hash;
 mod key;
