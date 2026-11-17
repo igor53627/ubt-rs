@@ -29,7 +29,7 @@ use rayon::prelude::*;
 #[cfg(feature = "parallel")]
 use crate::merkle::PARALLEL_STEM_THRESHOLD;
 use crate::merkle::{hash_stem_values, root_from_sorted_stem_hashes};
-use crate::{error::Result, Blake3Hasher, Hasher, Stem, SubIndex, TreeKey};
+use crate::{error::Result, Blake3Hasher, Hasher, Stem, SubIndex, TreeKey, UbtError};
 
 /// A streaming tree builder that computes root hash with minimal memory.
 ///
@@ -54,7 +54,9 @@ use crate::{error::Result, Blake3Hasher, Hasher, Stem, SubIndex, TreeKey};
 /// - Correct stem grouping (entries with same stem must be consecutive)
 /// - Deterministic root hash (sorted stem order ensures canonical tree shape)
 ///
-/// In debug builds, strict ascending order is asserted. Duplicate keys are not allowed.
+/// The builder checks the order in every build. An entry whose key is equal to the key
+/// before it, or sorts before it, gives [`UbtError::EntriesNotSorted`]. Duplicate keys are
+/// not allowed.
 ///
 /// # Zero Values
 ///
@@ -105,14 +107,13 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
     /// Build the root hash from a sorted iterator of (`TreeKey`, `B256`) entries.
     ///
     /// The entries MUST be sorted by (stem, subindex) in lexicographic order.
-    /// In debug builds, this is asserted.
     ///
     /// Returns `B256::ZERO` for empty input.
     ///
     /// # Errors
     ///
-    /// Returns an error if the internal tree build exceeds maximum depth, which typically
-    /// indicates duplicate stems or a bug in the stem grouping logic.
+    /// Returns [`UbtError::EntriesNotSorted`] if the entries are not in strictly ascending
+    /// `(stem, subindex)` order.
     #[must_use = "callers should handle errors and use the computed root hash"]
     pub fn build_root_hash(
         &self,
@@ -121,7 +122,7 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
         let mut stem_hashes: Vec<(Stem, B256)> = Vec::new();
         for_each_stem_group(entries, |stem, values| {
             stem_hashes.push((stem, hash_stem_values(&self.hasher, &stem, values)));
-        });
+        })?;
 
         root_from_sorted_stem_hashes(&self.hasher, &stem_hashes, 0)
     }
@@ -140,14 +141,13 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
     /// # Requirements
     ///
     /// - Entries MUST be sorted by `(stem, subindex)` in lexicographic order
-    /// - In debug builds, strict ascending order is asserted
     ///
     /// Returns `B256::ZERO` for empty input.
     ///
     /// # Errors
     ///
-    /// Returns an error if the internal tree build exceeds maximum depth, which typically
-    /// indicates duplicate stems or a bug in the stem grouping logic.
+    /// Returns [`UbtError::EntriesNotSorted`] if the entries are not in strictly ascending
+    /// `(stem, subindex)` order.
     ///
     /// # Feature Flag
     ///
@@ -161,7 +161,7 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
         let mut stem_groups: Vec<(Stem, HashMap<SubIndex, B256>)> = Vec::new();
         for_each_stem_group(entries, |stem, values| {
             stem_groups.push((stem, std::mem::take(values)));
-        });
+        })?;
 
         // Compute stem hashes in parallel (only if enough stems to offset rayon overhead)
         let mut stem_hashes: Vec<(Stem, B256)> = if stem_groups.len() >= PARALLEL_STEM_THRESHOLD {
@@ -196,43 +196,41 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
 /// is called for each stem in the input. The map passed to `on_stem` holds the values
 /// of that stem only; it is cleared before the next stem starts, so `on_stem` can take it.
 ///
-/// In debug builds, strict ascending `(stem, subindex)` order is asserted. In release
-/// builds, the last value of a repeated key wins, also when that value is zero.
+/// The entries come from the caller, so the order is checked in every build. Because the
+/// keys are strictly ascending, `on_stem` gets each stem one time, in ascending order.
+///
+/// # Errors
+///
+/// Returns [`UbtError::EntriesNotSorted`] at the first entry whose key is not greater
+/// than the key before it. `on_stem` was then called for the stems before that entry.
 fn for_each_stem_group(
     entries: impl IntoIterator<Item = (TreeKey, B256)>,
     mut on_stem: impl FnMut(Stem, &mut HashMap<SubIndex, B256>),
-) {
-    let mut current_stem: Option<Stem> = None;
+) -> Result<()> {
+    let mut previous_key: Option<TreeKey> = None;
     let mut current_values: HashMap<SubIndex, B256> = HashMap::new();
 
-    #[cfg(debug_assertions)]
-    let mut prev_key: Option<TreeKey> = None;
-
     for (key, value) in entries {
-        #[cfg(debug_assertions)]
-        {
-            if let Some(prev) = prev_key {
-                debug_assert!(
-                    (prev.stem, prev.subindex) < (key.stem, key.subindex),
-                    "Entries must be sorted: {prev:?} should come before {key:?}",
-                );
+        if let Some(previous) = previous_key {
+            if (previous.stem, previous.subindex) >= (key.stem, key.subindex) {
+                return Err(UbtError::EntriesNotSorted {
+                    previous,
+                    current: key,
+                });
             }
-            prev_key = Some(key);
-        }
-
-        if let Some(stem) = current_stem {
-            if stem != key.stem {
-                on_stem(stem, &mut current_values);
+            if previous.stem != key.stem {
+                on_stem(previous.stem, &mut current_values);
                 current_values.clear();
             }
         }
-        current_stem = Some(key.stem);
+        previous_key = Some(key);
         current_values.insert(key.subindex, value);
     }
 
-    if let Some(stem) = current_stem {
-        on_stem(stem, &mut current_values);
+    if let Some(previous) = previous_key {
+        on_stem(previous.stem, &mut current_values);
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -446,44 +444,63 @@ mod tests {
         );
     }
 
-    /// In release builds the order is not asserted, and the last value of a repeated
-    /// key wins, also when it is zero. This is the result of `UnifiedBinaryTree::insert`
-    /// for the same sequence of writes.
-    #[cfg(not(debug_assertions))]
+    /// The entry order is input from the caller, so a wrong order is an error in every
+    /// build, for both build methods. Goal: each kind of wrong order (repeated key,
+    /// descending subindex, descending stem, a stem that comes back after another stem)
+    /// gives `EntriesNotSorted` with the two keys at the first wrong position, and the
+    /// same entries in ascending order give a root.
     #[test]
-    fn test_repeated_key_last_write_wins() {
+    fn test_entries_not_in_ascending_order_are_rejected() {
         let builder: StreamingTreeBuilder<Blake3Hasher> = StreamingTreeBuilder::new();
-        let key_a = TreeKey::new(Stem::new([1u8; 31]), 4);
-        let key_b = TreeKey::new(Stem::new([2u8; 31]), 0);
+        let stem_1 = Stem::new([1u8; 31]);
+        let stem_2 = Stem::new([2u8; 31]);
         let value = B256::repeat_byte(0x77);
+        let key = TreeKey::new;
 
-        for (first, last) in [(value, B256::ZERO), (B256::ZERO, value)] {
-            let entries = vec![(key_a, first), (key_a, last), (key_b, value)];
+        let ascending: Vec<TreeKey> = vec![key(stem_1, 4), key(stem_1, 5), key(stem_2, 0)];
+        let wrong_orders: [(Vec<TreeKey>, usize); 5] = [
+            (vec![key(stem_1, 4), key(stem_1, 4), key(stem_2, 0)], 1),
+            (vec![key(stem_1, 5), key(stem_1, 4), key(stem_2, 0)], 1),
+            (vec![key(stem_2, 0), key(stem_1, 4), key(stem_1, 5)], 1),
+            (vec![key(stem_1, 4), key(stem_2, 0), key(stem_1, 5)], 2),
+            (
+                vec![
+                    key(stem_1, 4),
+                    key(stem_1, 5),
+                    key(stem_2, 0),
+                    key(stem_2, 0),
+                ],
+                3,
+            ),
+        ];
 
-            let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
-            for (key, entry_value) in &entries {
-                tree.insert(*key, *entry_value);
+        let with_values = |keys: &[TreeKey]| -> Vec<(TreeKey, B256)> {
+            keys.iter().map(|&entry_key| (entry_key, value)).collect()
+        };
+        let assert_rejected = |result: Result<B256>, keys: &[TreeKey], position: usize| match result
+        {
+            Err(UbtError::EntriesNotSorted { previous, current }) => {
+                assert_eq!(previous, keys[position - 1], "keys: {keys:?}");
+                assert_eq!(current, keys[position], "keys: {keys:?}");
             }
-            assert_eq!(tree.get(&key_a), Some(last));
-            let expected = tree.root_hash().unwrap();
+            other => panic!("expected EntriesNotSorted for {keys:?}, got {other:?}"),
+        };
 
-            let last_only = vec![(key_a, last), (key_b, value)];
-            assert_eq!(builder.build_root_hash(last_only).unwrap(), expected);
-            assert_eq!(builder.build_root_hash(entries.clone()).unwrap(), expected);
+        assert!(builder.build_root_hash(with_values(&ascending)).is_ok());
+        #[cfg(feature = "parallel")]
+        assert!(builder
+            .build_root_hash_parallel(with_values(&ascending))
+            .is_ok());
+
+        for (keys, position) in &wrong_orders {
+            assert_rejected(builder.build_root_hash(with_values(keys)), keys, *position);
             #[cfg(feature = "parallel")]
-            assert_eq!(builder.build_root_hash_parallel(entries).unwrap(), expected);
+            assert_rejected(
+                builder.build_root_hash_parallel(with_values(keys)),
+                keys,
+                *position,
+            );
         }
-    }
-
-    /// In debug builds a repeated key fails the order assertion.
-    #[cfg(debug_assertions)]
-    #[test]
-    #[should_panic(expected = "Entries must be sorted")]
-    fn test_repeated_key_panics_in_debug_builds() {
-        let builder: StreamingTreeBuilder<Blake3Hasher> = StreamingTreeBuilder::new();
-        let key = TreeKey::new(Stem::new([1u8; 31]), 4);
-        let entries = vec![(key, B256::repeat_byte(0x77)), (key, B256::ZERO)];
-        let _ = builder.build_root_hash(entries);
     }
 
     #[cfg(feature = "parallel")]
