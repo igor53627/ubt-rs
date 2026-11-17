@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- `release.yml` publishes the crate to crates.io before it creates the GitHub Release, so a release never points to a version that does not exist. A new step skips the publish steps when the version is already on crates.io, which makes a re-run of a failed release job safe.
+
 ## [0.5.2] - 2026-11-17
 
 ### Added
