@@ -100,12 +100,9 @@ Definition gen_zero_value : Value := zero32.
     These properties will be tested with QuickChick.
 *)
 
-(** Property 1: get (insert t k v) k = Some v (when v is nonzero) *)
+(** Property 1: get (insert t k v) k = Some v (for every v, including zero) *)
 Definition prop_get_insert_same (t : SimTree) (k : TreeKey) (v : Value) : bool :=
-  if is_zero_value v then
-    true
-  else
-    option_value_eqb (sim_tree_get (sim_tree_insert t k v) k) (Some v).
+  option_value_eqb (sim_tree_get (sim_tree_insert t k v) k) (Some v).
 
 (** Property 2: get (insert t k1 v) k2 = get t k2 (when k1 <> k2) *)
 Definition prop_get_insert_other (t : SimTree) (k1 k2 : TreeKey) (v : Value) : bool :=
@@ -170,17 +167,17 @@ Definition prop_delete_idempotent (t : SimTree) (k : TreeKey) : bool :=
 
 (** Property 10: Insert then delete same key = original get (for unset keys) *)
 Definition prop_insert_delete_roundtrip (t : SimTree) (k : TreeKey) (v : Value) : bool :=
-  if is_zero_value v then
-    true
-  else
-    let t' := sim_tree_delete (sim_tree_insert t k v) k in
-    option_value_eqb (sim_tree_get t' k) None.
+  let t' := sim_tree_delete (sim_tree_insert t k v) k in
+  option_value_eqb (sim_tree_get t' k) None.
 
-(** Property 11: Zero value insert acts as delete *)
-Definition prop_zero_insert_is_delete (t : SimTree) (k : TreeKey) : bool :=
-  option_value_eqb 
-    (sim_tree_get (sim_tree_insert t k zero32) k) 
-    (sim_tree_get (sim_tree_delete t k) k).
+(** Property 11: A zero value insert gives a present zero leaf. It is not a delete. *)
+Definition prop_zero_insert_is_present (t : SimTree) (k : TreeKey) : bool :=
+  option_value_eqb (sim_tree_get (sim_tree_insert t k zero32) k) (Some zero32).
+
+(** Delete removes the leaf, also a leaf that holds zero. Delete is not a zero insert. *)
+Definition prop_delete_removes (t : SimTree) (k : TreeKey) : bool :=
+  option_value_eqb (sim_tree_get (sim_tree_delete t k) k) None &&
+  option_value_eqb (sim_tree_get (sim_tree_delete (sim_tree_insert t k zero32) k) k) None.
 
 (** Property 12: Subindex independence - different subindices in same stem don't interfere *)
 Definition prop_subindex_independence (t : SimTree) (stem_seed : Z) (idx1 idx2 : Z) (v : Value) : bool :=
@@ -201,10 +198,7 @@ Definition prop_empty_tree_no_stems (s : Stem) : bool :=
 
 (** Property 14: Multiple inserts at same key - last wins *)
 Definition prop_last_insert_wins (t : SimTree) (k : TreeKey) (v1 v2 : Value) : bool :=
-  if is_zero_value v2 then
-    option_value_eqb (sim_tree_get (sim_tree_insert (sim_tree_insert t k v1) k v2) k) None
-  else
-    option_value_eqb (sim_tree_get (sim_tree_insert (sim_tree_insert t k v1) k v2) k) (Some v2).
+  option_value_eqb (sim_tree_get (sim_tree_insert (sim_tree_insert t k v1) k v2) k) (Some v2).
 
 (** ** Edge Case Properties (Properties 15-26) *)
 
@@ -212,8 +206,7 @@ Definition prop_last_insert_wins (t : SimTree) (k : TreeKey) (v1 v2 : Value) : b
 Definition prop_max_subindex_works (t : SimTree) (stem_seed : Z) (v : Value) : bool :=
   let s := gen_stem_from_seed stem_seed in
   let k := mkTreeKey s 255 in
-  if is_zero_value v then true
-  else option_value_eqb (sim_tree_get (sim_tree_insert t k v) k) (Some v).
+  option_value_eqb (sim_tree_get (sim_tree_insert t k v) k) (Some v).
 
 (** Property 16: Stems differing only in last bit are distinguished *)
 Definition prop_similar_stems_distinguished (t : SimTree) (seed : Z) (idx : Z) (v1 v2 : Value) : bool :=
@@ -222,10 +215,8 @@ Definition prop_similar_stems_distinguished (t : SimTree) (seed : Z) (idx : Z) (
   let s2 := mkStem (base_bytes ++ [1]) in
   let k1 := mkTreeKey s1 (Z.modulo idx 256) in
   let k2 := mkTreeKey s2 (Z.modulo idx 256) in
-  if is_zero_value v1 then true
-  else
-    let t' := sim_tree_insert (sim_tree_insert t k1 v1) k2 v2 in
-    option_value_eqb (sim_tree_get t' k1) (Some v1).
+  let t' := sim_tree_insert (sim_tree_insert t k1 v1) k2 v2 in
+  option_value_eqb (sim_tree_get t' k1) (Some v1).
 
 (** Property 17: Full stem capacity - all 256 subindices can be populated *)
 Definition prop_full_stem_256_values (stem_seed : Z) : bool :=
@@ -251,53 +242,44 @@ Definition prop_deep_tree_operations (seeds : list Z) (query_seed : Z) (v : Valu
     (sim_tree_insert acc k val, S idx)) stems (empty_tree, 0%nat) in
   let query_stem := gen_stem_from_seed query_seed in
   let query_key := mkTreeKey query_stem 0 in
-  if is_zero_value v then true
-  else
-    let t' := sim_tree_insert (fst t) query_key v in
-    option_value_eqb (sim_tree_get t' query_key) (Some v).
+  let t' := sim_tree_insert (fst t) query_key v in
+  option_value_eqb (sim_tree_get t' query_key) (Some v).
 
 (** Property 19: Alternating insert-delete stress test *)
 Definition prop_alternating_insert_delete (t : SimTree) (keys : list TreeKey) (v : Value) : bool :=
-  if is_zero_value v then true
-  else
-    let t' := fold_left (fun acc k =>
-      sim_tree_delete (sim_tree_insert acc k v) k) keys t in
-    List.forallb (fun k =>
-      option_value_eqb (sim_tree_get t' k) (sim_tree_get t k)) keys.
+  let t' := fold_left (fun acc k =>
+    sim_tree_delete (sim_tree_insert acc k v) k) keys t in
+  List.forallb (fun k =>
+    option_value_eqb (sim_tree_get t' k) (sim_tree_get t k)) keys.
 
 (** Property 20: Batch vs individual equivalence (distinct keys only) *)
 Definition prop_batch_then_individual (t : SimTree) (k1 k2 k3 : TreeKey) (v1 v2 v3 : Value) : bool :=
   if key_eqb k1 k2 || key_eqb k2 k3 || key_eqb k1 k3 then true
   else
     let t_batch := sim_tree_insert (sim_tree_insert (sim_tree_insert t k1 v1) k2 v2) k3 v3 in
-    let check1 := option_value_eqb (sim_tree_get t_batch k1) 
-                    (if is_zero_value v1 then None else Some v1) in
-    let check2 := option_value_eqb (sim_tree_get t_batch k2) 
-                    (if is_zero_value v2 then None else Some v2) in
-    let check3 := option_value_eqb (sim_tree_get t_batch k3) 
-                    (if is_zero_value v3 then None else Some v3) in
+    let check1 := option_value_eqb (sim_tree_get t_batch k1) (Some v1) in
+    let check2 := option_value_eqb (sim_tree_get t_batch k2) (Some v2) in
+    let check3 := option_value_eqb (sim_tree_get t_batch k3) (Some v3) in
     check1 && check2 && check3.
 
 (** Property 21: Boundary subindex transitions (0->1, 127->128, 254->255) *)
 Definition prop_boundary_subindex_transitions (t : SimTree) (stem_seed : Z) (v : Value) : bool :=
-  if is_zero_value v then true
-  else
-    let s := gen_stem_from_seed stem_seed in
-    let k0 := mkTreeKey s 0 in
-    let k1 := mkTreeKey s 1 in
-    let k127 := mkTreeKey s 127 in
-    let k128 := mkTreeKey s 128 in
-    let k254 := mkTreeKey s 254 in
-    let k255 := mkTreeKey s 255 in
-    let t' := sim_tree_insert (sim_tree_insert (sim_tree_insert 
-              (sim_tree_insert (sim_tree_insert (sim_tree_insert t k0 v) k1 v) k127 v) 
-              k128 v) k254 v) k255 v in
-    option_value_eqb (sim_tree_get t' k0) (Some v) &&
-    option_value_eqb (sim_tree_get t' k1) (Some v) &&
-    option_value_eqb (sim_tree_get t' k127) (Some v) &&
-    option_value_eqb (sim_tree_get t' k128) (Some v) &&
-    option_value_eqb (sim_tree_get t' k254) (Some v) &&
-    option_value_eqb (sim_tree_get t' k255) (Some v).
+  let s := gen_stem_from_seed stem_seed in
+  let k0 := mkTreeKey s 0 in
+  let k1 := mkTreeKey s 1 in
+  let k127 := mkTreeKey s 127 in
+  let k128 := mkTreeKey s 128 in
+  let k254 := mkTreeKey s 254 in
+  let k255 := mkTreeKey s 255 in
+  let t' := sim_tree_insert (sim_tree_insert (sim_tree_insert 
+            (sim_tree_insert (sim_tree_insert (sim_tree_insert t k0 v) k1 v) k127 v) 
+            k128 v) k254 v) k255 v in
+  option_value_eqb (sim_tree_get t' k0) (Some v) &&
+  option_value_eqb (sim_tree_get t' k1) (Some v) &&
+  option_value_eqb (sim_tree_get t' k127) (Some v) &&
+  option_value_eqb (sim_tree_get t' k128) (Some v) &&
+  option_value_eqb (sim_tree_get t' k254) (Some v) &&
+  option_value_eqb (sim_tree_get t' k255) (Some v).
 
 (** Property 22: Overwrite then delete leaves no trace *)
 Definition prop_overwrite_delete_clean (t : SimTree) (k : TreeKey) (v1 v2 : Value) : bool :=
@@ -306,27 +288,24 @@ Definition prop_overwrite_delete_clean (t : SimTree) (k : TreeKey) (v1 v2 : Valu
 
 (** Property 23: Multiple stems with interleaved operations *)
 Definition prop_interleaved_multi_stem (stem_seed1 stem_seed2 : Z) (v1 v2 : Value) : bool :=
-  if is_zero_value v1 || is_zero_value v2 then true
+  let s1 := gen_stem_from_seed stem_seed1 in
+  let s2 := gen_stem_from_seed stem_seed2 in
+  if stem_eq s1 s2 then true
   else
-    let s1 := gen_stem_from_seed stem_seed1 in
-    let s2 := gen_stem_from_seed stem_seed2 in
-    if stem_eq s1 s2 then true
-    else
-      let k1_0 := mkTreeKey s1 0 in
-      let k1_1 := mkTreeKey s1 1 in
-      let k2_0 := mkTreeKey s2 0 in
-      let k2_1 := mkTreeKey s2 1 in
-      let t := sim_tree_insert (sim_tree_insert (sim_tree_insert 
-                (sim_tree_insert empty_tree k1_0 v1) k2_0 v2) k1_1 v1) k2_1 v2 in
-      option_value_eqb (sim_tree_get t k1_0) (Some v1) &&
-      option_value_eqb (sim_tree_get t k1_1) (Some v1) &&
-      option_value_eqb (sim_tree_get t k2_0) (Some v2) &&
-      option_value_eqb (sim_tree_get t k2_1) (Some v2).
+    let k1_0 := mkTreeKey s1 0 in
+    let k1_1 := mkTreeKey s1 1 in
+    let k2_0 := mkTreeKey s2 0 in
+    let k2_1 := mkTreeKey s2 1 in
+    let t := sim_tree_insert (sim_tree_insert (sim_tree_insert 
+              (sim_tree_insert empty_tree k1_0 v1) k2_0 v2) k1_1 v1) k2_1 v2 in
+    option_value_eqb (sim_tree_get t k1_0) (Some v1) &&
+    option_value_eqb (sim_tree_get t k1_1) (Some v1) &&
+    option_value_eqb (sim_tree_get t k2_0) (Some v2) &&
+    option_value_eqb (sim_tree_get t k2_1) (Some v2).
 
 (** Property 24: Large key sequence maintains consistency *)
 Definition prop_large_sequence_consistent (base_seed : Z) (n : nat) (v : Value) : bool :=
-  if is_zero_value v then true
-  else if (n =? 0)%nat then true
+  if (n =? 0)%nat then true
   else
     let keys := map (fun i => gen_key_from_bytes (base_seed + Z.of_nat i) (Z.of_nat i)) (seq 0 n) in
     let t := fold_left (fun acc k => sim_tree_insert acc k v) keys empty_tree in
@@ -335,7 +314,6 @@ Definition prop_large_sequence_consistent (base_seed : Z) (n : nat) (v : Value) 
 (** Property 25: Delete non-existent key is no-op *)
 Definition prop_delete_nonexistent_noop (t : SimTree) (k1 k2 : TreeKey) (v : Value) : bool :=
   if key_eqb k1 k2 then true
-  else if is_zero_value v then true
   else
     let t1 := sim_tree_insert t k1 v in
     let t2 := sim_tree_delete t1 k2 in
@@ -343,11 +321,9 @@ Definition prop_delete_nonexistent_noop (t : SimTree) (k1 k2 : TreeKey) (v : Val
 
 (** Property 26: Stem with high-bit bytes *)
 Definition prop_high_bit_stem_works (t : SimTree) (idx : Z) (v : Value) : bool :=
-  if is_zero_value v then true
-  else
-    let s := mkStem (repeat 128 31) in
-    let k := mkTreeKey s (Z.modulo idx 256) in
-    option_value_eqb (sim_tree_get (sim_tree_insert t k v) k) (Some v).
+  let s := mkStem (repeat 128 31) in
+  let k := mkTreeKey s (Z.modulo idx 256) in
+  option_value_eqb (sim_tree_get (sim_tree_insert t k v) k) (Some v).
 
 (** ** Iterator Properties (Properties 27-31) *)
 
@@ -378,11 +354,9 @@ Definition prop_drain_yields_all_elements (t : SimTree) : bool :=
 (** Property 28: iter doesn't modify source (iteration is read-only)
     After folding, we can still retrieve all previously stored values *)
 Definition prop_iter_preserves_collection (t : SimTree) (k : TreeKey) (v : Value) : bool :=
-  if is_zero_value v then true
-  else
-    let t' := sim_tree_insert t k v in
-    let _ := sim_tree_fold (fun acc _ _ => acc + 1)%nat 0%nat t' in
-    option_value_eqb (sim_tree_get t' k) (Some v).
+  let t' := sim_tree_insert t k v in
+  let _ := sim_tree_fold (fun acc _ _ => acc + 1)%nat 0%nat t' in
+  option_value_eqb (sim_tree_get t' k) (Some v).
 
 (** Property 29: fold matches List.fold_left on entries
     sim_tree_fold f init t = fold_left (fun acc (k,v) => f acc k v) (entries t) init *)
@@ -394,11 +368,9 @@ Definition prop_fold_matches_list_fold (t : SimTree) : bool :=
 (** Property 30: entries reflect all inserted values
     After inserting k->v, entries should contain that mapping *)
 Definition prop_entries_contain_inserted (t : SimTree) (k : TreeKey) (v : Value) : bool :=
-  if is_zero_value v then true
-  else
-    let t' := sim_tree_insert t k v in
-    let entries := sim_tree_entries t' in
-    existsb (fun e => key_eqb (fst e) k && value_eqb (snd e) v) entries.
+  let t' := sim_tree_insert t k v in
+  let entries := sim_tree_entries t' in
+  existsb (fun e => key_eqb (fst e) k && value_eqb (snd e) v) entries.
 
 (** Helper: collect builds a tree from entries that matches original gets *)
 Definition collect_from_entries (entries : list Entry) : SimTree :=
@@ -718,10 +690,10 @@ QuickChick (forAll arbitrary (fun t : SimTree =>
     forAll arbitrary (fun v : Value =>
       prop_insert_delete_roundtrip t k v)))).
 
-(* Property 11: Zero insert is delete *)
+(* Property 11: Zero insert is present, delete removes *)
 QuickChick (forAll arbitrary (fun t : SimTree =>
   forAll arbitrary (fun k : TreeKey =>
-    prop_zero_insert_is_delete t k))).
+    prop_zero_insert_is_present t k && prop_delete_removes t k))).
 
 (* Property 12: Subindex independence *)
 QuickChick (forAll arbitrary (fun t : SimTree =>

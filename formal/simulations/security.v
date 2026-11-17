@@ -177,37 +177,25 @@ Qed.
 
 (** ** Section 4: Zero-Value Security *)
 
-(** *** Non-Zero Values Cannot Collide With Zero *)
-
-(**
-    A non-zero value cannot hash to the same value as zero.
-    This ensures that "absent" (zero) and "present" (non-zero) values
-    are always distinguishable after hashing.
-*)
-Theorem nonzero_never_hashes_to_zero :
-  forall v : crypto.Bytes32,
-    crypto.value_nonzero v ->
-    crypto.hash_value v <> crypto.zero32.
-Proof.
-  exact hash_nonzero_of_value_nonzero.
-Qed.
-
 (** *** Zero and Non-Zero Are Distinguishable *)
 
 (**
-    The hash of a zero value is distinguishable from the hash of
-    any non-zero value. This is critical for the UBT's sparse tree
-    optimization.
+    A leaf that holds the zero value is a present leaf, and its hash is
+    the real digest of 32 zero bytes. The hash of the zero value is
+    distinguishable from the hash of any non-zero value. This follows from
+    collision resistance of [hash_value] and needs no zero rule.
+    
+    The former theorem [nonzero_never_hashes_to_zero]
+    (value_nonzero v -> hash_value v <> zero32) is removed. Its proof used
+    the removed axiom [hash_value zero32 = zero32], and no remaining axiom
+    gives it.
 *)
 Theorem zero_nonzero_hash_distinct :
   forall v : crypto.Bytes32,
     crypto.value_nonzero v ->
     crypto.hash_value v <> crypto.hash_value crypto.zero32.
 Proof.
-  intros v Hnonzero.
-  rewrite crypto.hash_zero_value.
-  apply nonzero_never_hashes_to_zero.
-  exact Hnonzero.
+  exact hash_value_zero_distinct.
 Qed.
 
 (** ** Section 5: Merkle Security Reduction *)
@@ -266,7 +254,6 @@ Qed.
 *)
 Theorem insert_retrieval_integrity :
   forall t k v,
-    tree.value_nonzero v ->
     sim_tree_get (sim_tree_insert t k v) k = Some v.
 Proof.
   exact get_insert_same.
@@ -290,7 +277,9 @@ Qed.
 
 (**
     After deletion, the key maps to nothing (None), regardless
-    of what value was previously stored.
+    of what value was previously stored. The deletion is a real removal
+    ([sim_tree_delete]). It is not a write of the zero value: a zero write
+    leaves a present zero leaf (see [tree.insert_zero_not_delete]).
 *)
 Theorem delete_security :
   forall t k,
@@ -356,9 +345,6 @@ Qed.
        
     3. HASH_STEM_COLLISION_RESISTANT:
        hash_stem s1 h1 = hash_stem s2 h2 -> stem_eq s1 s2 = true /\ h1 = h2
-       
-    4. HASH_VALUE_NONZERO:
-       value_nonzero v -> hash_value v <> zero32
        
     These are standard assumptions for any cryptographic hash function
     used in Merkle tree constructions (e.g., SHA-256, Keccak-256, Poseidon).
@@ -966,7 +952,6 @@ Qed.
 *)
 Theorem get_insert_consistency :
   forall t k v,
-    tree.value_nonzero v ->
     sim_tree_get (sim_tree_insert t k v) k = Some v.
 Proof.
   exact get_insert_same.
@@ -992,12 +977,10 @@ Qed.
 *)
 Theorem delete_insert_consistency :
   forall t k v,
-    tree.value_nonzero v ->
     sim_tree_get (sim_tree_insert (sim_tree_delete t k) k v) k = Some v.
 Proof.
-  intros t k v Hnonzero.
+  intros t k v.
   apply get_insert_same.
-  exact Hnonzero.
 Qed.
 
 (** *** Double Insert Consistency *)
@@ -1007,12 +990,10 @@ Qed.
 *)
 Theorem double_insert_consistency :
   forall t k v1 v2,
-    tree.value_nonzero v2 ->
     sim_tree_get (sim_tree_insert (sim_tree_insert t k v1) k v2) k = Some v2.
 Proof.
-  intros t k v1 v2 Hnonzero.
+  intros t k v1 v2.
   apply get_insert_same.
-  exact Hnonzero.
 Qed.
 
 (** *** Double Delete Idempotence *)
@@ -1533,7 +1514,9 @@ Module FormalSecuritySummary.
       1. Hash function collision resistance (hash_value_collision_resistant)
       2. Hash function pair collision resistance (hash_pair_collision_resistant)
       3. Hash function stem collision resistance (hash_stem_collision_resistant)
-      4. Domain separation (hash_value_nonzero)
+      There is no zero rule for hash_value: the hash of the zero value is
+      the real digest, and it is distinct from the hash of every non-zero
+      value (zero_nonzero_hash_distinct).
   *)
   
   (** ** Proven Security Properties *)

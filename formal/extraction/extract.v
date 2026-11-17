@@ -157,10 +157,12 @@ Extraction "extracted"
   (* SubIndexMap operations from tree.v *)
   tree.sim_get
   tree.sim_set
+  tree.sim_remove
   
   (* StemMap operations from tree.v *)
   tree.stems_get
   tree.stems_set
+  tree.stems_remove
   
   (* Tree operations from tree.v *)
   tree.sim_tree_get

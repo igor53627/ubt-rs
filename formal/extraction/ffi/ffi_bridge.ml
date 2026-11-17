@@ -198,9 +198,9 @@ let ffi_delete (tree : ffi_tree) (key_bytes : bytes) : ffi_tree =
   let key = bytes_to_tree_key key_bytes in
   sim_tree_delete tree key
 
-(** Check if a value exists (non-zero) *)
+(** Check if a value exists. A zero value is a present value. *)
 let ffi_contains (tree : ffi_tree) (key_bytes : bytes) : bool =
   let key = bytes_to_tree_key key_bytes in
   match sim_tree_get tree key with
-  | Some v -> not (is_zero_value v)
+  | Some _ -> true
   | None -> false

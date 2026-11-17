@@ -16,8 +16,9 @@
     
     ** Refinement Lemmas
     
-    We show that UBT's sim_get/sim_set match the library's map_get/map_insert
-    (modulo the zero-value special case in sim_set).
+    We show that UBT's sim_get/sim_set match the library's map_get/map_insert,
+    and that sim_remove matches the library's map_remove pattern. sim_set has
+    no zero-value special case: a zero value is inserted as a present entry.
 *)
 
 Require Import RocqOfRust.RocqOfRust.
@@ -70,29 +71,30 @@ Module SubIndexMapBridge.
     reflexivity.
   Qed.
 
-  (** ** Correspondence with sim_set (non-zero case) *)
+  (** ** Correspondence with sim_set *)
 
-  (** For non-zero values, sim_set equals library's map_insert pattern *)
-  Lemma sim_set_nonzero_is_map_insert : forall (m : SubIndexMap) (idx : SubIndex) (v : Value),
-    is_zero_value v = false ->
+  (** For every value, also a zero value, sim_set equals library's
+      map_insert pattern. This was sim_set_nonzero_is_map_insert with the
+      premise is_zero_value v = false. *)
+  Lemma sim_set_is_map_insert : forall (m : SubIndexMap) (idx : SubIndex) (v : Value),
     sim_set m idx v = (idx, v) :: filter (fun p => negb (subindex_eq (fst p) idx)) m.
   Proof.
-    intros m idx v Hnonzero.
+    intros m idx v.
     unfold sim_set, subindex_eq.
-    rewrite Hnonzero.
     reflexivity.
   Qed.
 
-  (** ** Zero-value special case *)
+  (** ** Removal *)
   
-  (** For zero values, sim_set removes the key (like map_remove) *)
-  Lemma sim_set_zero_is_remove : forall (m : SubIndexMap) (idx : SubIndex) (v : Value),
-    is_zero_value v = true ->
-    sim_set m idx v = filter (fun p => negb (subindex_eq (fst p) idx)) m.
+  (** sim_remove removes the key (like map_remove). This was
+      sim_set_zero_is_remove: before the zero-value change a zero write
+      removed the key. A zero write is an insert now, and the removal is
+      sim_remove. *)
+  Lemma sim_remove_is_map_remove : forall (m : SubIndexMap) (idx : SubIndex),
+    sim_remove m idx = filter (fun p => negb (subindex_eq (fst p) idx)) m.
   Proof.
-    intros m idx v Hzero.
-    unfold sim_set, subindex_eq.
-    rewrite Hzero.
+    intros m idx.
+    unfold sim_remove, subindex_eq.
     reflexivity.
   Qed.
 
@@ -189,7 +191,7 @@ End StemMapBridge.
     Both use the same underlying structure as the library's HashMap model.
     
     Key lemmas:
-    - sim_get_is_map_get, sim_set_nonzero_is_map_insert
+    - sim_get_is_map_get, sim_set_is_map_insert, sim_remove_is_map_remove
     - stems_get_is_map_get, stems_set_is_map_insert
     - stems_get_set_same, stems_get_set_other (derived from library pattern)
     
