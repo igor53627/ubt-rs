@@ -77,6 +77,27 @@ let root = tree.root_hash().unwrap();
 let value = tree.get(&key);
 ```
 
+### Zero Values and Deletion
+
+A value of 32 zero bytes is a present leaf, as in go-ethereum. `insert(key, B256::ZERO)` keeps the leaf and the stem, `get` returns `Some(B256::ZERO)`, and the leaf is hashed. This is the equivalent of the zero writes of go-ethereum `DeleteStorage` and `DeleteAccount`.
+
+`delete(&key)` removes the leaf, and removes the stem when it has no values left. The tree is then in the state "never written" for that key. go-ethereum has no such operation.
+
+```rust
+use ubt::{UnifiedBinaryTree, TreeKey, Sha256Hasher, B256};
+
+let mut tree: UnifiedBinaryTree<Sha256Hasher> = UnifiedBinaryTree::new();
+let key = TreeKey::from_bytes(B256::repeat_byte(0x01));
+
+tree.insert(key, B256::ZERO);
+assert_eq!(tree.get(&key), Some(B256::ZERO));
+assert_ne!(tree.root_hash().unwrap(), B256::ZERO);
+
+tree.delete(&key);
+assert_eq!(tree.get(&key), None);
+assert_eq!(tree.root_hash().unwrap(), B256::ZERO);
+```
+
 ### Batch Operations
 
 For inserting many values efficiently, use batch operations:
@@ -232,23 +253,25 @@ impl Hasher for MyHasher {
 }
 ```
 
+A custom implementation must follow the contract in the `Hasher` docs: `hash_32` has no zero rule (the hash of 32 zero bytes is not zero), and `hash_64` returns zero when both inputs are zero.
+
 ## go-ethereum Compatibility
 
 The crate was compared with go-ethereum `trie/bintrie` at commit `b0f9324c` (2026-11-09). That is the last commit that contains the package: commit `ddaa6957` (2026-11-10) removed the EIP-7864 binary trie in favour of the EIP-8297 partitioned binary tree (`trie/pbt`).
 
-With `Sha256Hasher` and non-zero values, the crate gives the same tree keys, leaf contents, and root hashes as go-ethereum at that commit. The comparison ran the go-ethereum hashing and key derivation code against the crate, and it includes the root that go-ethereum pins in `TestBinaryGenesisCommit`.
+With `Sha256Hasher`, the crate gives the same tree keys, leaf contents, and root hashes as go-ethereum at that commit, also for trees that contain zero values. The comparison ran the go-ethereum hashing and key derivation code against the crate, and it includes the roots that go-ethereum pins in `TestBinaryGenesisCommit` and `TestMerkleizeMultipleEntries`.
 
 Known differences:
 
 | Area | go-ethereum `trie/bintrie` | This crate |
 |------|----------------------------|------------|
 | Hash function | SHA-256 | BLAKE3 by default; use `Sha256Hasher` for go-ethereum roots |
-| Zero values | A leaf that holds 32 zero bytes is present and hashes to `sha256(0^32)`. Deletion writes zero; stems are never removed. | A zero value is absent. `delete` removes the value and an empty stem. |
+| Zero values | A leaf that holds 32 zero bytes is present and hashes to `sha256(0^32)`. Deletion writes zero; stems are never removed. | The same in versions after 0.5.2: `insert(key, B256::ZERO)` stores a present leaf that is hashed, and the stem stays. The crate also has `delete`, which go-ethereum does not have: it removes the value and a stem with no values left. |
 | Node encoding | Stem tag `1`, internal tag `2`, bitmap MSB-first, internal nodes stored in groups of up to 8 levels | `ubt::codec`: stem tag `2`, internal tag `1`, bitmap LSB-first, one internal node per record. Not wire-compatible. |
 | Account API, node database, iterator, witness | Present | Not implemented |
 | Proof verification, streaming builder, incremental mode | Not implemented (`Prove` panics) | Present |
 
-A tree that contains a zero-valued leaf, for example a storage slot set to zero or a deleted account, has a different root in go-ethereum.
+A tree that contains a zero-valued leaf, for example a storage slot set to zero or a deleted account, has the same root as in go-ethereum. To follow go-ethereum `DeleteStorage` and `DeleteAccount`, write zero values with `insert(key, B256::ZERO)`. `delete(&key)` restores the state "never written" for the key and gives a root that go-ethereum cannot reach from the same sequence of writes. Versions up to 0.5.2 treated a zero value as absent and gave different roots for these trees.
 
 ### Scope and Direction
 
@@ -310,7 +333,7 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 
 **Note:** Properties marked "Formal model" are proven in the Rocq formal verification but the corresponding Rust APIs (batch verification, accumulators) are not yet exposed.
 
-**Note:** The translated Rust code in `formal/src/` and the linking layer model the crate source before 0.5.0. They do not cover `NodeStore`, the binary codec, or the V3 key derivation.
+**Note:** The translated Rust code in `formal/src/` and the linking layer model the crate source before 0.5.0. They do not cover `NodeStore`, the binary codec, or the V3 key derivation. The Rocq simulation model (`sim_set` in `formal/simulations/tree.v`) still removes the entry on a zero write, and therefore models the behaviour before zero values became present leaves.
 
 ### Axiom Classification
 

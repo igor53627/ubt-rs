@@ -4,6 +4,8 @@ This document compares the Rust UBT implementation (`src/`) with the formal Rocq
 
 > See also: [formal/docs/RUST_MODEL_COMPARISON.md](../formal/docs/RUST_MODEL_COMPARISON.md) for detailed linking strategy.
 
+> **Zero values:** the Rust crate now follows go-ethereum: a leaf that holds 32 zero bytes is present and is hashed, `Hasher::hash_32` has no zero rule, and `StemNode::set_value` stores a zero value. The Rocq model is not changed. Its axiom `hash_zero_value` (`hash_value zero32 = zero32`) and its `sim_set`, which removes the entry on a zero write, model the behaviour before this change. The statements below that depend on them are marked.
+
 ## Verification Architecture
 
 | Step | Layer         | Transformation       |
@@ -59,7 +61,7 @@ This document compares the Rust UBT implementation (`src/`) with the formal Rocq
 | `Hasher::hash_32(&value)` | `hash_value : Bytes32 -> Bytes32` | crypto.v:62 |
 | `Hasher::hash_64(&left, &right)` | `hash_pair : Bytes32 -> Bytes32 -> Bytes32` | crypto.v:63 |
 | `Hasher::hash_stem_node(stem, root)` | `hash_stem : Stem -> Bytes32 -> Bytes32` | crypto.v:64 |
-| Zero-input special case | `hash_zero_value`, `hash_zero_pair` | crypto.v:184-186 |
+| Zero-input special case | `hash_zero_value`, `hash_zero_pair` | crypto.v:184-186. Rust keeps the rule only for `hash_64` (`hash_zero_pair`); `hash_32` no longer agrees with `hash_zero_value`. |
 
 ## Verified Properties
 
@@ -168,8 +170,8 @@ These statements are axioms (trusted) in `linking/operations.v`, not proven theo
 
 **Then:**
 - `get(key)` returns the last inserted value for that key, or None
-- `insert(k, v)` followed by `get(k)` returns `Some(v)` (for non-zero v)
-- `delete(k)` removes the value at k
+- `insert(k, v)` followed by `get(k)` returns `Some(v)` (for non-zero v; the model removes the entry for a zero v, but the Rust crate now returns `Some(B256::ZERO)`)
+- `delete(k)` removes the value at k (the model defines delete as an insert of zero; in the Rust crate these are now two different operations)
 - Operations on different stems don't interfere
 - Operations on different subindices (same stem) don't interfere
 - Tree well-formedness is preserved across operations

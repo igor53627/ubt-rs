@@ -17,6 +17,8 @@ The security proofs rely on axioms in `formal/simulations/crypto.v`:
 | `hash_stem_collision_resistant` | `hash_stem s1 h1 = hash_stem s2 h2 → stem_eq s1 s2 = true ∧ h1 = h2` |
 | `hash_value_nonzero` | Non-zero values hash to non-zero outputs (now a lemma derived from `hash_value_collision_resistant` and the axiom `hash_zero_value : hash_value zero32 = zero32`) |
 
+The axiom `hash_zero_value` models the crate before the zero-value change. The Rust `Hasher::hash_32` now has no zero rule, as in go-ethereum: a leaf that holds 32 zero bytes is present and its hash is not zero. The Rocq model is not updated.
+
 Five theorems below also apply axioms that `formal/simulations/security.v` declares. The Status column names the axiom for each of them.
 
 ## Core Security Theorems
