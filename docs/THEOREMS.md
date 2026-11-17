@@ -15,7 +15,7 @@ The security proofs rely on axioms in `formal/simulations/crypto.v`:
 | `hash_value_collision_resistant` | `hash_value v1 = hash_value v2 → v1 = v2` |
 | `hash_pair_collision_resistant` | `hash_pair a1 b1 = hash_pair a2 b2 → a1 = a2 ∧ b1 = b2` |
 | `hash_stem_collision_resistant` | `hash_stem s1 h1 = hash_stem s2 h2 → stem_eq s1 s2 = true ∧ h1 = h2` |
-| `hash_value_nonzero` | Non-zero values hash to non-zero outputs (now a lemma derived from the axioms above) |
+| `hash_value_nonzero` | Non-zero values hash to non-zero outputs (now a lemma derived from `hash_value_collision_resistant` and the axiom `hash_zero_value : hash_value zero32 = zero32`) |
 
 ## Core Security Theorems
 

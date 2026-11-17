@@ -54,7 +54,6 @@ Record SimTree := mkSimTree {
 **Rust UnifiedBinaryTree** (src/tree/mod.rs, cache fields omitted):
 ```rust
 pub struct UnifiedBinaryTree<H: Hasher = Blake3Hasher, S: NodeStore = InMemoryStore> {
-    root: Node,
     hasher: H,
     store: S,
     // ... dirty flags and hash caches
@@ -79,6 +78,8 @@ Module SimTreeLink.
   }.
 End SimTreeLink.
 ```
+
+**Note:** This encoding models the translated structure in `formal/src/`, which predates crate version 0.5.0. That structure has one type parameter and the fields `root`, `hasher` and `stems`. The encoding does not cover the current `UnifiedBinaryTree<H, S>` shown above, which has a `store: S` field and no `root` field.
 
 ### Refinement Relation (linking/operations.v:171-172)
 
