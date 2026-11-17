@@ -11,7 +11,9 @@ use crate::{error::Result, Hasher, Stem, StemNode, TreeKey, UbtError, STEM_LEN};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Direction {
+    /// The proven node is the left child; the sibling hash is the right input of the hash.
     Left,
+    /// The proven node is the right child; the sibling hash is the left input of the hash.
     Right,
 }
 
@@ -20,15 +22,26 @@ pub enum Direction {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ProofNode {
     /// Sibling hash at an internal node level
-    Internal { sibling: B256, direction: Direction },
+    Internal {
+        /// Hash of the sibling subtree.
+        sibling: B256,
+        /// Side of the internal node on which the proven node is.
+        direction: Direction,
+    },
     /// Stem node with the stem and subtree sibling hashes
     Stem {
+        /// Stem of the stem node.
         stem: Stem,
         /// Sibling hashes for the 8-level subtree (from leaf to root)
         subtree_siblings: Vec<B256>,
     },
     /// Extension proof (stem differs from expected)
-    Extension { stem: Stem, stem_hash: B256 },
+    Extension {
+        /// Stem of the stem node that is in the tree at this position.
+        stem: Stem,
+        /// Hash of that stem node.
+        stem_hash: B256,
+    },
 }
 
 /// A Merkle proof for a value in the UBT.
@@ -120,7 +133,7 @@ impl Proof {
 
     /// Get the size of the proof in bytes.
     pub fn size(&self) -> usize {
-        let mut size = 32 + 1; // key stem + subindex
+        let mut size = 32 + 1; // key, counted as 33 bytes (stem and subindex occupy 32)
         size += 33; // value (32 bytes + 1 byte for Option tag)
 
         for node in &self.path {

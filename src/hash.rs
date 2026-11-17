@@ -14,6 +14,15 @@ use sha2::{Digest, Sha256};
 /// - `hash([0x00] * 64) = [0x00] * 32` (empty input produces zero hash)
 /// - For all other inputs, use the underlying hash function
 ///
+/// # Implementing this trait
+///
+/// The crate does not apply the zero rule for the implementation. Each implementation
+/// must return `B256::ZERO` from [`hash_32`](Self::hash_32), [`hash_64`](Self::hash_64),
+/// and [`hash_raw`](Self::hash_raw) when the input is all zeros, as [`Sha256Hasher`] and
+/// [`Blake3Hasher`] do. [`StemNode::hash`](crate::StemNode::hash) calls `hash_64` for
+/// every pair of nodes in the 256-leaf subtree, including the empty pairs, so an
+/// implementation without the rule gives hashes that do not agree with EIP-7864.
+///
 /// # Thread Safety
 ///
 /// This trait is always `Send + Sync` so that hashers can be used safely in

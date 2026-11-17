@@ -11,7 +11,7 @@
 //!   are grouped together in 256-value subtrees to reduce branch openings
 //! - **ZK-friendly**: Designed for efficient proving in ZK circuits
 //! - **Parallel hashing**: Uses rayon for concurrent stem hash computation (default feature)
-//! - **Incremental updates**: O(D*C) root updates instead of O(S log S) rebuilds
+//! - **Incremental updates**: Optional cache of intermediate node hashes, so that a root update rehashes only the paths to changed stems
 //! - **Pluggable storage**: [`NodeStore`] trait allows custom backends for persistent state
 //!
 //! ## Tree Structure
@@ -21,10 +21,10 @@
 //! - Last byte: **subindex** (position within the 256-value subtree)
 //!
 //! Node types:
-//! - [`InternalNode`]: Has `left_hash` and `right_hash`
-//! - [`StemNode`]: Has stem (31 bytes), `left_hash` and `right_hash` for its 256-value subtree
-//! - [`LeafNode`]: Contains a 32-byte value or empty
-//! - `EmptyNode`: Represents an empty node/subtree (hash = 0)
+//! - [`InternalNode`]: Has a `left` and a `right` child node; its hash is `hash(left_hash || right_hash)`
+//! - [`StemNode`]: Has a `stem` (31 bytes) and a sparse map of the `values` in its 256-value subtree
+//! - [`LeafNode`]: Contains a 32-byte value
+//! - [`Node::Empty`]: Represents an empty node/subtree (hash = 0)
 //!
 //! ## Quick Start
 //!
@@ -78,6 +78,7 @@
 //! The [`Hasher`] trait is `Send + Sync` to support parallel hashing contexts.
 
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
+#![warn(missing_docs)]
 
 // Optional deps used by the `simulate` binary. Rust checks unused deps per-crate,
 // so we reference them here to avoid `unused_crate_dependencies` warnings when the

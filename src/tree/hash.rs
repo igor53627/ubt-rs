@@ -343,6 +343,10 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
 
     /// Batch insert multiple key-value pairs.
     ///
+    /// Unlike [`insert`](Self::insert), which defers the work to the next
+    /// [`root_hash`](Self::root_hash) call, this method recomputes the root hash
+    /// before it returns, if `entries` is not empty.
+    ///
     /// # Errors
     ///
     /// Returns an error if the root rebuild exceeds maximum depth.
@@ -354,6 +358,10 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
     }
 
     /// Batch insert multiple key-value pairs with progress callback.
+    ///
+    /// `on_progress` is called after each entry with the number of entries inserted
+    /// so far. Like [`insert_batch`](Self::insert_batch), this method recomputes the
+    /// root hash before it returns, if `entries` is not empty.
     ///
     /// # Errors
     ///

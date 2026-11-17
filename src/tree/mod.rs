@@ -220,7 +220,8 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
     /// Get mutable access to a stem node, creating it if it doesn't exist.
     ///
     /// Note: This is a low-level mutating API. Any modifications to the returned
-    /// `StemNode` will affect the tree's root hash.
+    /// `StemNode` will affect the tree's root hash. Do not change the `stem` field
+    /// of the returned node: the tree finds the node by `stem` and hashes the field.
     pub fn get_or_create_stem(&mut self, stem: Stem) -> &mut StemNode {
         self.dirty_stem_hashes.insert(stem);
         self.root_dirty = true;

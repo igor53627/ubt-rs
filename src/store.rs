@@ -14,10 +14,26 @@ use crate::{Stem, StemNode};
 /// Implementations provide the key-value store that [`crate::UnifiedBinaryTree`]
 /// uses for its stem node data. The default [`InMemoryStore`] wraps a `HashMap`.
 ///
-/// A persistent store (e.g., backed by `RocksDB` or `redb`) would implement this
-/// trait with an internal read-through cache: load stems into memory on access,
-/// and flush dirty nodes via a store-specific `commit()` method accessible
-/// through [`UnifiedBinaryTree::store_mut`](crate::UnifiedBinaryTree::store_mut).
+/// A persistent store (e.g., backed by `RocksDB` or `redb`) must keep in memory
+/// every stem node that it returns, because [`get`](Self::get) and
+/// [`iter`](Self::iter) take `&self` and return references. It can flush dirty
+/// nodes via a store-specific `commit()` method accessible through
+/// [`UnifiedBinaryTree::store_mut`](crate::UnifiedBinaryTree::store_mut).
+///
+/// # Invariants
+///
+/// The tree relies on these rules and does not check them. A store that breaks
+/// one of them gives a wrong root hash or wrong counts without an error.
+///
+/// - [`get`](Self::get), [`get_mut`](Self::get_mut), and
+///   [`get_or_create`](Self::get_or_create) return a node whose `stem` field is
+///   equal to the requested stem.
+/// - [`iter`](Self::iter) gives each stem one time.
+/// - [`value_count`](Self::value_count) is equal to the sum of `values.len()`
+///   over all stem nodes.
+/// - `clone()` gives an independent copy of the data. The tree derives `Clone`
+///   and copies its hash caches, so a clone that shares data with the original
+///   makes the caches of one tree stale when the other tree changes.
 ///
 /// # Thread Safety
 ///

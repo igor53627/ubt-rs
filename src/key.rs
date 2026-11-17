@@ -24,7 +24,11 @@ impl Stem {
         Self(bytes)
     }
 
-    /// Create a stem from a slice. Panics if length != 31.
+    /// Create a stem from a slice.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the length of `slice` is not [`STEM_LEN`] (31).
     pub fn from_slice(slice: &[u8]) -> Self {
         let mut bytes = [0u8; STEM_LEN];
         bytes.copy_from_slice(slice);
@@ -43,6 +47,10 @@ impl Stem {
 
     /// Get bit at position (0 = MSB of first byte, 247 = LSB of last byte).
     /// This is used for tree traversal.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `pos` is 248 or more.
     pub fn bit_at(&self, pos: usize) -> bool {
         debug_assert!(pos < STEM_LEN * 8);
         let byte_idx = pos / 8;
