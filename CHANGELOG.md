@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `docs/eip-7864.md` and `docs/eip-7864-json.json` (copies of the upstream EIP text; `README.md` links the official EIP)
 
 ### Fixed
+- `Proof::compute_root` (and `Proof::verify`) read the subindex bits of a `ProofNode::Stem` in the wrong order. `generate_stem_proof` and the `subtree_siblings` documentation order the siblings from leaf to root, but the verifier used the highest bit of the subindex first. A proof from `generate_stem_proof` verified only for the 16 subindexes whose bit pattern is a palindrome (for example 0, 0x81, 0xFF) and failed for the other 240. The verifier now uses the lowest bit first. `formal/proofs/multiproof.v` still models the old bit order.
 - `get_code_chunk_key` handles every `u64` chunk number. For the last 128 chunk numbers (`chunk_number > u64::MAX - 128`), `CODE_OFFSET + chunk_number` overflowed `u64`: debug builds panicked, and release builds returned a key in the account stem (for `u64::MAX - 127`, the basic data key). The position is now computed in 128 bits. Keys for all other chunk numbers are unchanged.
 - `release.yml` and `fuzz.yml` no longer check out submodules, which failed after the submodule upstream was deleted
 - Local absolute paths (`file:///Users/...`) and dead links to the deleted repositories removed from the docs
