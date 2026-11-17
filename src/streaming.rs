@@ -26,12 +26,10 @@ use std::collections::HashMap;
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 
-use crate::{error::Result, Blake3Hasher, Hasher, Stem, SubIndex, TreeKey, UbtError, STEM_LEN};
-
-/// Minimum number of stems before using parallel processing.
-/// Below this threshold, sequential processing is faster due to rayon overhead.
 #[cfg(feature = "parallel")]
-const PARALLEL_STEM_THRESHOLD: usize = 100;
+use crate::merkle::PARALLEL_STEM_THRESHOLD;
+use crate::merkle::{hash_stem_values, root_from_sorted_stem_hashes};
+use crate::{error::Result, Blake3Hasher, Hasher, Stem, SubIndex, TreeKey};
 
 /// A streaming tree builder that computes root hash with minimal memory.
 ///
@@ -125,7 +123,7 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
         }
 
         // Build tree from stem hashes (sorted by stem since entries were sorted)
-        self.build_tree_hash(&stem_hashes, 0)
+        root_from_sorted_stem_hashes(&self.hasher, &stem_hashes, 0)
     }
 
     /// Build the root hash using parallel stem hashing.
@@ -178,7 +176,7 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
             stem_groups
                 .into_par_iter()
                 .map(|(stem, values)| {
-                    let hash = self.compute_stem_hash(&stem, &values);
+                    let hash = hash_stem_values(&self.hasher, &stem, &values);
                     (stem, hash)
                 })
                 .collect()
@@ -186,7 +184,7 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
             stem_groups
                 .into_iter()
                 .map(|(stem, values)| {
-                    let hash = self.compute_stem_hash(&stem, &values);
+                    let hash = hash_stem_values(&self.hasher, &stem, &values);
                     (stem, hash)
                 })
                 .collect()
@@ -196,7 +194,7 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
         stem_hashes.sort_by(|a, b| a.0.cmp(&b.0));
 
         // Build tree from stem hashes (serial - O(n) and fast)
-        self.build_tree_hash(&stem_hashes, 0)
+        root_from_sorted_stem_hashes(&self.hasher, &stem_hashes, 0)
     }
 
     /// Collect entries grouped by stem without computing hashes.
@@ -296,7 +294,7 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
                 Some(stem) => {
                     // New stem, finalize previous
                     if !current_values.is_empty() {
-                        let hash = self.compute_stem_hash(&stem, &current_values);
+                        let hash = hash_stem_values(&self.hasher, &stem, &current_values);
                         stem_hashes.push((stem, hash));
                     }
                     // Start new stem
@@ -319,68 +317,12 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
         // Finalize last stem
         if let Some(stem) = current_stem {
             if !current_values.is_empty() {
-                let hash = self.compute_stem_hash(&stem, &current_values);
+                let hash = hash_stem_values(&self.hasher, &stem, &current_values);
                 stem_hashes.push((stem, hash));
             }
         }
 
         stem_hashes
-    }
-
-    /// Compute hash for a stem node with given values.
-    fn compute_stem_hash(&self, stem: &Stem, values: &HashMap<SubIndex, B256>) -> B256 {
-        // Step 1: Hash all values
-        let mut data = [B256::ZERO; 256];
-        for (&idx, &value) in values {
-            data[idx as usize] = self.hasher.hash_32(&value);
-        }
-
-        // Step 2: Build 8-level binary tree from bottom up
-        for level in 1..=8 {
-            let pairs = 256 >> level;
-            for i in 0..pairs {
-                let left = data[i * 2];
-                let right = data[i * 2 + 1];
-                data[i] = self.hasher.hash_64(&left, &right);
-            }
-        }
-
-        let subtree_root = data[0];
-
-        // Step 3: hash(stem || 0x00 || subtree_root)
-        self.hasher.hash_stem_node(stem.as_bytes(), &subtree_root)
-    }
-
-    /// Build tree hash from sorted slice of (stem, hash) pairs.
-    ///
-    /// Uses `partition_point` + `split_at` for `O(n)` splits with no allocation.
-    fn build_tree_hash(&self, stem_hashes: &[(Stem, B256)], depth: usize) -> Result<B256> {
-        if stem_hashes.is_empty() {
-            return Ok(B256::ZERO);
-        }
-
-        if stem_hashes.len() == 1 {
-            return Ok(stem_hashes[0].1);
-        }
-
-        if depth >= STEM_LEN * 8 {
-            return Err(UbtError::TreeDepthExceeded { depth });
-        }
-
-        // partition_point finds the first index with bit_at(depth) == 1
-        // (i.e. where !bit_at becomes false), so stem_hashes[0..split_point]
-        // all have bit 0 and stem_hashes[split_point..] all have bit 1 at this depth.
-        let split_point = stem_hashes.partition_point(|(s, _)| !s.bit_at(depth));
-        let (left, right) = stem_hashes.split_at(split_point);
-
-        let left_hash = self.build_tree_hash(left, depth + 1)?;
-        let right_hash = self.build_tree_hash(right, depth + 1)?;
-
-        if left_hash.is_zero() && right_hash.is_zero() {
-            Ok(B256::ZERO)
-        } else {
-            Ok(self.hasher.hash_64(&left_hash, &right_hash))
-        }
     }
 }
 
@@ -466,22 +408,6 @@ mod tests {
         tree.insert_batch(entries).unwrap();
 
         assert_eq!(streaming_root, tree.root_hash().unwrap());
-    }
-
-    #[test]
-    fn test_tree_depth_exceeded_returns_error() {
-        let builder: StreamingTreeBuilder<Blake3Hasher> = StreamingTreeBuilder::new();
-
-        let stem1 = Stem::new([0u8; 31]);
-        let mut stem2_bytes = [0u8; 31];
-        stem2_bytes[0] = 1;
-        let stem2 = Stem::new(stem2_bytes);
-        let stem_hashes = vec![(stem1, B256::repeat_byte(1)), (stem2, B256::repeat_byte(2))];
-
-        let err = builder
-            .build_tree_hash(&stem_hashes, STEM_LEN * 8)
-            .unwrap_err();
-        assert!(matches!(err, UbtError::TreeDepthExceeded { depth } if depth == STEM_LEN * 8));
     }
 
     #[cfg(feature = "parallel")]

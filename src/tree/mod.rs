@@ -26,11 +26,9 @@ mod hash;
 use alloy_primitives::B256;
 use std::collections::{HashMap, HashSet};
 
+use crate::merkle::MAX_DEPTH;
 use crate::store::{InMemoryStore, NodeStore};
-use crate::{Blake3Hasher, Hasher, Stem, StemNode, TreeKey, STEM_LEN};
-
-/// Maximum tree depth (248 bits = 31 bytes * 8)
-const MAX_DEPTH: usize = STEM_LEN * 8;
+use crate::{Blake3Hasher, Hasher, Stem, StemNode, TreeKey};
 
 /// Key for intermediate node cache: (depth, `path_prefix` as B256)
 /// The `path_prefix` contains the bits from the root to this node.

@@ -97,6 +97,7 @@ mod error;
 mod geth_compat;
 mod hash;
 mod key;
+mod merkle;
 mod node;
 mod proof;
 mod store;

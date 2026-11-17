@@ -5,15 +5,13 @@ use alloy_primitives::B256;
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 
+use crate::merkle::root_from_sorted_stem_hashes;
+#[cfg(feature = "parallel")]
+use crate::merkle::PARALLEL_STEM_THRESHOLD;
 use crate::store::NodeStore;
 use crate::{error::Result, Hasher, Stem, TreeKey, UbtError};
 
 use super::{UnifiedBinaryTree, MAX_DEPTH};
-
-/// Minimum number of stems before using parallel processing.
-/// Below this threshold, sequential processing is faster due to rayon overhead.
-#[cfg(feature = "parallel")]
-const PARALLEL_STEM_THRESHOLD: usize = 100;
 
 /// Set bit at the given position in a B256 (MSB-first ordering).
 /// Position 0 is the MSB of the first byte.
@@ -140,7 +138,7 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
                 self.node_hash_cache.clear();
                 self.build_root_hash_with_cache(&stem_hashes, 0, B256::ZERO)?
             } else {
-                self.build_root_hash_from_stem_hashes(&stem_hashes, 0)?
+                root_from_sorted_stem_hashes(&self.hasher, &stem_hashes, 0)?
             };
 
             self.root_hash_cached = root_hash;
@@ -148,38 +146,6 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
 
         self.dirty_stem_hashes.clear();
         Ok(())
-    }
-
-    /// Build the root hash directly from sorted stem hashes.
-    /// This avoids recomputing stem hashes via `Node::hash`.
-    fn build_root_hash_from_stem_hashes(
-        &self,
-        stem_hashes: &[(Stem, B256)],
-        depth: usize,
-    ) -> Result<B256> {
-        if stem_hashes.is_empty() {
-            return Ok(B256::ZERO);
-        }
-
-        if stem_hashes.len() == 1 {
-            return Ok(stem_hashes[0].1);
-        }
-
-        if depth >= MAX_DEPTH {
-            return Err(UbtError::TreeDepthExceeded { depth });
-        }
-
-        let split_point = stem_hashes.partition_point(|(s, _)| !s.bit_at(depth));
-        let (left, right) = stem_hashes.split_at(split_point);
-
-        let left_hash = self.build_root_hash_from_stem_hashes(left, depth + 1)?;
-        let right_hash = self.build_root_hash_from_stem_hashes(right, depth + 1)?;
-
-        if left_hash.is_zero() && right_hash.is_zero() {
-            Ok(B256::ZERO)
-        } else {
-            Ok(self.hasher.hash_64(&left_hash, &right_hash))
-        }
     }
 
     /// Build the root hash and populate the `node_hash_cache` for incremental updates.
@@ -495,22 +461,6 @@ mod tests {
             !b256_matches_prefix(&value, &prefix_bad, depth),
             "expected mismatch at depth={depth} (value={value:?}, prefix={prefix_bad:?})",
         );
-    }
-
-    #[test]
-    fn test_tree_depth_exceeded_returns_error() {
-        let tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
-
-        let stem1 = Stem::new([0u8; 31]);
-        let mut stem2_bytes = [0u8; 31];
-        stem2_bytes[0] = 1;
-        let stem2 = Stem::new(stem2_bytes);
-        let stem_hashes = vec![(stem1, B256::repeat_byte(1)), (stem2, B256::repeat_byte(2))];
-
-        let err = tree
-            .build_root_hash_from_stem_hashes(&stem_hashes, MAX_DEPTH)
-            .unwrap_err();
-        assert!(matches!(err, UbtError::TreeDepthExceeded { depth } if depth == MAX_DEPTH));
     }
 
     #[test]
