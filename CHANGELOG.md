@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Property tests P58-P61 for the binary codec: encode/decode round-trip, size prediction, determinism, and `decode_node` dispatch
 - "Binary Codec" section in `README.md`
+- Unit tests for `StreamingTreeBuilder`: `build_root_hash_parallel` with more stems than the rayon threshold (the parallel branch had no test), and zero-value handling
 
 ### Changed
 - **Repository re-created.** The GitHub repository was deleted and re-created from the last local clone. Issue and pull request numbers in the entries for 0.5.1 and earlier refer to the deleted repository and no longer resolve.
@@ -18,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation matched to the current code: file paths (`src/tree/`, `src/hash.rs`), line references, removed APIs, axiom and theorem status, and the V3 key derivation
 - `README.md`: `new_executes`, `get_executes`, `insert_executes`, and inclusion/exclusion proof soundness are shown as axioms, as declared in `formal/linking/operations.v` and `formal/simulations/tree.v`. A note states that `formal/src/` models the crate source before 0.5.0.
 - `docs/eip-7864-implementations.md`: go-ethereum status updated (binary trie removed from `master` on 2026-11-10)
-- Internal cleanup of `src/` with no change to the public API: the test-only modules `compat_tests` and `geth_compat` are compiled only for tests; the write-only `root` field of `UnifiedBinaryTree` and `src/tree/build.rs` are removed, so `root_hash()` no longer clones every `StemNode` and the `Debug` output of the tree has no `root` field; the `Poseidon2Hasher` stub, which no code outside its module could reach, is removed; the stem hash and the root recursion, each implemented twice (tree and `StreamingTreeBuilder`), are now single functions in the private module `src/merkle.rs`
+- Internal cleanup of `src/` with no change to the public API: the test-only modules `compat_tests` and `geth_compat` are compiled only for tests; the write-only `root` field of `UnifiedBinaryTree` and `src/tree/build.rs` are removed, so `root_hash()` no longer clones every `StemNode` and the `Debug` output of the tree has no `root` field; the `Poseidon2Hasher` stub, which no code outside its module could reach, is removed; the stem hash and the root recursion, each implemented twice (tree and `StreamingTreeBuilder`), are now single functions in the private module `src/merkle.rs`; the two stem grouping loops of `StreamingTreeBuilder` are one function
 
 ### Removed
 - Git submodule `formal/lib/rocq-of-rust-interp`. The upstream repository no longer exists and no `.v` file imported it. `INTERP_LIB_PATH` is removed from `formal/Makefile`.

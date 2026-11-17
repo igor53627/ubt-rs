@@ -109,20 +109,11 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
         &self,
         entries: impl IntoIterator<Item = (TreeKey, B256)>,
     ) -> Result<B256> {
-        let mut entries_iter = entries.into_iter().peekable();
+        let mut stem_hashes: Vec<(Stem, B256)> = Vec::new();
+        for_each_stem_group(entries, |stem, values| {
+            stem_hashes.push((stem, hash_stem_values(&self.hasher, &stem, values)));
+        });
 
-        if entries_iter.peek().is_none() {
-            return Ok(B256::ZERO);
-        }
-
-        // Group entries by stem and compute stem hashes
-        let stem_hashes = self.collect_stem_hashes(&mut entries_iter);
-
-        if stem_hashes.is_empty() {
-            return Ok(B256::ZERO);
-        }
-
-        // Build tree from stem hashes (sorted by stem since entries were sorted)
         root_from_sorted_stem_hashes(&self.hasher, &stem_hashes, 0)
     }
 
@@ -158,18 +149,10 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
         &self,
         entries: impl IntoIterator<Item = (TreeKey, B256)>,
     ) -> Result<B256> {
-        let mut entries_iter = entries.into_iter().peekable();
-
-        if entries_iter.peek().is_none() {
-            return Ok(B256::ZERO);
-        }
-
-        // Group entries by stem (serial - streaming through sorted entries)
-        let stem_groups = Self::collect_stem_groups(&mut entries_iter);
-
-        if stem_groups.is_empty() {
-            return Ok(B256::ZERO);
-        }
+        let mut stem_groups: Vec<(Stem, HashMap<SubIndex, B256>)> = Vec::new();
+        for_each_stem_group(entries, |stem, values| {
+            stem_groups.push((stem, std::mem::take(values)));
+        });
 
         // Compute stem hashes in parallel (only if enough stems to offset rayon overhead)
         let mut stem_hashes: Vec<(Stem, B256)> = if stem_groups.len() >= PARALLEL_STEM_THRESHOLD {
@@ -196,133 +179,53 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
         // Build tree from stem hashes (serial - O(n) and fast)
         root_from_sorted_stem_hashes(&self.hasher, &stem_hashes, 0)
     }
+}
 
-    /// Collect entries grouped by stem without computing hashes.
-    /// Used by parallel version to separate grouping from hashing.
-    #[cfg(feature = "parallel")]
-    fn collect_stem_groups<I: Iterator<Item = (TreeKey, B256)>>(
-        entries: &mut std::iter::Peekable<I>,
-    ) -> Vec<(Stem, HashMap<SubIndex, B256>)> {
-        let mut stem_groups: Vec<(Stem, HashMap<SubIndex, B256>)> = Vec::new();
-        let mut current_stem: Option<Stem> = None;
-        let mut current_values: HashMap<SubIndex, B256> = HashMap::new();
+/// Stream through sorted entries and call `on_stem` once per stem, in input order.
+///
+/// Zero values are skipped, and `on_stem` is not called for a stem that has no
+/// non-zero value. The map passed to `on_stem` holds the values of that stem only;
+/// it is cleared before the next stem starts, so `on_stem` can take it.
+///
+/// In debug builds, strict ascending `(stem, subindex)` order is asserted.
+fn for_each_stem_group(
+    entries: impl IntoIterator<Item = (TreeKey, B256)>,
+    mut on_stem: impl FnMut(Stem, &mut HashMap<SubIndex, B256>),
+) {
+    let mut current_stem: Option<Stem> = None;
+    let mut current_values: HashMap<SubIndex, B256> = HashMap::new();
 
+    #[cfg(debug_assertions)]
+    let mut prev_key: Option<TreeKey> = None;
+
+    for (key, value) in entries {
         #[cfg(debug_assertions)]
-        let mut prev_key: Option<TreeKey> = None;
-
-        for (key, value) in entries.by_ref() {
-            #[cfg(debug_assertions)]
-            {
-                if let Some(prev) = prev_key {
-                    debug_assert!(
-                        (prev.stem, prev.subindex) < (key.stem, key.subindex),
-                        "Entries must be sorted: {prev:?} should come before {key:?}",
-                    );
-                }
-                prev_key = Some(key);
+        {
+            if let Some(prev) = prev_key {
+                debug_assert!(
+                    (prev.stem, prev.subindex) < (key.stem, key.subindex),
+                    "Entries must be sorted: {prev:?} should come before {key:?}",
+                );
             }
-
-            match current_stem {
-                Some(stem) if stem == key.stem => {
-                    // Same stem, accumulate value
-                    if !value.is_zero() {
-                        current_values.insert(key.subindex, value);
-                    }
-                }
-                Some(stem) => {
-                    // New stem, finalize previous
-                    if !current_values.is_empty() {
-                        stem_groups.push((stem, std::mem::take(&mut current_values)));
-                    }
-                    // Start new stem
-                    current_stem = Some(key.stem);
-                    if !value.is_zero() {
-                        current_values.insert(key.subindex, value);
-                    }
-                }
-                None => {
-                    // First stem
-                    current_stem = Some(key.stem);
-                    if !value.is_zero() {
-                        current_values.insert(key.subindex, value);
-                    }
-                }
-            }
+            prev_key = Some(key);
         }
 
-        // Finalize last stem
         if let Some(stem) = current_stem {
-            if !current_values.is_empty() {
-                stem_groups.push((stem, current_values));
+            if stem != key.stem && !current_values.is_empty() {
+                on_stem(stem, &mut current_values);
+                current_values.clear();
             }
         }
-
-        stem_groups
+        current_stem = Some(key.stem);
+        if !value.is_zero() {
+            current_values.insert(key.subindex, value);
+        }
     }
 
-    /// Collect all entries grouped by stem, compute hash for each stem.
-    fn collect_stem_hashes<I: Iterator<Item = (TreeKey, B256)>>(
-        &self,
-        entries: &mut std::iter::Peekable<I>,
-    ) -> Vec<(Stem, B256)> {
-        let mut stem_hashes: Vec<(Stem, B256)> = Vec::new();
-        let mut current_stem: Option<Stem> = None;
-        let mut current_values: HashMap<SubIndex, B256> = HashMap::new();
-
-        #[cfg(debug_assertions)]
-        let mut prev_key: Option<TreeKey> = None;
-
-        for (key, value) in entries.by_ref() {
-            #[cfg(debug_assertions)]
-            {
-                if let Some(prev) = prev_key {
-                    debug_assert!(
-                        (prev.stem, prev.subindex) < (key.stem, key.subindex),
-                        "Entries must be sorted: {prev:?} should come before {key:?}",
-                    );
-                }
-                prev_key = Some(key);
-            }
-
-            match current_stem {
-                Some(stem) if stem == key.stem => {
-                    // Same stem, accumulate value
-                    if !value.is_zero() {
-                        current_values.insert(key.subindex, value);
-                    }
-                }
-                Some(stem) => {
-                    // New stem, finalize previous
-                    if !current_values.is_empty() {
-                        let hash = hash_stem_values(&self.hasher, &stem, &current_values);
-                        stem_hashes.push((stem, hash));
-                    }
-                    // Start new stem
-                    current_values.clear();
-                    current_stem = Some(key.stem);
-                    if !value.is_zero() {
-                        current_values.insert(key.subindex, value);
-                    }
-                }
-                None => {
-                    // First stem
-                    current_stem = Some(key.stem);
-                    if !value.is_zero() {
-                        current_values.insert(key.subindex, value);
-                    }
-                }
-            }
+    if let Some(stem) = current_stem {
+        if !current_values.is_empty() {
+            on_stem(stem, &mut current_values);
         }
-
-        // Finalize last stem
-        if let Some(stem) = current_stem {
-            if !current_values.is_empty() {
-                let hash = hash_stem_values(&self.hasher, &stem, &current_values);
-                stem_hashes.push((stem, hash));
-            }
-        }
-
-        stem_hashes
     }
 }
 
@@ -439,6 +342,86 @@ mod tests {
         assert_eq!(
             parallel_root, serial_root,
             "Parallel and serial should produce identical root hashes"
+        );
+    }
+
+    /// Uses more stems than `PARALLEL_STEM_THRESHOLD`, so the rayon branch of
+    /// `build_root_hash_parallel` runs.
+    #[cfg(feature = "parallel")]
+    #[test]
+    fn test_parallel_matches_serial_above_threshold() {
+        let builder: StreamingTreeBuilder<Blake3Hasher> = StreamingTreeBuilder::new();
+        let stem_count: u16 = 300;
+        assert!(usize::from(stem_count) >= PARALLEL_STEM_THRESHOLD);
+
+        let mut entries: Vec<(TreeKey, B256)> = Vec::new();
+        for i in 0..stem_count {
+            let [hi, lo] = i.to_be_bytes();
+            let mut stem_bytes = [0u8; 31];
+            stem_bytes[0] = hi;
+            stem_bytes[1] = lo;
+            stem_bytes[20] = 0x5a;
+            let stem = Stem::new(stem_bytes);
+            entries.push((TreeKey::new(stem, 3), B256::repeat_byte(lo | 1)));
+            entries.push((TreeKey::new(stem, 200), B256::repeat_byte(hi + 2)));
+        }
+
+        let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        for (key, value) in &entries {
+            tree.insert(*key, *value);
+        }
+        let tree_root = tree.root_hash().unwrap();
+
+        let serial_root = builder.build_root_hash(entries.clone()).unwrap();
+        let parallel_root = builder.build_root_hash_parallel(entries).unwrap();
+
+        assert_ne!(tree_root, B256::ZERO);
+        assert_eq!(serial_root, tree_root);
+        assert_eq!(parallel_root, tree_root);
+    }
+
+    /// Zero values are skipped, and a stem whose values are all zero does not
+    /// contribute to the root, at the start, in the middle, and at the end of the input.
+    #[test]
+    fn test_zero_values_and_all_zero_stems_are_skipped() {
+        let builder: StreamingTreeBuilder<Blake3Hasher> = StreamingTreeBuilder::new();
+        let stems: Vec<Stem> = (1u8..=5).map(|i| Stem::new([i; 31])).collect();
+        let value_a = B256::repeat_byte(0xa1);
+        let value_b = B256::repeat_byte(0xb2);
+
+        let entries = vec![
+            (TreeKey::new(stems[0], 0), B256::ZERO),
+            (TreeKey::new(stems[1], 1), value_a),
+            (TreeKey::new(stems[1], 2), B256::ZERO),
+            (TreeKey::new(stems[2], 0), B256::ZERO),
+            (TreeKey::new(stems[2], 9), B256::ZERO),
+            (TreeKey::new(stems[3], 0), B256::ZERO),
+            (TreeKey::new(stems[3], 5), value_b),
+            (TreeKey::new(stems[4], 7), B256::ZERO),
+        ];
+
+        let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        tree.insert(TreeKey::new(stems[1], 1), value_a);
+        tree.insert(TreeKey::new(stems[3], 5), value_b);
+        let expected = tree.root_hash().unwrap();
+        assert_ne!(expected, B256::ZERO);
+
+        assert_eq!(builder.build_root_hash(entries.clone()).unwrap(), expected);
+        #[cfg(feature = "parallel")]
+        assert_eq!(builder.build_root_hash_parallel(entries).unwrap(), expected);
+
+        let all_zero = vec![
+            (TreeKey::new(stems[0], 0), B256::ZERO),
+            (TreeKey::new(stems[1], 0), B256::ZERO),
+        ];
+        assert_eq!(
+            builder.build_root_hash(all_zero.clone()).unwrap(),
+            B256::ZERO
+        );
+        #[cfg(feature = "parallel")]
+        assert_eq!(
+            builder.build_root_hash_parallel(all_zero).unwrap(),
+            B256::ZERO
         );
     }
 
