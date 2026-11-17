@@ -1,7 +1,7 @@
 ---
 id: TASK-19
 title: Compact binary serialization codec
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-05-01 06:00'
 labels: []

@@ -35,8 +35,6 @@ jobs:
       # regressions are obvious; artifact upload steps below use `if: always()` to run on failure.
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          submodules: recursive
 
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@881ba7bf39a41cda34ac9e123fb41b44ed08232f # nightly
