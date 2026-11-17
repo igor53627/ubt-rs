@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `Workflow Lint` workflow (`.github/workflows/workflow-lint.yml`): runs `actionlint` 1.7.12 for each push and pull request that changes a workflow file. Before, such a change had no check apart from CodeRabbit, because the other workflows run only for the files that they build. The tool archive is pinned by version and SHA-256. Shellcheck runs at severity `error`; the existing lower-severity findings are listed in [#20](https://github.com/igor53627/ubt-rs/issues/20).
+
 ### Changed
 - `release.yml` publishes the crate to crates.io before it creates the GitHub Release, so a release never points to a version that does not exist. A new step skips the publish steps when the version is already on crates.io, which makes a re-run of a failed release job safe.
 
