@@ -10,6 +10,8 @@
 
 A Rust implementation of [EIP-7864: Ethereum state using a unified binary tree](https://eips.ethereum.org/EIPS/eip-7864).
 
+> **Scope:** this crate implements the unified binary tree with 32-byte keys and 256-value stem nodes, as go-ethereum implemented it in `trie/bintrie`. It does not implement the EIP-8297 partitioned binary tree, and it does not follow the June 2026 revision of the EIP-7864 text. See [Scope and Direction](#scope-and-direction).
+
 ## Overview
 
 This crate provides a binary tree structure intended to replace Ethereum's hexary patricia trees. Key features:
@@ -247,6 +249,14 @@ Known differences:
 | Proof verification, streaming builder, incremental mode | Not implemented (`Prove` panics) | Present |
 
 A tree that contains a zero-valued leaf, for example a storage slot set to zero or a deleted account, has a different root in go-ethereum.
+
+### Scope and Direction
+
+Decision (2026-11-17): `ubt` stays an implementation of the unified binary tree. EIP-8297 support is not planned for this crate.
+
+- The reference for this crate is go-ethereum `trie/bintrie` at commit `b0f9324c`, the last commit before go-ethereum removed the package.
+- The EIP-7864 text changed on 2026-06-24 (ethereum/EIPs pull request 11832). The current text puts a storage-type byte first in the key and allows keys of arbitrary length. This crate implements the earlier design with fixed 32-byte keys.
+- EIP-8297 (Partitioned Binary Tree, Draft, created 2026-06-11) is a different tree. It has variable-length keys with a zone byte (34 and 66 bytes), no stem node with a fixed 256-leaf subtree, tagged leaf and branch hashes with a bit prefix, and code keyed by code hash. Of this crate, only the code chunking and the basic data layout apply to it. An implementation of EIP-8297 belongs in a separate crate.
 
 ## Formal Verification Status
 
