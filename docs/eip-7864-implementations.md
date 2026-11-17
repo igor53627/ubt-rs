@@ -71,6 +71,11 @@ python -m unittest discover
 **Geth Release Notes (v1.16.3):**
 > Implement EIP-7864 - binary trees #32365
 
+**Status as of 2026-11-17:**
+- `trie/bintrie/` no longer exists on the `master` branch. Commit `ddaa6957` (2026-11-10, "trie, core/state: remove the unified binary trie and eip4762", #36091) removed it.
+- Commit `b0f9324c` (2026-11-09, "core, trie/pbt, triedb: add EIP-8297 partitioned binary tree", #35955) added `trie/pbt/`.
+- The last change to the key derivation before the removal is commit `735bfd12` (2026-04-13, "trie/bintrie: spec change, big endian hashing of slot key", #34670). This crate matches `getBinaryTreeKey` at that commit.
+
 ---
 
 ### Rust (Community POC)

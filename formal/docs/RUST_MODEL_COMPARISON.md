@@ -21,23 +21,23 @@ This document compares the Rust implementation with the Coq simulation model, hi
 | `Value` (32 bytes) | `Value` (list Z, length 32) | `simulations/tree.v` |
 | `Stem` (31 bytes) | `Stem` (list Z, length 31) | `simulations/tree.v` |
 | `UnifiedBinaryTree<H>` | `SimTree` | `simulations/tree.v` |
-| `Node<H>` | `SimNode` | `simulations/tree.v` |
+| `Node` | `SimNode` | `simulations/tree.v` |
 | `B256` | `Bytes32` | `simulations/crypto.v` |
 
 ### Node Representation
 
 **Rust (`src/node.rs`):**
 ```rust
-pub enum Node<H: Hasher> {
+pub enum Node {
     Empty,
-    Stem(StemNode<H>),
-    Internal(InternalNode<H>),
+    Internal(InternalNode),
+    Stem(StemNode),
+    Leaf(LeafNode),
 }
 
-pub struct StemNode<H: Hasher> {
-    stem: Stem,
-    values: HashMap<u8, Value>,
-    _hasher: PhantomData<H>,
+pub struct StemNode {
+    pub stem: Stem,
+    pub values: HashMap<SubIndex, B256>,
 }
 ```
 
@@ -45,14 +45,15 @@ pub struct StemNode<H: Hasher> {
 ```coq
 Inductive SimNode : Type :=
   | SimEmpty : SimNode
-  | SimStem : Stem -> (Z -> option Value) -> SimNode
-  | SimInternal : SimNode -> SimNode -> SimNode.
+  | SimInternal : SimNode -> SimNode -> SimNode
+  | SimStem : Stem -> SubIndexMap -> SimNode
+  | SimLeaf : Value -> SimNode.
 ```
 
 ### Key Differences
 
-1. **HashMap vs. Function**: Rust uses `HashMap<u8, Value>` for stem values; Coq uses `Z -> option Value`
-2. **Hasher parameter**: Rust is generic over hasher; Coq uses abstract `hash_*` functions
+1. **HashMap vs. association list**: Rust uses `HashMap<SubIndex, B256>` for stem values; Coq uses `SubIndexMap := list (SubIndex * Value)`
+2. **Hasher parameter**: The Rust tree is generic over the hasher (`UnifiedBinaryTree<H, S>`; the node types are not generic); Coq uses abstract `hash_*` functions
 3. **Mutability**: Rust mutates in-place; Coq returns new trees
 
 ## Operation Correspondence
@@ -125,7 +126,7 @@ Axiom get_executes : forall (sim_t : SimTree) (k : TreeKey),
 
 ### Validation
 
-- **QuickChick**: 5 properties, 50,000 tests validate simulation behavior
+- **QuickChick**: 22 CI properties, 11,000 tests validate simulation behavior
 - **OCaml extraction**: 10/10 tests validate extracted code matches simulation
 - **FFI bridge**: Rust ↔ OCaml integration validates end-to-end
 
@@ -133,9 +134,9 @@ Axiom get_executes : forall (sim_t : SimTree) (k : TreeKey),
 
 | Rust | Coq | Notes |
 |------|-----|-------|
-| `PoseidonHasher::hash_single()` | `hash_value` | Parameter |
-| `PoseidonHasher::hash_pair()` | `hash_pair` | Parameter |
-| `PoseidonHasher::hash_stem()` | `hash_stem` | Parameter |
+| `Hasher::hash_32()` | `hash_value` | Parameter |
+| `Hasher::hash_64()` | `hash_pair` | Parameter |
+| `Hasher::hash_stem_node()` | `hash_stem` | Parameter |
 
 Cryptographic properties (collision resistance, preimage resistance) are axiomatized as they cannot be proven within type theory.
 

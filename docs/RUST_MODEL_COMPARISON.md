@@ -24,36 +24,33 @@ This document compares the Rust UBT implementation (`src/`) with the formal Rocq
 
 | Rust Type | Rocq Type | File Location |
 |-----------|-----------|---------------|
-| `B256` (alloy_primitives) | `Bytes32 := list Byte` | types.v:42-45 |
-| `[u8; 31]` | `Bytes31 := list Byte` | types.v:66-74 |
-| `Stem` (`[u8; 31]`) | `Stem := mkStem { stem_data : Bytes31 }` | tree.v:24-26 |
-| `SubIndex` (`u8`) | `SubIndex := Byte` (Z) | tree.v:29 |
-| `TreeKey { stem, subindex }` | `TreeKey := mkTreeKey { tk_stem : Stem; tk_subindex : SubIndex }` | tree.v:32-35 |
-| `Node` enum | `SimNode` inductive | tree.v:253-257 |
-| `Node::Empty` | `SimEmpty` | tree.v:254 |
-| `Node::Internal(InternalNode)` | `SimInternal : SimNode -> SimNode -> SimNode` | tree.v:255 |
-| `Node::Stem(StemNode)` | `SimStem : Stem -> SubIndexMap -> SimNode` | tree.v:256 |
-| `Node::Leaf(LeafNode)` | `SimLeaf : Value -> SimNode` | tree.v:257 |
-| `HashMap<SubIndex, B256>` (StemNode.values) | `SubIndexMap := list (SubIndex * Value)` | tree.v:156 |
-| `HashMap<Stem, StemNode>` (tree.stems) | `StemMap := list (Stem * SubIndexMap)` | tree.v:288 |
-| `UnifiedBinaryTree<H>` | `SimTree := mkSimTree { st_stems : StemMap }` | tree.v:428-430 |
+| `B256` (alloy_primitives) | `Bytes32 := list Byte` | tree.v:37 |
+| `[u8; 31]` | `Bytes31 := list Byte` | tree.v:38 |
+| `Stem` (`[u8; 31]`) | `Stem := mkStem { stem_data : Bytes31 }` | tree.v:41-43 |
+| `SubIndex` (`u8`) | `SubIndex := Byte` (Z) | tree.v:46 |
+| `TreeKey { stem, subindex }` | `TreeKey := mkTreeKey { tk_stem : Stem; tk_subindex : SubIndex }` | tree.v:49-52 |
+| `Node` enum | `SimNode` inductive | tree.v:344-348 |
+| `Node::Empty` | `SimEmpty` | tree.v:345 |
+| `Node::Internal(InternalNode)` | `SimInternal : SimNode -> SimNode -> SimNode` | tree.v:346 |
+| `Node::Stem(StemNode)` | `SimStem : Stem -> SubIndexMap -> SimNode` | tree.v:347 |
+| `Node::Leaf(LeafNode)` | `SimLeaf : Value -> SimNode` | tree.v:348 |
+| `HashMap<SubIndex, B256>` (StemNode.values) | `SubIndexMap := list (SubIndex * Value)` | tree.v:247 |
+| `HashMap<Stem, StemNode>` (tree.stems) | `StemMap := list (Stem * SubIndexMap)` | tree.v:384 |
+| `UnifiedBinaryTree<H, S>` | `SimTree := mkSimTree { st_stems : StemMap }` | tree.v:532-534 |
 
 ## Operation Correspondences
 
 | Rust Operation | Rocq Operation | Correspondence |
 |----------------|----------------|----------------|
-| `UnifiedBinaryTree::new()` | `empty_tree` | tree.v:432 |
-| `tree.get(&key)` | `sim_tree_get t k` | tree.v:435-439 |
-| `tree.insert(key, value)` | `sim_tree_insert t k v` | tree.v:442-451 |
-| `tree.delete(&key)` | `sim_tree_delete t k` (= insert zero32) | tree.v:454-455 |
-| `tree.root_hash().unwrap()` | `sim_root_hash t` | tree.v:744-746 |
-| `tree.insert_with_diff(k, v, diff)` | (not modeled) | tree.rs:741-746 |
-| `tree.delete_with_diff(k, diff)` | (not modeled) | tree.rs:748-753 |
-| `tree.revert_diff(diff)` | (not modeled) | tree.rs:755-768 |
-| `tree.enable_incremental_mode()` | (not modeled) | tree.rs |
-| `tree.disable_incremental_mode()` | (not modeled) | tree.rs |
-| `stem.bit_at(pos)` | `stem_bit_at s i` | tree.v:58-64 |
-| `Stem::first_differing_bit` | `first_diff_bit s1 s2` | tree.v:67-81 |
+| `UnifiedBinaryTree::new()` | `empty_tree` | tree.v:536 |
+| `tree.get(&key)` | `sim_tree_get t k` | tree.v:539-543 |
+| `tree.insert(key, value)` | `sim_tree_insert t k v` | tree.v:546-555 |
+| `tree.delete(&key)` | `sim_tree_delete t k` (= insert zero32) | tree.v:558-559 |
+| `tree.root_hash().unwrap()` | `sim_root_hash t` | tree.v:1001-1003 |
+| `tree.enable_incremental_mode()` | (not modeled) | src/tree/hash.rs |
+| `tree.disable_incremental_mode()` | (not modeled) | src/tree/hash.rs |
+| `stem.bit_at(pos)` | `stem_bit_at s i` | tree.v:78-84 |
+| `Stem::first_differing_bit` | `first_diff_bit s1 s2` | tree.v:100-101 |
 
 ### Hasher Correspondences
 
@@ -62,7 +59,7 @@ This document compares the Rust UBT implementation (`src/`) with the formal Rocq
 | `Hasher::hash_32(&value)` | `hash_value : Bytes32 -> Bytes32` | crypto.v:62 |
 | `Hasher::hash_64(&left, &right)` | `hash_pair : Bytes32 -> Bytes32 -> Bytes32` | crypto.v:63 |
 | `Hasher::hash_stem_node(stem, root)` | `hash_stem : Stem -> Bytes32 -> Bytes32` | crypto.v:64 |
-| Zero-input special case | `hash_zero_value`, `hash_zero_pair` | crypto.v:143-145 |
+| Zero-input special case | `hash_zero_value`, `hash_zero_pair` | crypto.v:184-186 |
 
 ## Verified Properties
 
@@ -91,7 +88,7 @@ This document compares the Rust UBT implementation (`src/`) with the formal Rocq
 | Second preimage resistance | `hash_value_second_preimage` | Derived: distinct inputs → distinct outputs |
 | Domain separation | `hash_value_nonzero` | Derived: non-zero value → non-zero hash |
 
-### Merkle Proof Properties (tree.v:820-956)
+### Merkle Proof Properties (tree.v, crypto.v)
 
 | Property | Location | Guarantee |
 |----------|----------|-----------|
@@ -127,32 +124,31 @@ This document compares the Rust UBT implementation (`src/`) with the formal Rocq
 
 | Feature | Rust Location | Status |
 |---------|---------------|--------|
-| `rebuild_root()` logic | tree.rs:98-142 | Not modeled (tree shape abstracted) |
-| `build_tree_from_stems()` | tree.rs:109-142 | Not modeled |
-| Batch insert optimization | tree.rs:169-177 | Not separately modeled |
+| `rebuild_root()` logic | src/tree/hash.rs | Not modeled (tree shape abstracted) |
+| `build_tree_from_sorted_stems()` | src/tree/build.rs | Not modeled |
+| Batch insert optimization | src/tree/hash.rs | Not separately modeled |
 | Proof generation | proof.rs | Not modeled |
-| Iterator implementation | tree.rs:150-156 | Not modeled |
-| `UbtBlockDiff` reorg support | tree.rs:105-133 | Not modeled (Rust-only feature) |
-| Incremental mode | tree.rs | Not modeled (performance optimization) |
+| Iterator implementation | src/tree/mod.rs | Not modeled |
+| Incremental mode | src/tree/hash.rs | Not modeled (performance optimization) |
 
-### 3. Axiomatized Execution Theorems (operations.v:983-998)
+### 3. Axiomatized Execution Theorems (operations.v)
 
-These theorems are axiomatized (trusted) rather than proven:
-- `Run.run_pure`, `Run.run_bind`, `Run.run_panic`
+These statements are axioms (trusted) in `linking/operations.v`, not proven theorems:
 - `GetLink.get_executes`
 - `InsertLink.insert_executes`  
-- `DeleteLink.delete_executes`
+- `NewLink.new_executes`
 - `HashLink.root_hash_executes`
-- `PanicFreedom.*` (get/insert/delete/root_hash no panic)
-- `BatchVerifyLink.*` batch verification
+- `StateThreading.get_state_pure`, `root_hash_state_pure`, `insert_result_pure`
+- `BatchVerifyLink.rust_verify_batch_inclusion_executes`, `rust_verify_multiproof_executes`, `rust_verify_shared_executes`
+
+`DeleteLink.delete_executes`, the `PanicFreedom.*` theorems, `run_pure`, and `run_panic` are proven (`Qed`).
 
 ### 4. Design Axioms
 
 | Axiom | Location | Justification |
 |-------|----------|---------------|
-| `stem_eq_true` | tree.v:151 | All well-formed stems are 31 bytes |
-| `stem_eq_via_third` | tree.v:388-391 | Transitivity of stem equality |
-| `insert_order_independent_subindex` | tree.v:726-731 | SubIndexMap operations commute |
+| `stem_eq_true` | tree.v:226 | All well-formed stems are 31 bytes |
+| `stem_eq_via_third` | tree.v:492-495 | Transitivity of stem equality |
 
 ## Trust Assumptions
 
@@ -192,7 +188,7 @@ These theorems are axiomatized (trusted) rather than proven:
 
 | Layer                | Location                                          | Transformation         |
 |----------------------|---------------------------------------------------|------------------------|
-| Rust Source          | src/tree.rs, node.rs, key.rs, hash.rs             |                        |
+| Rust Source          | src/tree/, node.rs, key.rs, hash.rs               |                        |
 |                      |                                                   | RocqOfRust translation |
 | Translated Rust      | src.tree.tree.Impl_ubt_tree_UnifiedBinaryTree_H.* |                        |
 |                      |                                                   | tree_refines relation  |

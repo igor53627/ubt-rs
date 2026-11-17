@@ -1,6 +1,6 @@
 # UBT Formal Verification Summary
 
-**Date:** December 2024  
+**Date:** December 2025  
 **Status:** VERIFICATION COMPLETE  
 **Confidence:** 95%
 
@@ -338,8 +338,8 @@ Note: Axiom count includes all `Axiom` declarations. The 25 "irreducible" axioms
 ## External Dependencies
 
 - [rocq-of-rust](https://github.com/formal-land/rocq-of-rust) - Rust to Rocq translation tool
-- [rocq-of-rust-interp](https://github.com/igor53627/rocq-of-rust-interp) - M monad interpreter library (submodule at `formal/lib/rocq-of-rust-interp`)
+- The M monad interpreter library is local: `formal/lib/MInterpreter.v` and `formal/lib/StdlibHashMap.v` (the `rocq-of-rust-interp` submodule is removed)
 
 ---
 
-Last updated: December 2024 (Final: 697 Qed, 155 Axioms (25 irreducible), 0 Admitted in linking/simulations/proofs)
+Last updated: December 2025 (Final: 697 Qed, 155 Axioms (25 irreducible), 0 Admitted in linking/simulations/proofs)

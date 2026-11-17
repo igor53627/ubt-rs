@@ -1,6 +1,6 @@
 # Formal Verification Build Status
 
-Generated: December 2024
+Generated: December 2025
 
 ## Build Summary
 
@@ -12,7 +12,7 @@ Generated: December 2024
 
 ## File-by-File Status
 
-### formal/linking/ (8 files)
+### formal/linking/ (14 files, 8 listed)
 
 | File | Compiles | Admitted | Notes |
 |------|----------|----------|-------|
@@ -69,9 +69,7 @@ Generated: December 2024
 
 ### Remaining Minor Warnings
 
-- `Nat.add_mod`, `Nat.mod_mul`, `Nat.mod_mod` deprecated in tree.v (line ~1304-1307)
-  - These are in proof tactics, not definitions
-  - Does not affect proof validity
+- None known. `Nat.add_mod`, `Nat.mod_mul`, and `Nat.mod_mod` are no longer used in any `.v` file.
 
 ## Admitted Proof Summary
 
@@ -80,30 +78,32 @@ Generated: December 2024
 | formal/linking/ | 0 | All complete |
 | formal/simulations/ | 0 | All complete |
 | formal/proofs/ | 0 | All complete |
-| formal/specs/ | 3 | Design specification |
+| formal/specs/ | 1 | `pair_round_trip` in serialization_spec.v |
 | formal/src/ | 79 | RocqOfRust generated (expected) |
-| **Total** | **82** | 79 in RocqOfRust src/, rest in specs |
+| **Total** | **80** | 79 in RocqOfRust src/, rest in specs |
 
 ### Admitted in linking/simulations/proofs (0 total)
 
 All proofs in the core verification layers are complete.
 
-The 82 Admitted proofs are in:
+The 80 Admitted proofs are in:
 - **formal/src/** (79): RocqOfRust auto-generated code (expected)
-- **formal/specs/** (3): Design specification axioms
+- **formal/specs/** (1): `pair_round_trip` in `specs/serialization_spec.v`
 
 ## Axiom/Parameter Count
 
 | File | Axioms + Parameters |
 |------|---------------------|
-| operations.v | 35 |
-| interpreter.v | 51 |
-| iterator_stepping.v | 9 |
-| axiom_elimination.v | 4 |
-| root_hash_stepping.v | 3 |
+| operations.v | 18 |
+| interpreter.v | 29 |
+| types.v | 18 |
+| MRun.v | 3 |
+| field_stepping.v | 2 |
 | get_stepping.v | 2 |
+| axiom_elimination.v | 1 |
+| fuel_bridge.v | 1 |
 | insert_stepping.v | 1 |
-| **Total** | **155** |
+| **Total (formal/linking/)** | **75** |
 
 See `formal/docs/AXIOM_CATALOG.md` for detailed classification.
 

@@ -6,13 +6,13 @@ This document catalogs all potential panic points in the Rust source code that n
 
 | Category | Count | Reachable on Well-Formed Input |
 |----------|-------|-------------------------------|
-| Explicit `panic!()` | 2 | No (guarded by tree depth) |
+| Explicit `panic!()` | 0 | n/a (tree depth errors now return `UbtError::TreeDepthExceeded`) |
 | `debug_assert!()` | 4 | No (only in debug builds) |
-| `.expect()` | 1 | No (EIP-7864 constraint) |
+| `.expect()` | 2 | No (value < 256 by construction) |
 | Array indexing | 8 | No (bounded by types/constants) |
 | `.unwrap()` | 1 | No (result always Ok) |
 
-**Total Panic Points: 16**
+**Total Panic Points: 15**
 **Potentially Reachable: 0** (all guarded by invariants)
 
 ---
@@ -21,38 +21,7 @@ This document catalogs all potential panic points in the Rust source code that n
 
 ### 1. Explicit `panic!()` Macros
 
-#### tree.rs:460
-```rust
-if depth >= 248 {
-    panic!("Tree depth exceeded maximum of 248 bits");
-}
-```
-- **Type**: Explicit `panic!`
-- **Function**: `build_root_hash_from_stem_hashes`
-- **Guarding Condition**: Tree depth is bounded by stem length (31 bytes × 8 bits = 248 bits). Recursion terminates when `stem_hashes.len() <= 1` (base cases at lines 451-457).
-- **Reachable**: No. With 248-bit stems, max depth is 248. Partition halves stems at each level; with finite stems, recursion depth ≤ 248.
-
-#### tree.rs:499
-```rust
-if depth >= MAX_DEPTH {
-    panic!("Tree depth exceeded maximum of {} bits", MAX_DEPTH);
-}
-```
-- **Type**: Explicit `panic!`
-- **Function**: `build_root_hash_with_cache`
-- **Guarding Condition**: Same as above. `MAX_DEPTH = STEM_LEN * 8 = 248`.
-- **Reachable**: No. Same invariant applies.
-
-#### streaming.rs:297
-```rust
-if depth >= STEM_LEN * 8 {
-    panic!("Tree depth exceeded maximum of {} bits", STEM_LEN * 8);
-}
-```
-- **Type**: Explicit `panic!`
-- **Function**: `build_tree_hash`
-- **Guarding Condition**: Same tree depth invariant.
-- **Reachable**: No.
+None in non-test code. The three tree-depth `panic!` calls (in `build_root_hash_from_stem_hashes`, `build_root_hash_with_cache`, and the streaming `build_tree_hash`) now return `Err(UbtError::TreeDepthExceeded { depth })`.
 
 ---
 
@@ -60,7 +29,7 @@ if depth >= STEM_LEN * 8 {
 
 These only execute in debug builds and are used for development-time invariant checking.
 
-#### tree.rs:22
+#### tree/hash.rs (`set_bit_at`)
 ```rust
 debug_assert!(pos < 256);
 ```
@@ -105,16 +74,17 @@ debug_assert!(
 
 ### 3. `.expect()` Calls
 
-#### embedding.rs:129-131
+#### embedding.rs (`get_code_chunk_key`)
 ```rust
-k[0] = slot[0]
-    .checked_add(1)
-    .expect("slot[0] >= 255 not supported per EIP-7864");
+k[31] = u8::try_from(pos).expect("pos < 256 by construction");
+let subindex = u8::try_from(pos % STEM_SUBTREE_WIDTH).expect("subindex < 256 by construction");
 ```
-- **Type**: `.expect()` on `Option`
-- **Function**: `get_storage_slot_key`
-- **Guarding Condition**: Per EIP-7864, storage slot values with `slot[0] >= 255` are not expected in practice. The comment documents this EIP constraint.
-- **Reachable**: No, for well-formed EIP-7864 inputs. Could panic on malformed input with `slot[0] == 255`.
+- **Type**: `.expect()` on `Result`
+- **Function**: `get_code_chunk_key`
+- **Guarding Condition**: The first call is inside `if pos < STEM_SUBTREE_WIDTH` (256). The second value is a remainder modulo 256.
+- **Reachable**: No.
+
+The earlier `.expect("slot[0] >= 255 not supported per EIP-7864")` in `get_storage_slot_key` is removed. That function now uses `wrapping_add(1)` and an overflow flag.
 
 ---
 
@@ -195,12 +165,12 @@ stem_bytes.copy_from_slice(&bytes[..STEM_LEN]);
 
 Rust debug builds panic on integer overflow. All arithmetic in this codebase uses values with bounded ranges.
 
-#### tree.rs:24
+#### tree/hash.rs (`set_bit_at`)
 ```rust
 value.0[byte_idx] |= 1 << bit_idx;
 ```
 - **Index Source**: `byte_idx = pos / 8`, `bit_idx = 7 - (pos % 8)`
-- **Guarding Condition**: `debug_assert!(pos < 256)` at line 22
+- **Guarding Condition**: `debug_assert!(pos < 256)` in the same function
 - **Overflow**: None. bit_idx is always 0-7, shift is valid.
 
 #### key.rs:49-50
@@ -236,16 +206,14 @@ assert!(result.unwrap());
 ## Recommendations for Panic Freedom
 
 ### Already Safe
-1. **Tree depth panics**: These are unreachable due to mathematical invariants (finite stems guarantee finite depth).
+1. **Tree depth errors**: These return `UbtError::TreeDepthExceeded` and are unreachable due to mathematical invariants (finite stems guarantee finite depth).
 2. **Array indexing**: All uses are bounded by type constraints (`u8` for 256-element arrays).
 3. **Debug assertions**: Only active in debug builds.
 
 ### Requires Attention
 1. **`Stem::from_slice`** (key.rs:28-31): Consider returning `Result` or `Option` instead of panicking, or document the panic behavior clearly in API docs.
 
-2. **EIP-7864 storage slot constraint** (embedding.rs:129-131): The `.expect()` relies on EIP-7864 constraints. For maximum safety, consider:
-   - Returning `Result<TreeKey, UbtError>` 
-   - Or documenting this as a precondition
+2. **EIP-7864 storage slot constraint**: Resolved. `get_storage_slot_key` no longer calls `.expect()`.
 
 ### For Formal Verification
 
@@ -260,14 +228,14 @@ The following invariants should be proven:
 
 | File | Lines | Panic Points |
 |------|-------|--------------|
-| tree.rs | 1000 | 2 panic!, 1 debug_assert |
-| node.rs | 238 | 4 array indices |
-| streaming.rs | 458 | 1 panic!, 2 debug_assert, 4 array indices |
-| proof.rs | 293 | 4 array indices, 1 unwrap (test) |
+| tree/ (mod.rs, hash.rs, build.rs) | 1639 | 1 debug_assert |
+| node.rs | 236 | 4 array indices |
+| streaming.rs | 544 | 2 debug_assert, 4 array indices |
+| proof.rs | 356 | 4 array indices, 1 unwrap (test) |
 | key.rs | 190 | 1 debug_assert, 1 copy_from_slice |
-| hash.rs | 167 | 0 |
-| embedding.rs | 468 | 1 expect |
-| code.rs | 182 | 0 |
+| hash.rs | 191 | 0 |
+| embedding.rs | 585 | 2 expect |
+| code.rs | 227 | 0 |
 
 ---
 

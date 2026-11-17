@@ -140,7 +140,7 @@ integration-test:
             v                                 v
     +---------------+                 +---------------+
     | Rust Runner   |                 | OCaml Runner  |
-    | (tree.rs)     |                 | (Extracted)   |
+    | (src/tree/)   |                 | (Extracted)   |
     +-------+-------+                 +-------+-------+
             |                                 |
             v                                 v

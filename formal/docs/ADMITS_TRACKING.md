@@ -8,7 +8,7 @@
 | After | 91 |
 | Reduced | 4 |
 
-## Changes Made (2024-12-07)
+## Changes Made (2025-12-07)
 
 ### simulations/tree.v (4 admits → 0 admits)
 

@@ -1,7 +1,7 @@
 # M Monad Interpreter Design Document
 
 **Issue:** #24 - Develop M monad interpreter for full linking proofs  
-**Date:** December 2024  
+**Date:** December 2025  
 **Status:** Design Phase  
 **Related Files:**  
 - `formal/linking/operations.v` - Current axioms  
@@ -525,4 +525,4 @@ Extract interpreter to OCaml and use QuickCheck-style testing:
 
 ---
 
-*Last updated: December 2024*
+*Last updated: December 2025*

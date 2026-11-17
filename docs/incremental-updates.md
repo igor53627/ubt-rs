@@ -139,4 +139,4 @@ The incremental mode works by:
 4. Using cached sibling hashes for unchanged subtrees
 5. Updating cache entries along recomputed paths
 
-See `rebuild_root_incremental()` and `incremental_hash_update()` in `src/tree.rs`.
+See `rebuild_root_incremental()` and `incremental_hash_update()` in `src/tree/hash.rs`.

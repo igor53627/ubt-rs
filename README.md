@@ -205,7 +205,7 @@ To disable default features:
 
 ```toml
 [dependencies]
-ubt = { version = "0.2", default-features = false }
+ubt = { version = "0.5", default-features = false }
 ```
 
 To run the simulation stress-test binary:
@@ -232,7 +232,7 @@ impl Hasher for MyHasher {
 
 ## Formal Verification Status
 
-**Status:** **VERIFICATION COMPLETE** (December 2024)
+**Status:** **VERIFICATION COMPLETE** (December 2025)
 
 [![Proof Verification](https://github.com/igor53627/ubt-rs/actions/workflows/proofs.yml/badge.svg)](https://github.com/igor53627/ubt-rs/actions/workflows/proofs.yml)
 [![Verification Summary](https://img.shields.io/badge/verification-95%25%20confidence-brightgreen)](formal/docs/VERIFICATION_SUMMARY.md)
@@ -247,7 +247,7 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 | **Theorems (Qed)** | ~20 | **641** | +3105% |
 | **Total Axioms** | 50+ | **185** | All documented |
 | **Linking Axioms** | N/A | **45** | Minimal trust base |
-| **Admitted** | 10+ | **91** | 0 `admit.` tactics in linking/simulations/proofs; 91 `Admitted.` theorems in generated code ([details](formal/docs/ADMITS_TRACKING.md)) |
+| **Admitted** | 10+ | **79** | 0 `admit.` tactics in linking/simulations/proofs; 79 `Admitted.` theorems in generated code (`formal/src/`) ([details](formal/docs/ADMITS_TRACKING.md)) |
 | **QuickChick Properties** | 5 | **22 CI / 50 total** | 11k/500k tests |
 | **Verification Confidence** | - | **95%** | Complete |
 
@@ -255,10 +255,10 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 
 | Component | Status | Confidence |
 |-----------|--------|------------|
-| new_executes | **PROVEN** | 100% |
+| new_executes | AXIOM (`linking/operations.v`) | 100% |
 | delete_executes | **PROVEN** | 100% |
-| get_executes | **PROVEN** | 90% |
-| insert_executes | **PROVEN** | 95% |
+| get_executes | AXIOM; `get_executes_derived` is proven from lower-level axioms | 90% |
+| insert_executes | AXIOM; `insert_executes_derived` is proven from lower-level axioms | 95% |
 | root_hash_executes | DERIVED | 75% |
 
 ### Proven Properties
@@ -274,13 +274,15 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 | Keys with same stem share subtree | Proven | Rust API |
 | Insert preserves well-formedness | Proven | Rust API |
 | Order independence (all cases) | Proven | Rust API |
-| Inclusion proof soundness | Proven | Formal model |
-| Exclusion proof soundness | Proven | Formal model |
+| Inclusion proof soundness | Axiom | Formal model |
+| Exclusion proof soundness | Axiom | Formal model |
 | Batch verification soundness | Proven | Formal model |
 | EUF-MPA security | Proven | Formal model |
 | Accumulator soundness | Proven | Formal model |
 
 **Note:** Properties marked "Formal model" are proven in the Rocq formal verification but the corresponding Rust APIs (batch verification, accumulators) are not yet exposed.
+
+**Note:** The translated Rust code in `formal/src/` and the linking layer model the crate source before 0.5.0. They do not cover `NodeStore`, the binary codec, or the V3 key derivation.
 
 ### Axiom Classification
 
@@ -296,7 +298,7 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 - **RocqOfRust Translation:** Assumes correct Rust-to-Rocq translation
 - **HashMap/Iterator Semantics:** Standard library behavior
 
-**Future work:** Full M monad interpreter to eliminate simulation axioms (tracked in [rocq-of-rust-interp#1](https://github.com/formal-land/rocq-of-rust-interp/issues/1)).
+**Future work:** Full M monad interpreter to eliminate simulation axioms (was tracked in rocq-of-rust-interp#1; that repository no longer exists).
 
 See [formal/docs/VERIFICATION_SUMMARY.md](formal/docs/VERIFICATION_SUMMARY.md) for complete verification summary.
 
@@ -327,14 +329,13 @@ formal/
 ├── simulations/     # Idiomatic Rocq implementation + security proofs
 ├── proofs/          # Correctness proofs + QuickChick tests
 ├── linking/         # Rust-to-Rocq refinement (complete)
-├── lib/             # Reusable libraries (submodules)
+├── lib/             # Local M monad interpreter library
 └── src/             # Auto-generated translation (24k lines)
 ```
 
 ### Dependencies
 
 - [rocq-of-rust](https://github.com/formal-land/rocq-of-rust) - Rust to Rocq translation
-- [rocq-of-rust-interp](https://github.com/igor53627/rocq-of-rust-interp) - M monad interpreter library (submodule)
 
 ## Comparison with MPT
 

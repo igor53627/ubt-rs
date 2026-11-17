@@ -226,6 +226,6 @@ For trees of depth ≥8, Verkle provides space savings. Ethereum state trees typ
 
 | Date | Change |
 |------|--------|
-| 2024-12 | Initial security documentation |
-| 2024-12 | Added exclusion proof soundness/completeness |
-| 2024-12 | Formalized proof size bounds |
+| 2025-12 | Initial security documentation |
+| 2025-12 | Added exclusion proof soundness/completeness |
+| 2025-12 | Formalized proof size bounds |

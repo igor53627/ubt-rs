@@ -5,7 +5,7 @@
 ## 1. Current State of root_hash_executes
 
 ### Location
-[operations.v:857-864](file:///Users/user/pse/paradigm/ubt-rs/formal/linking/operations.v#L857-L864)
+[operations.v:779-785](../formal/linking/operations.v#L779-L785)
 
 ```coq
 Axiom root_hash_executes :
@@ -14,8 +14,7 @@ Axiom root_hash_executes :
     tree_refines H rust_tree sim_t ->
     wf_tree sim_t ->
     exists (s' : Run.State),
-      Run.run (rust_root_hash H [] [] [rust_tree]) s =
-      (Outcome.Success (φ (sim_root_hash sim_t)), s').
+      Run.run_ok (rust_root_hash H [] [] [rust_tree]) s (φ (sim_root_hash sim_t)) s'.
 ```
 
 ### Classification
@@ -25,22 +24,22 @@ Axiom root_hash_executes :
 
 ## 2. Rust Implementation Decomposition
 
-From [tree.rs:194-200](file:///Users/user/pse/paradigm/ubt-rs/src/tree.rs#L194-L200):
+From `root_hash` in [src/tree/hash.rs](../src/tree/hash.rs):
 
 ```rust
-pub fn root_hash(&mut self) -> B256 {
+pub fn root_hash(&mut self) -> Result<B256> {
     if self.root_dirty {           // Step 1: Check dirty flag
-        self.rebuild_root();       // Step 2: Rebuild if dirty
+        self.rebuild_root()?;      // Step 2: Rebuild if dirty
         self.root_dirty = false;
     }
-    self.root_hash_cached          // Step 3: Return cached value
+    Ok(self.root_hash_cached)      // Step 3: Return cached value
 }
 ```
 
-### rebuild_root Decomposition ([tree.rs:260-277](file:///Users/user/pse/paradigm/ubt-rs/src/tree.rs#L260-L277)):
+### rebuild_root Decomposition (`rebuild_root` in [src/tree/hash.rs](../src/tree/hash.rs)):
 
 ```rust
-fn rebuild_root(&mut self) {
+fn rebuild_root(&mut self) -> Result<()> {
     // Step 2a: Update dirty stem hashes
     for stem in &dirty_stems {
         let hash = self.compute_stem_hash(stem);  // StemNode::hash
@@ -58,7 +57,7 @@ fn rebuild_root(&mut self) {
 ## 3. RootHashLink Infrastructure
 
 ### Location
-[interpreter.v:4885-5050](file:///Users/user/pse/paradigm/ubt-rs/formal/linking/interpreter.v#L4885-L5050)
+[interpreter.v:1798-1998](../formal/linking/interpreter.v#L1798-L1998)
 
 ### Existing Stepping Lemmas
 
@@ -71,11 +70,11 @@ fn rebuild_root(&mut self) {
 | `sim_node_hash_correct` | PROVEN | SimNode case analysis |
 | `root_hash_executes_sketch` | PROVEN | Derives from axiom via Run/Fuel bridge |
 
-### TraitRegistry Hash Axioms
+### TraitRegistry Hash Lemmas
 
-From [interpreter.v:674-692](file:///Users/user/pse/paradigm/ubt-rs/formal/linking/interpreter.v#L674-L692):
+From [interpreter.v:698-727](../formal/linking/interpreter.v#L698-L727). These three statements were axioms when this analysis was written. They are now proven lemmas (`Qed`), but the sections below still call them axioms:
 
-| Axiom | Connects |
+| Lemma | Connects |
 |-------|----------|
 | `hash_32_executes_as_hash_value` | Hasher::hash_32 → hash_value |
 | `hash_64_executes_as_hash_pair` | Hasher::hash_64 → hash_pair |
@@ -94,23 +93,23 @@ root_hash_executes
     │   │   ├── hash_64_executes_as_hash_pair
     │   │   └── hash_stem_node_executes_as_hash_stem
     │   └── tree_build_from_stems [NEW: recursive build]
-    │       ├── depth_bounded     [PROVEN: tree_depth_bounded_by_stem_bits]
+    │       ├── depth_bounded     [AXIOM: tree_depth_bounded_by_stem_bits]
     │       └── hash_pair_compose [TraitRegistry: hash_64_executes_as_hash_pair]
     └── field_return_cached       [NEW: field access stepping]
 ```
 
 ### Termination Guarantee
 
-The depth bound theorem [tree.v:1155-1168](file:///Users/user/pse/paradigm/ubt-rs/formal/simulations/tree.v#L1155-L1168) ensures:
+The depth bound axiom [tree.v:1975-1978](../formal/simulations/tree.v#L1975-L1978) states:
 
 ```coq
-Theorem tree_depth_bounded_by_stem_bits :
+Axiom tree_depth_bounded_by_stem_bits :
   forall t : SimTree, wf_tree t -> depth_bounded stem_bit_count t.
 ```
 
 Where `stem_bit_count = 248` (31 bytes × 8 bits).
 
-This proves `rebuild_root` terminates because:
+This implies that `rebuild_root` terminates because:
 1. Tree traversal is bounded by 248 levels
 2. Each level processes finite stem partitions
 3. Hash computations are O(1) (axiomatized)
@@ -239,7 +238,7 @@ End TreeBuildStepping.
         ┌─────────┼─────┐      │
         ▼         ▼     ▼      ▼
    hash_32    hash_64  hash   depth_bound
-   _executes  _executes stem  (PROVEN)
+   _executes  _executes stem  (AXIOM)
    (AXIOM)    (AXIOM)  _executes
                        (AXIOM)
 ```
@@ -252,7 +251,7 @@ End TreeBuildStepping.
 |-----------|--------|--------------|
 | Dirty flag check | NEW AXIOM | FieldStepping |
 | Stem hash compute | REDUCIBLE | TraitRegistry hash axioms |
-| Tree build | PARTIAL | depth_bounded (proven) + TreeBuildStepping |
+| Tree build | PARTIAL | depth_bounded (axiom) + TreeBuildStepping |
 | Cached return | NEW AXIOM | FieldStepping |
 
 ### Axiom Count Change
@@ -272,7 +271,7 @@ End TreeBuildStepping.
 1. **Localized trust:** Each axiom covers a single Rust operation
 2. **Testable:** Fine-grained axioms can be property-tested individually
 3. **Reusable:** FieldStepping and IteratorStepping apply to other operations
-4. **Termination explicit:** depth_bounded theorem proves rebuild terminates
+4. **Termination explicit:** depth_bounded axiom states that the rebuild terminates
 
 ### Remaining Semantic Gap
 
