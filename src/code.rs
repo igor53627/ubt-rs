@@ -9,6 +9,9 @@ use alloy_primitives::B256;
 /// Size of code data per chunk (31 bytes)
 pub const CODE_CHUNK_DATA_SIZE: usize = 31;
 
+/// Largest leading PUSHDATA count of a chunk: all of its code bytes.
+const LEADING_PUSHDATA_MAX: u8 = 31;
+
 /// A code chunk with leading PUSHDATA count.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CodeChunk {
@@ -55,8 +58,7 @@ impl CodeChunk {
 ///
 /// This allows code analysis to skip PUSHDATA bytes when looking for valid opcodes.
 ///
-/// The leading PUSHDATA count is always bounded by `CODE_CHUNK_DATA_SIZE` (31),
-/// so all casts to `u8` are safe.
+/// The leading PUSHDATA count of a chunk is at most `CODE_CHUNK_DATA_SIZE` (31).
 pub fn chunkify_code(bytecode: &[u8]) -> Vec<CodeChunk> {
     if bytecode.is_empty() {
         return vec![];
@@ -76,18 +78,16 @@ pub fn chunkify_code(bytecode: &[u8]) -> Vec<CodeChunk> {
         let src = &bytecode[CODE_CHUNK_DATA_SIZE * i..end];
         data[..src.len()].copy_from_slice(src);
 
-        if chunk_offset > CODE_CHUNK_DATA_SIZE {
-            // PUSH data overflows this entire chunk — metadata = StemSize (31)
-            #[allow(clippy::cast_possible_truncation)]
-            let md = CODE_CHUNK_DATA_SIZE as u8; // 31 always fits in u8
-            chunks.push(CodeChunk::new(md, data));
+        let leading_in_chunk: Option<u8> = u8::try_from(chunk_offset)
+            .ok()
+            .filter(|&leading| leading <= LEADING_PUSHDATA_MAX);
+        let Some(leading) = leading_in_chunk else {
+            // PUSH data covers this entire chunk and continues in the next one.
+            chunks.push(CodeChunk::new(LEADING_PUSHDATA_MAX, data));
             chunk_offset = 1;
             continue;
-        }
+        };
 
-        // Normal case: metadata = chunk_offset
-        #[allow(clippy::cast_possible_truncation)]
-        let leading = chunk_offset as u8;
         chunks.push(CodeChunk::new(leading, data));
         chunk_offset = 0;
 
@@ -96,7 +96,7 @@ pub fn chunkify_code(bytecode: &[u8]) -> Vec<CodeChunk> {
             let opcode = bytecode[code_offset];
             if (0x60..=0x7f).contains(&opcode) {
                 // PUSH1..PUSH32
-                code_offset += (opcode - 0x60 + 1) as usize;
+                code_offset += usize::from(opcode - 0x60 + 1);
                 if code_offset + 1 >= CODE_CHUNK_DATA_SIZE * (i + 1) {
                     code_offset += 1;
                     chunk_offset = code_offset - CODE_CHUNK_DATA_SIZE * (i + 1);
@@ -111,8 +111,13 @@ pub fn chunkify_code(bytecode: &[u8]) -> Vec<CodeChunk> {
 }
 
 /// Reconstruct bytecode from chunks.
+///
+/// The result has `code_size` bytes, or all the code bytes of `chunks` if `code_size`
+/// is larger than that. `code_size` is a claim of the caller, so the function reserves
+/// memory for no more bytes than `chunks` can supply.
 pub fn dechunkify_code(chunks: &[CodeChunk], code_size: usize) -> Vec<u8> {
-    let mut bytecode = Vec::with_capacity(code_size);
+    let chunk_bytes_max: usize = chunks.len().saturating_mul(CODE_CHUNK_DATA_SIZE);
+    let mut bytecode = Vec::with_capacity(code_size.min(chunk_bytes_max));
 
     for chunk in chunks {
         let remaining = code_size.saturating_sub(bytecode.len());
@@ -126,6 +131,26 @@ pub fn dechunkify_code(chunks: &[CodeChunk], code_size: usize) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `LEADING_PUSHDATA_MAX` is the `u8` form of `CODE_CHUNK_DATA_SIZE`.
+    #[test]
+    fn test_leading_pushdata_max_is_chunk_data_size() {
+        assert_eq!(usize::from(LEADING_PUSHDATA_MAX), CODE_CHUNK_DATA_SIZE);
+    }
+
+    /// `code_size` is a claim: a claim larger than the chunk data must not reserve memory
+    /// for the claim, and gives all the chunk bytes.
+    #[test]
+    fn test_dechunkify_code_size_claim_larger_than_chunks() {
+        assert_eq!(dechunkify_code(&[], usize::MAX), Vec::<u8>::new());
+
+        let chunk = CodeChunk::new(0, [0xAB; CODE_CHUNK_DATA_SIZE]);
+        let bytecode: Vec<u8> = dechunkify_code(&[chunk], usize::MAX);
+        assert_eq!(bytecode, vec![0xAB; CODE_CHUNK_DATA_SIZE]);
+        assert!(bytecode.capacity() < 1024);
+
+        assert_eq!(dechunkify_code(&[chunk], 30), vec![0xAB; 30]);
+    }
 
     #[test]
     fn test_empty_code() {

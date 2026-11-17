@@ -1,2 +1,9 @@
 # TigerStyle profile (docs/TIGER_STYLE_PROFILE.md), limit "Function length".
 too-many-lines-threshold = 70
+
+# TigerStyle profile, decision "Assertions": an assertion stays on in release builds.
+disallowed-macros = [
+    { path = "std::debug_assert", reason = "release builds remove it; use `assert!`, or return an error for outside input" },
+    { path = "std::debug_assert_eq", reason = "release builds remove it; use `assert_eq!`, or return an error for outside input" },
+    { path = "std::debug_assert_ne", reason = "release builds remove it; use `assert_ne!`, or return an error for outside input" },
+]

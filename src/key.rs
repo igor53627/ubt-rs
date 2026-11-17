@@ -52,7 +52,10 @@ impl Stem {
     ///
     /// Panics if `pos` is 248 or more.
     pub fn bit_at(&self, pos: usize) -> bool {
-        debug_assert!(pos < STEM_LEN * 8);
+        assert!(
+            pos < STEM_LEN * 8,
+            "bit position {pos} is not in a 248-bit stem"
+        );
         let byte_idx = pos / 8;
         let bit_idx = 7 - (pos % 8); // MSB first
         (self.0[byte_idx] >> bit_idx) & 1 == 1
@@ -61,14 +64,7 @@ impl Stem {
     /// Find the first bit position where two stems differ.
     /// Returns None if stems are equal.
     pub fn first_differing_bit(&self, other: &Self) -> Option<usize> {
-        for i in 0..STEM_LEN {
-            if self.0[i] != other.0[i] {
-                let xor = self.0[i] ^ other.0[i];
-                let bit_in_byte = 7 - xor.leading_zeros() as usize;
-                return Some(i * 8 + (7 - bit_in_byte));
-            }
-        }
-        None
+        (0..STEM_LEN * 8).find(|&pos| self.bit_at(pos) != other.bit_at(pos))
     }
 }
 

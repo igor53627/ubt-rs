@@ -87,6 +87,21 @@
 
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 #![warn(missing_docs)]
+// TigerStyle profile (docs/TIGER_STYLE_PROFILE.md): no unsafe code; in library code
+// outside tests, no panic paths other than `assert!` and no unchecked integer casts.
+#![forbid(unsafe_code)]
+#![cfg_attr(
+    not(test),
+    warn(
+        clippy::as_conversions,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::todo,
+        clippy::unimplemented,
+        clippy::unreachable,
+        clippy::unwrap_used,
+    )
+)]
 
 // Optional deps used by the `simulate` binary. Rust checks unused deps per-crate,
 // so we reference them here to avoid `unused_crate_dependencies` warnings when the

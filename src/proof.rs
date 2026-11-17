@@ -179,12 +179,12 @@ pub fn generate_stem_proof<H: Hasher>(
     // Hash all values
     let mut data = [B256::ZERO; 256];
     for (&idx, &v) in &stem_node.values {
-        data[idx as usize] = hasher.hash_32(&v);
+        data[usize::from(idx)] = hasher.hash_32(&v);
     }
 
     // Collect siblings while building tree
     let mut siblings = Vec::with_capacity(8);
-    let mut idx = subindex as usize;
+    let mut idx = usize::from(subindex);
 
     for level in 0..8 {
         // Sibling index
