@@ -287,7 +287,7 @@ Decision (2026-11-17): `ubt` stays an implementation of the unified binary tree.
 
 [![Proof Verification](https://github.com/igor53627/ubt-rs/actions/workflows/proofs.yml/badge.svg)](https://github.com/igor53627/ubt-rs/actions/workflows/proofs.yml)
 [![Verification Summary](https://img.shields.io/badge/verification-95%25%20confidence-brightgreen)](formal/docs/VERIFICATION_SUMMARY.md)
-[![Qed Count](https://img.shields.io/badge/Qed-641%20proofs-blue)](formal/docs/VERIFICATION_SUMMARY.md)
+[![Qed Count](https://img.shields.io/badge/Qed-653%20proofs-blue)](formal/docs/VERIFICATION_SUMMARY.md)
 
 This crate includes formal verification using [rocq-of-rust](https://github.com/formal-land/rocq-of-rust) and the Rocq proof assistant.
 
@@ -295,9 +295,9 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 
 | Metric | Initial | Final | Change |
 |--------|---------|-------|--------|
-| **Theorems (Qed)** | ~20 | **641** | +3105% |
-| **Total Axioms** | 50+ | **186** | All documented |
-| **Linking Axioms** | N/A | **46** | Minimal trust base |
+| **Theorems (Qed)** | ~20 | **653** | +3165% |
+| **Total Axioms** | 50+ | **183** | All documented |
+| **Linking Axioms** | N/A | **47** | Minimal trust base |
 | **Admitted** | 10+ | **79** | 0 `admit.` tactics in linking/simulations/proofs; 79 `Admitted.` theorems in generated code (`formal/src/`) ([details](formal/docs/ADMITS_TRACKING.md)) |
 | **QuickChick Properties** | 5 | **22 CI / 50 total** | 11k/500k tests |
 | **Verification Confidence** | - | **95%** | Complete |
@@ -307,7 +307,7 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 | Component | Status | Confidence |
 |-----------|--------|------------|
 | new_executes | AXIOM (`linking/operations.v`) | 100% |
-| delete_executes | **PROVEN** | 100% |
+| delete_executes | AXIOM (`linking/operations.v`) for the `delete` method, which is a real removal. The zero write is proven: `zero_write_executes` is an instance of `insert_executes` | not assessed |
 | get_executes | AXIOM; `get_executes_derived` is proven from lower-level axioms | 90% |
 | insert_executes | AXIOM; `insert_executes_derived` is proven from lower-level axioms | 95% |
 | root_hash_executes | DERIVED | 75% |
@@ -321,7 +321,10 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 | Get from empty returns None | Proven | Rust API |
 | Get after insert returns value | Proven | Rust API |
 | Insert doesn't affect other keys | Proven | Rust API |
+| Get after insert of zero returns the present zero value | Proven | Rust API |
 | Delete removes value | Proven | Rust API |
+| Insert of zero is not a delete (`Some(0)` versus `None`) | Proven | Rust API |
+| Delete preserves well-formedness | Proven | Rust API |
 | Keys with same stem share subtree | Proven | Rust API |
 | Insert preserves well-formedness | Proven | Rust API |
 | Order independence (all cases) | Proven | Rust API |
@@ -333,14 +336,16 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 
 **Note:** Properties marked "Formal model" are proven in the Rocq formal verification but the corresponding Rust APIs (batch verification, accumulators) are not yet exposed.
 
-**Note:** The translated Rust code in `formal/src/` and the linking layer model the crate source before 0.5.0. They do not cover `NodeStore`, the binary codec, or the V3 key derivation. The Rocq simulation model (`sim_set` in `formal/simulations/tree.v`) still removes the entry on a zero write, and therefore models the behaviour before zero values became present leaves.
+**Note:** The translated Rust code in `formal/src/` and the linking layer model the crate source before 0.5.0. They do not cover `NodeStore`, the binary codec, or the V3 key derivation.
+
+**Note (zero values):** The specification (`spec/EIP-7864-spec.md`) and the Rocq simulation model follow the go-ethereum rule. `sim_set` in `formal/simulations/tree.v` stores a zero value as a present entry, `sim_tree_delete` is a real removal (it removes the subindex, and the stem when it has no entries left), and no axiom states that the hash of a zero value is zero. The translated code in `formal/src/` is older than this rule: its `set_value` removes the entry on a zero value, and its `hash_32` has a zero rule. So the execution axioms `insert_executes` (for a zero value) and `root_hash_executes` (for a tree with a zero leaf) describe the current Rust source and not the translated terms. `delete_executes` is an axiom about the `delete` method. The translation must be generated again to close this gap.
 
 ### Axiom Classification
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| **Total Axioms** | 186 | All Axiom declarations in linking+simulations (209 with specs and proofs) |
-| **Linking Axioms** | 46 | Axioms in formal/linking/ layer |
+| **Total Axioms** | 183 | All Axiom declarations in linking+simulations (205 with specs and proofs) |
+| **Linking Axioms** | 47 | Axioms in formal/linking/ layer |
 | **IRREDUCIBLE** | 25 | Minimal trust base (monad laws, crypto, stdlib) |
 | **Parameters (non-axioms)** | 77 | Type/function abstractions, tracked separately |
 

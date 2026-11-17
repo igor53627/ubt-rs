@@ -144,7 +144,7 @@ make verify-axioms
 ### Expected Axioms (documented and intentional)
 
 - `hash_value` / `hash_pair` - SHA256 cannot be reasoned about
-- `hash_zero_value` / `hash_zero_pair` - Properties of zero hashing
+- `hash_zero_pair` - Zero rule for a pair of zero hashes (there is no zero rule for a leaf value)
 - Decidability for stem/key equality
 
 ### Adding New Axioms

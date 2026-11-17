@@ -5,6 +5,8 @@
 **Current Count:** 64 axioms (per axiom_audit.md)  
 **Target Count:** ~55 axioms after reduction
 
+> **Note (November 2026, zero values):** This analysis is a record of December 2025. Since then the axiom `hash_zero_value` and the lemma `hash_value_nonzero` are removed: a leaf that holds 32 zero bytes is a present leaf and is hashed. `hash_zero_pair` is not changed.
+
 ---
 
 ## Executive Summary

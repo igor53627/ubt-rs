@@ -15,9 +15,9 @@ The security proofs rely on axioms in `formal/simulations/crypto.v`:
 | `hash_value_collision_resistant` | `hash_value v1 = hash_value v2 → v1 = v2` |
 | `hash_pair_collision_resistant` | `hash_pair a1 b1 = hash_pair a2 b2 → a1 = a2 ∧ b1 = b2` |
 | `hash_stem_collision_resistant` | `hash_stem s1 h1 = hash_stem s2 h2 → stem_eq s1 s2 = true ∧ h1 = h2` |
-| `hash_value_nonzero` | Non-zero values hash to non-zero outputs (now a lemma derived from `hash_value_collision_resistant` and the axiom `hash_zero_value : hash_value zero32 = zero32`) |
+| `hash_zero_pair` | `hash_pair zero32 zero32 = zero32` (the only zero rule) |
 
-The axiom `hash_zero_value` models the crate before the zero-value change. The Rust `Hasher::hash_32` now has no zero rule, as in go-ethereum: a leaf that holds 32 zero bytes is present and its hash is not zero. The Rocq model is not updated.
+There is no zero rule for `hash_value`. The Rust `Hasher::hash_32` has no zero rule, as in go-ethereum: a leaf that holds 32 zero bytes is present and its hash is not zero. The Rocq model agrees: the axiom `hash_zero_value` (`hash_value zero32 = zero32`) is removed, and no axiom fixes `hash_value zero32`. The lemma `hash_value_zero_distinct` (`value_nonzero v -> hash_value v <> hash_value zero32`) follows from `hash_value_collision_resistant`. The former lemma `hash_value_nonzero` (`value_nonzero v -> hash_value v <> zero32`) is removed: its proof used `hash_zero_value`, and no remaining axiom gives it.
 
 Five theorems below also apply axioms that `formal/simulations/security.v` declares. The Status column names the axiom for each of them.
 

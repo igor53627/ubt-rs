@@ -156,7 +156,7 @@ Proves that running translated Rust code produces results equivalent to simulati
 
 | Theorem | Statement |
 |---------|-----------|
-| `get_after_insert_same` | `get (insert t k v) k = Some v` (when v ≠ 0) |
+| `get_after_insert_same` | `get (insert t k v) k = Some v` (for every v, including zero) |
 | `get_after_delete_same` | `get (delete t k) k = None` |
 | `insert_insert_comm` | Inserts at different stems commute |
 | `batch_preserves_refinement` | Batch operations preserve linking |
