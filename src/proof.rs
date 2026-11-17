@@ -81,7 +81,8 @@ impl Proof {
     /// Compute the root hash from this proof.
     ///
     /// The leaf contributes `hash_32(value)` for `Some(value)`, also for
-    /// `Some(B256::ZERO)`, and 32 zero bytes for `None`.
+    /// `Some(B256::ZERO)`, and 32 zero bytes for `None`. A stem node with no
+    /// present leaf contributes 32 zero bytes, as [`StemNode::hash`] does.
     ///
     /// # Errors
     ///
@@ -121,8 +122,11 @@ impl Proof {
                             hasher.hash_64(sibling, &current_hash)
                         };
                     }
-                    // Apply stem node hash
-                    current_hash = hasher.hash_stem_node(stem.as_bytes(), &current_hash);
+                    // A zero subtree root means that no leaf is present. Such a stem
+                    // node hashes to zero, as in `StemNode::hash`.
+                    if current_hash != B256::ZERO {
+                        current_hash = hasher.hash_stem_node(stem.as_bytes(), &current_hash);
+                    }
                 }
                 ProofNode::Extension { stem, stem_hash } => {
                     // Non-existence proof: the stem differs
@@ -164,10 +168,9 @@ impl Proof {
 /// zero leaf. A present zero leaf of another subindex contributes `hash_32(0^32)`
 /// to the siblings; an absent subindex contributes 32 zero bytes.
 ///
-/// For a stem node with no values, [`StemNode::hash`] is `B256::ZERO`, but
-/// [`Proof::compute_root`] applies the stem hash to the zero subtree root. A proof
-/// from this function for such a node, with a stem that is not all zero, does not
-/// verify against `StemNode::hash`. go-ethereum cannot have a stem node with no values.
+/// For a stem node with no values, the value is `None` and the 8 siblings are zero.
+/// [`Proof::compute_root`] gives `B256::ZERO` for such a proof, which is equal to
+/// [`StemNode::hash`]. go-ethereum cannot have a stem node with no values.
 #[must_use]
 pub fn generate_stem_proof<H: Hasher>(
     stem_node: &StemNode,
@@ -502,6 +505,46 @@ mod tests {
         assert!(!proof_with(1, Some(B256::ZERO))
             .verify(&hasher, &expected_root)
             .unwrap());
+    }
+
+    /// A stem node with no values hashes to zero for every stem. A proof from
+    /// `generate_stem_proof` for such a node must reconstruct that hash, also for
+    /// a stem that is not all zero. A stem node with one present zero leaf keeps
+    /// the stem wrapper.
+    #[test]
+    fn test_proof_for_stem_node_with_no_values() {
+        let hasher = Sha256Hasher;
+        let stem = Stem::new([0x11u8; 31]);
+        let proof_for = |node: &StemNode, subindex: u8| {
+            let (value, siblings) = generate_stem_proof(node, subindex, &hasher);
+            Proof::new(
+                TreeKey::new(stem, subindex),
+                value,
+                vec![ProofNode::Stem {
+                    stem,
+                    subtree_siblings: siblings,
+                }],
+            )
+        };
+
+        let mut node = StemNode::new(stem);
+        assert_eq!(node.hash(&hasher), B256::ZERO);
+        for subindex in [0u8, 5, 255] {
+            let proof = proof_for(&node, subindex);
+            assert_eq!(proof.value, None);
+            assert_eq!(proof.compute_root(&hasher).unwrap(), B256::ZERO);
+            assert!(proof.verify(&hasher, &node.hash(&hasher)).unwrap());
+        }
+
+        node.set_value(3, B256::ZERO);
+        let expected_root = node.hash(&hasher);
+        assert_ne!(expected_root, B256::ZERO);
+        let absent = proof_for(&node, 5);
+        assert_eq!(absent.value, None);
+        assert_eq!(absent.compute_root(&hasher).unwrap(), expected_root);
+        let present = proof_for(&node, 3);
+        assert_eq!(present.value, Some(B256::ZERO));
+        assert_eq!(present.compute_root(&hasher).unwrap(), expected_root);
     }
 
     #[test]
