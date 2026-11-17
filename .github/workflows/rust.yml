@@ -10,6 +10,8 @@ on:
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'deny.toml'
+      - 'clippy.toml'
+      - 'rustfmt.toml'
       - '.github/workflows/rust.yml'
   pull_request:
     branches: [main, master]
@@ -20,6 +22,8 @@ on:
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'deny.toml'
+      - 'clippy.toml'
+      - 'rustfmt.toml'
       - '.github/workflows/rust.yml'
 
 env:
@@ -84,6 +88,11 @@ jobs:
       - name: Run clippy (all features, lib)
         run: cargo clippy --all-features --lib -- -D warnings
 
+      # Tests, benches and the `simulate` binary. `clippy.toml` sets the 70-line function
+      # limit of docs/TIGER_STYLE_PROFILE.md.
+      - name: Run clippy (all features, all targets)
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
       - name: Build docs
         run: cargo doc --no-deps
 
@@ -114,6 +123,7 @@ jobs:
           echo "- Clippy (default features)" >> $GITHUB_STEP_SUMMARY
           echo "- Clippy (no default features, lib)" >> $GITHUB_STEP_SUMMARY
           echo "- Clippy (all features, lib)" >> $GITHUB_STEP_SUMMARY
+          echo "- Clippy (all features, all targets)" >> $GITHUB_STEP_SUMMARY
           echo "- Docs" >> $GITHUB_STEP_SUMMARY
 
   msrv:

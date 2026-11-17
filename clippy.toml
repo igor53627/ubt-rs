@@ -1,0 +1,2 @@
+# TigerStyle profile (docs/TIGER_STYLE_PROFILE.md), limit "Function length".
+too-many-lines-threshold = 70

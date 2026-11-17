@@ -5,6 +5,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
+/// A counter with its Prometheus metric name and help text.
+type PrometheusCounter<'a> = (&'static str, &'static str, &'a AtomicU64);
+
 /// Operation type counters for detailed observability.
 #[derive(Debug)]
 pub struct OpCounters {
@@ -98,125 +101,122 @@ impl OpCounters {
         };
     }
 
+    /// The regular operation counters (`inc_op` 0 to 9) with their Prometheus metric name
+    /// and help text.
+    fn regular_counters(&self) -> [PrometheusCounter<'_>; 10] {
+        [
+            ("ubt_sim_op_insert_total", "Insert operations", &self.insert),
+            ("ubt_sim_op_get_total", "Get operations", &self.get),
+            ("ubt_sim_op_delete_total", "Delete operations", &self.delete),
+            (
+                "ubt_sim_op_update_hot_key_total",
+                "Update hot key operations",
+                &self.update_hot_key,
+            ),
+            (
+                "ubt_sim_op_sequential_insert_total",
+                "Sequential insert operations",
+                &self.sequential_insert,
+            ),
+            (
+                "ubt_sim_op_scan_all_total",
+                "Scan all operations",
+                &self.scan_all,
+            ),
+            (
+                "ubt_sim_op_read_after_write_total",
+                "Read-after-write operations",
+                &self.read_after_write,
+            ),
+            (
+                "ubt_sim_op_rapid_overwrite_total",
+                "Rapid overwrite operations",
+                &self.rapid_overwrite,
+            ),
+            (
+                "ubt_sim_op_insert_then_delete_total",
+                "Insert-then-delete operations",
+                &self.insert_then_delete,
+            ),
+            ("ubt_sim_op_sync_total", "Sync operations", &self.sync),
+        ]
+    }
+
+    /// The chaos operation counters (`inc_op` 10 to 19) with their Prometheus metric name
+    /// and help text.
+    fn chaos_counters(&self) -> [PrometheusCounter<'_>; 10] {
+        [
+            (
+                "ubt_sim_chaos_toggle_incremental_total",
+                "Toggle incremental mode",
+                &self.chaos_toggle_incremental,
+            ),
+            (
+                "ubt_sim_chaos_verify_incremental_vs_full_total",
+                "Verify incremental vs full rebuild",
+                &self.chaos_verify_incremental_vs_full,
+            ),
+            (
+                "ubt_sim_chaos_clear_caches_total",
+                "Clear caches and verify",
+                &self.chaos_clear_caches,
+            ),
+            (
+                "ubt_sim_chaos_burst_stem_write_total",
+                "Burst write to same stem",
+                &self.chaos_burst_stem_write,
+            ),
+            (
+                "ubt_sim_chaos_insert_delete_storm_total",
+                "Insert/delete storm",
+                &self.chaos_insert_delete_storm,
+            ),
+            (
+                "ubt_sim_chaos_root_stability_total",
+                "Root hash stability check",
+                &self.chaos_root_stability,
+            ),
+            (
+                "ubt_sim_chaos_delete_stem_total",
+                "Delete entire stem",
+                &self.chaos_delete_stem,
+            ),
+            (
+                "ubt_sim_chaos_get_scan_consistency_total",
+                "Get/scan consistency check",
+                &self.chaos_get_scan_consistency,
+            ),
+            (
+                "ubt_sim_chaos_mode_switch_storm_total",
+                "Mode switch storm",
+                &self.chaos_mode_switch_storm,
+            ),
+            (
+                "ubt_sim_chaos_verify_last_root_total",
+                "Verify last root",
+                &self.chaos_verify_last_root,
+            ),
+        ]
+    }
+
     pub fn to_prometheus(&self) -> String {
-        format!(
-            r"# HELP ubt_sim_op_insert_total Insert operations
-# TYPE ubt_sim_op_insert_total counter
-ubt_sim_op_insert_total {}
-
-# HELP ubt_sim_op_get_total Get operations
-# TYPE ubt_sim_op_get_total counter
-ubt_sim_op_get_total {}
-
-# HELP ubt_sim_op_delete_total Delete operations
-# TYPE ubt_sim_op_delete_total counter
-ubt_sim_op_delete_total {}
-
-# HELP ubt_sim_op_update_hot_key_total Update hot key operations
-# TYPE ubt_sim_op_update_hot_key_total counter
-ubt_sim_op_update_hot_key_total {}
-
-# HELP ubt_sim_op_sequential_insert_total Sequential insert operations
-# TYPE ubt_sim_op_sequential_insert_total counter
-ubt_sim_op_sequential_insert_total {}
-
-# HELP ubt_sim_op_scan_all_total Scan all operations
-# TYPE ubt_sim_op_scan_all_total counter
-ubt_sim_op_scan_all_total {}
-
-# HELP ubt_sim_op_read_after_write_total Read-after-write operations
-# TYPE ubt_sim_op_read_after_write_total counter
-ubt_sim_op_read_after_write_total {}
-
-# HELP ubt_sim_op_rapid_overwrite_total Rapid overwrite operations
-# TYPE ubt_sim_op_rapid_overwrite_total counter
-ubt_sim_op_rapid_overwrite_total {}
-
-# HELP ubt_sim_op_insert_then_delete_total Insert-then-delete operations
-# TYPE ubt_sim_op_insert_then_delete_total counter
-ubt_sim_op_insert_then_delete_total {}
-
-# HELP ubt_sim_op_sync_total Sync operations
-# TYPE ubt_sim_op_sync_total counter
-ubt_sim_op_sync_total {}
-
-# HELP ubt_sim_chaos_toggle_incremental_total Toggle incremental mode
-# TYPE ubt_sim_chaos_toggle_incremental_total counter
-ubt_sim_chaos_toggle_incremental_total {}
-
-# HELP ubt_sim_chaos_verify_incremental_vs_full_total Verify incremental vs full rebuild
-# TYPE ubt_sim_chaos_verify_incremental_vs_full_total counter
-ubt_sim_chaos_verify_incremental_vs_full_total {}
-
-# HELP ubt_sim_chaos_clear_caches_total Clear caches and verify
-# TYPE ubt_sim_chaos_clear_caches_total counter
-ubt_sim_chaos_clear_caches_total {}
-
-# HELP ubt_sim_chaos_burst_stem_write_total Burst write to same stem
-# TYPE ubt_sim_chaos_burst_stem_write_total counter
-ubt_sim_chaos_burst_stem_write_total {}
-
-# HELP ubt_sim_chaos_insert_delete_storm_total Insert/delete storm
-# TYPE ubt_sim_chaos_insert_delete_storm_total counter
-ubt_sim_chaos_insert_delete_storm_total {}
-
-# HELP ubt_sim_chaos_root_stability_total Root hash stability check
-# TYPE ubt_sim_chaos_root_stability_total counter
-ubt_sim_chaos_root_stability_total {}
-
-# HELP ubt_sim_chaos_delete_stem_total Delete entire stem
-# TYPE ubt_sim_chaos_delete_stem_total counter
-ubt_sim_chaos_delete_stem_total {}
-
-# HELP ubt_sim_chaos_get_scan_consistency_total Get/scan consistency check
-# TYPE ubt_sim_chaos_get_scan_consistency_total counter
-ubt_sim_chaos_get_scan_consistency_total {}
-
-# HELP ubt_sim_chaos_mode_switch_storm_total Mode switch storm
-# TYPE ubt_sim_chaos_mode_switch_storm_total counter
-ubt_sim_chaos_mode_switch_storm_total {}
-
-# HELP ubt_sim_chaos_verify_last_root_total Verify last root
-# TYPE ubt_sim_chaos_verify_last_root_total counter
-ubt_sim_chaos_verify_last_root_total {}
-",
-            self.insert.load(Ordering::Relaxed),
-            self.get.load(Ordering::Relaxed),
-            self.delete.load(Ordering::Relaxed),
-            self.update_hot_key.load(Ordering::Relaxed),
-            self.sequential_insert.load(Ordering::Relaxed),
-            self.scan_all.load(Ordering::Relaxed),
-            self.read_after_write.load(Ordering::Relaxed),
-            self.rapid_overwrite.load(Ordering::Relaxed),
-            self.insert_then_delete.load(Ordering::Relaxed),
-            self.sync.load(Ordering::Relaxed),
-            self.chaos_toggle_incremental.load(Ordering::Relaxed),
-            self.chaos_verify_incremental_vs_full
-                .load(Ordering::Relaxed),
-            self.chaos_clear_caches.load(Ordering::Relaxed),
-            self.chaos_burst_stem_write.load(Ordering::Relaxed),
-            self.chaos_insert_delete_storm.load(Ordering::Relaxed),
-            self.chaos_root_stability.load(Ordering::Relaxed),
-            self.chaos_delete_stem.load(Ordering::Relaxed),
-            self.chaos_get_scan_consistency.load(Ordering::Relaxed),
-            self.chaos_mode_switch_storm.load(Ordering::Relaxed),
-            self.chaos_verify_last_root.load(Ordering::Relaxed),
-        )
+        let blocks: Vec<String> = self
+            .regular_counters()
+            .iter()
+            .chain(self.chaos_counters().iter())
+            .map(|(name, help, counter)| {
+                let value: u64 = counter.load(Ordering::Relaxed);
+                format!("# HELP {name} {help}\n# TYPE {name} counter\n{name} {value}\n")
+            })
+            .collect();
+        blocks.join("\n")
     }
 
     pub fn total_chaos_ops(&self) -> u64 {
-        self.chaos_toggle_incremental.load(Ordering::Relaxed)
-            + self
-                .chaos_verify_incremental_vs_full
-                .load(Ordering::Relaxed)
-            + self.chaos_clear_caches.load(Ordering::Relaxed)
-            + self.chaos_burst_stem_write.load(Ordering::Relaxed)
-            + self.chaos_insert_delete_storm.load(Ordering::Relaxed)
-            + self.chaos_root_stability.load(Ordering::Relaxed)
-            + self.chaos_delete_stem.load(Ordering::Relaxed)
-            + self.chaos_get_scan_consistency.load(Ordering::Relaxed)
-            + self.chaos_mode_switch_storm.load(Ordering::Relaxed)
-            + self.chaos_verify_last_root.load(Ordering::Relaxed)
+        self.chaos_counters()
+            .iter()
+            .map(|(_, _, counter)| counter.load(Ordering::Relaxed))
+            .sum()
     }
 }
 
