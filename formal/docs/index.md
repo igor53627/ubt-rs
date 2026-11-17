@@ -148,8 +148,8 @@ See [VERIFICATION_SUMMARY.md](VERIFICATION_SUMMARY.md) for complete details.
 | Theorem | Location | Statement |
 |---------|----------|-----------|
 | `inclusion_proof_soundness` (axiom) | tree.v | Valid proof ⟹ key-value exists |
-| `inclusion_completeness` | security.v | Value exists ⟹ proof exists |
-| `exclusion_completeness` | security.v | Key absent ⟹ exclusion proof exists |
+| `inclusion_completeness` (from axiom `inclusion_completeness_construction`) | security.v | Value exists ⟹ proof exists |
+| `exclusion_completeness` (from axiom `exclusion_completeness_construction`) | security.v | Key absent ⟹ exclusion proof exists |
 
 ## Build Targets
 

@@ -127,7 +127,7 @@
     },
     {
       "title": "Axiom Audit",
-      "purpose": "Summarize axiom counts: 185 total (45 in linking layer, 25 irreducible; rest in formal/simulations/). Categorization of linking axioms (monad, termination, hashmap, trait resolution, state, batch, stdlib), and trust assumptions. Reference formal/docs/AXIOM_CATALOG.md",
+      "purpose": "Summarize axiom counts: 186 total (46 in linking layer, 25 irreducible; rest in formal/simulations/). Categorization of linking axioms (monad, termination, hashmap, trait resolution, state, batch, stdlib), and trust assumptions. Reference formal/docs/AXIOM_CATALOG.md",
       "parent": "Formal Verification"
     },
     {

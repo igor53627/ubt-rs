@@ -72,9 +72,9 @@ fn rebuild_root(&mut self) -> Result<()> {
 
 ### TraitRegistry Hash Lemmas
 
-From [interpreter.v:698-727](../formal/linking/interpreter.v#L698-L727). These three statements were axioms when this analysis was written. They are now proven lemmas (`Qed`), but the sections below still call them axioms:
+From [interpreter.v:698-727](../formal/linking/interpreter.v#L698-L727). These three statements were axioms when this analysis was written. They are now proven lemmas (`Qed`), but the sections below still call them axioms. Each lemma runs `M.pure` on the model hash value (`hash_value`, `hash_pair`, `hash_stem`). The proofs do not invoke the Rust `Hasher` methods, so the lemmas do not prove a link between the Rust hash implementations and the model:
 
-| Lemma | Connects |
+| Lemma | Intended link (not proven by the lemma) |
 |-------|----------|
 | `hash_32_executes_as_hash_value` | Hasher::hash_32 → hash_value |
 | `hash_64_executes_as_hash_pair` | Hasher::hash_64 → hash_pair |
@@ -98,7 +98,7 @@ root_hash_executes
     └── field_return_cached       [NEW: field access stepping]
 ```
 
-### Termination Guarantee
+### Depth Bound
 
 The depth bound axiom [tree.v:1975-1978](../formal/simulations/tree.v#L1975-L1978) states:
 
@@ -109,7 +109,7 @@ Axiom tree_depth_bounded_by_stem_bits :
 
 Where `stem_bit_count = 248` (31 bytes × 8 bits).
 
-This implies that `rebuild_root` terminates because:
+The axiom bounds the bit length of every stem in a well-formed `SimTree` (`depth_bounded`, [tree.v:1954-1957](../formal/simulations/tree.v#L1954-L1957)). It is a statement about the simulation model. It does not state that the Rust `rebuild_root` terminates. A termination proof for `rebuild_root` also needs a link from the Rust traversal to this bound and a progress argument, and this document does not give them. The intended (unproven) argument is:
 1. Tree traversal is bounded by 248 levels
 2. Each level processes finite stem partitions
 3. Hash computations are O(1) (axiomatized)
@@ -271,7 +271,7 @@ End TreeBuildStepping.
 1. **Localized trust:** Each axiom covers a single Rust operation
 2. **Testable:** Fine-grained axioms can be property-tested individually
 3. **Reusable:** FieldStepping and IteratorStepping apply to other operations
-4. **Termination explicit:** depth_bounded axiom states that the rebuild terminates
+4. **Depth bound explicit:** the `tree_depth_bounded_by_stem_bits` axiom bounds the depth of a well-formed `SimTree`; it is not a termination result for the Rust `rebuild_root`
 
 ### Remaining Semantic Gap
 

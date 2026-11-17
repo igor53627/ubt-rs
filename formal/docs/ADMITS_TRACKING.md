@@ -1,5 +1,7 @@
 # Admitted Proofs Tracking
 
+**Historical document.** This file describes the state on 2025-12-07. For the current counts see the note in "Remaining Admits by File" and `formal/BUILD_STATUS.md`.
+
 ## Summary
 
 | Status | Count |
@@ -35,7 +37,9 @@ All 4 admits were converted to well-documented axioms:
 - Added `sim_root_hash` definition to simulations/tree.v (needed by linking layer)
 - Added `empty_sim_tree_hash_zero` theorem
 
-## Remaining Admits by File
+## Remaining Admits by File (historical, 2025-12-07)
+
+The table below is the count from 2025-12-07 (total 91). It is not the current state. Current `Admitted.` counts outside comments: 79 in `src/*.v` (same per-file counts as below), 1 in `specs/serialization_spec.v` (`pair_round_trip`), and 0 in `specs/embedding_spec.v`, `simulations/verkle.v` and `linking/operations.v`. There are no `admit.` tactics in `specs/`, `simulations/`, `proofs/`, `linking/` or `src/`.
 
 | File | Count | Notes |
 |------|-------|-------|

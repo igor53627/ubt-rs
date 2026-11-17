@@ -230,6 +230,24 @@ impl Hasher for MyHasher {
 }
 ```
 
+## go-ethereum Compatibility
+
+The crate was compared with go-ethereum `trie/bintrie` at commit `b0f9324c` (2026-11-09). That is the last commit that contains the package: commit `ddaa6957` (2026-11-10) removed the EIP-7864 binary trie in favour of the EIP-8297 partitioned binary tree (`trie/pbt`).
+
+With `Sha256Hasher` and non-zero values, the crate gives the same tree keys, leaf contents, and root hashes as go-ethereum at that commit. The comparison ran the go-ethereum hashing and key derivation code against the crate, and it includes the root that go-ethereum pins in `TestBinaryGenesisCommit`.
+
+Known differences:
+
+| Area | go-ethereum `trie/bintrie` | This crate |
+|------|----------------------------|------------|
+| Hash function | SHA-256 | BLAKE3 by default; use `Sha256Hasher` for go-ethereum roots |
+| Zero values | A leaf that holds 32 zero bytes is present and hashes to `sha256(0^32)`. Deletion writes zero; stems are never removed. | A zero value is absent. `delete` removes the value and an empty stem. |
+| Node encoding | Stem tag `1`, internal tag `2`, bitmap MSB-first, internal nodes stored in groups of up to 8 levels | `ubt::codec`: stem tag `2`, internal tag `1`, bitmap LSB-first, one internal node per record. Not wire-compatible. |
+| Account API, node database, iterator, witness | Present | Not implemented |
+| Proof verification, streaming builder, incremental mode | Not implemented (`Prove` panics) | Present |
+
+A tree that contains a zero-valued leaf, for example a storage slot set to zero or a deleted account, has a different root in go-ethereum.
+
 ## Formal Verification Status
 
 **Status:** **VERIFICATION COMPLETE** (December 2025)
@@ -245,8 +263,8 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 | Metric | Initial | Final | Change |
 |--------|---------|-------|--------|
 | **Theorems (Qed)** | ~20 | **641** | +3105% |
-| **Total Axioms** | 50+ | **185** | All documented |
-| **Linking Axioms** | N/A | **45** | Minimal trust base |
+| **Total Axioms** | 50+ | **186** | All documented |
+| **Linking Axioms** | N/A | **46** | Minimal trust base |
 | **Admitted** | 10+ | **79** | 0 `admit.` tactics in linking/simulations/proofs; 79 `Admitted.` theorems in generated code (`formal/src/`) ([details](formal/docs/ADMITS_TRACKING.md)) |
 | **QuickChick Properties** | 5 | **22 CI / 50 total** | 11k/500k tests |
 | **Verification Confidence** | - | **95%** | Complete |
@@ -288,8 +306,8 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| **Total Axioms** | 185 | All Axiom declarations in linking+simulations |
-| **Linking Axioms** | 45 | Axioms in formal/linking/ layer |
+| **Total Axioms** | 186 | All Axiom declarations in linking+simulations (209 with specs and proofs) |
+| **Linking Axioms** | 46 | Axioms in formal/linking/ layer |
 | **IRREDUCIBLE** | 25 | Minimal trust base (monad laws, crypto, stdlib) |
 | **Parameters (non-axioms)** | 77 | Type/function abstractions, tracked separately |
 

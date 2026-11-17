@@ -21,9 +21,9 @@ This directory contains formal verification artifacts for the Unified Binary Tre
 
 | Metric | Count |
 |--------|-------|
-| Total axioms | **208** (`Axiom` declarations in specs, simulations, proofs, linking; `scripts/count_axioms.sh`) |
+| Total axioms | **209** (`Axiom` declarations outside comments: specs 15, simulations 140, proofs 8, linking 46). `scripts/count_axioms.sh` prints 208 because it does not match `insert_run_refines` in `linking/insert_stepping.v`, which is indented four spaces |
 | Irreducible axioms | **25** |
-| Parameters | **107** (same scope) |
+| Parameters | **107** (specs 8, simulations 69, proofs 1, linking 29) |
 | Admitted proofs | **0** in simulations, proofs, linking; **1** in specs (`pair_round_trip` in `specs/serialization_spec.v`) |
 
 See [docs/VERIFICATION_SUMMARY.md](docs/VERIFICATION_SUMMARY.md) for current metrics.

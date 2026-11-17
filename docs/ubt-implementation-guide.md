@@ -97,7 +97,7 @@ def get_tree_key(address: bytes20, tree_index: int, sub_index: int) -> bytes32:
     return stem + bytes([sub_index])
 ```
 
-The pseudo-code above is the EIP-7864 specification form. The `ubt` crate (since 0.5.1) follows the go-ethereum V3 derivation: `buf[0]` = overflow flag, `buf[1..32] = input_key[0..31]`, stem = first 31 bytes of `SHA256(zero[:12] || address || buf)`, subindex = `input_key[31]`. See the module docs in `src/embedding.rs`.
+The pseudo-code above is a simplified illustration, not a specification. It encodes the tree index as 32 little-endian bytes. `spec/EIP-7864-spec.md` (section 4.1) hashes a 63-byte preimage that ends with the first 31 bytes of the input key, and the `ubt` crate puts those 31 big-endian bytes in `buf[1..32]`. The pseudo-code gives the same preimage as the crate only for tree index 0. Do not use it to derive keys. The `ubt` crate (since 0.5.1) follows the go-ethereum V3 derivation: `buf[0]` = overflow flag, `buf[1..32] = input_key[0..31]`, stem = first 31 bytes of `SHA256(zero[:12] || address || buf)`, subindex = `input_key[31]`. See the module docs in `src/embedding.rs`.
 
 ## Account Subtree Layout
 

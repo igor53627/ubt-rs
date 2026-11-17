@@ -262,10 +262,11 @@ The [simulations/iterator.v](../simulations/iterator.v) file provides iterator m
 
 ## Note on Linking Layer
 
-The linking layer (`linking/operations.v`) is now fully complete (December 2025):
+The definitions and verification functions that the linking layer (`linking/operations.v`) needs are in place (December 2025). The proofs are not complete: they depend on axioms.
 - All required types (`sim_root_hash`, `BatchInclusionProof`, `BatchExclusionProof`, `BatchProof`) added to `simulations/tree.v`
 - All verification functions (`verify_batch_inclusion`, `verify_batch_exclusion`, `verify_batch_mixed`) implemented
 - Proof types (`SharedWitness`, `InclusionProof`, `ExclusionProof`) fully defined
 - Soundness statements (`exclusion_proof_soundness`, `inclusion_proof_soundness`) are axioms in `simulations/tree.v`
+- The execution statements `get_executes`, `insert_executes`, `new_executes` and `root_hash_executes` are axioms in `linking/operations.v` (lines 372, 488, 707, 779). That file declares 10 axioms, and `formal/linking/` declares 46
 
 **Status:** `make linking` now builds successfully.

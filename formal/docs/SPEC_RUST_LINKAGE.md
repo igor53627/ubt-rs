@@ -174,9 +174,9 @@ Axiom insert_executes :
 
 | Aspect | Coq | Rust |
 |--------|-----|------|
-| Definition | `simulations/tree.v:558-559` | Insert with zero value |
+| Definition | `simulations/tree.v:558-559` | `src/tree/mod.rs::delete()` |
 | Linking | `linking/operations.v:635-650` | — |
-| Verification | Theorem `delete_executes` (proven from `insert_executes`) | — |
+| Verification | Theorem `delete_executes`, proven for the model term `rust_delete` by applying the axiom `insert_executes` | — |
 
 **Coq Definition:**
 ```coq
@@ -184,7 +184,7 @@ Definition sim_tree_delete (t : SimTree) (k : TreeKey) : SimTree :=
   sim_tree_insert t k zero32.
 ```
 
-Delete is defined as insert with the zero value, matching the Rust implementation.
+In the Coq model, delete is defined as insert with the zero value. The linking layer also defines `rust_delete` as `rust_insert` with `zero32` (`linking/operations.v:573-574`); it does not use a translation of the Rust `delete()` method. The Rust `delete()` is a separate method: it removes the value (`set_value` with `B256::ZERO`) only when the stem exists, and it removes the stem node when no values are left.
 
 **Linking Theorem** (operations.v:611-618):
 ```coq
@@ -199,21 +199,25 @@ Theorem delete_is_insert_zero :
 
 | Aspect | Coq | Rust |
 |--------|-----|------|
-| Definition | `simulations/tree.v` (via `sim_node_hash`) | `src/tree/hash.rs::root_hash()` |
+| Definition | `simulations/tree.v:1001-1003` (folds `stem_entry_hash` over `st_stems`; `stem_entry_hash` uses `subindex_map_hash`) | `src/tree/hash.rs::root_hash()` |
 | Linking | `linking/operations.v:779-785` | — |
 | Verification | Axiom `root_hash_executes` | — |
 
-The root hash computation uses the abstract hash functions defined in `simulations/crypto.v`:
+The root hash computation uses the abstract hash functions defined in `simulations/crypto.v` (`simulations/tree.v:993-1003`):
 
 ```coq
-Fixpoint sim_node_hash (n : SimNode) : Bytes32 :=
-  match n with
-  | SimEmpty => zero32
-  | SimInternal l r => hash_pair (sim_node_hash l) (sim_node_hash r)
-  | SimStem s values => hash_stem s zero32
-  | SimLeaf v => hash_value v
-  end.
+Definition subindex_map_hash (m : SubIndexMap) : Bytes32 :=
+  fold_left (fun acc p => hash_pair acc (hash_value (snd p))) m zero32.
+
+Definition stem_entry_hash (s : Stem) (m : SubIndexMap) : Bytes32 :=
+  hash_stem s (subindex_map_hash m).
+
+Definition sim_root_hash (t : SimTree) : Bytes32 :=
+  fold_left (fun acc p => hash_pair acc (stem_entry_hash (fst p) (snd p)))
+            (st_stems t) zero32.
 ```
+
+`sim_root_hash` does not call `sim_node_hash` (`simulations/tree.v:372-379`), whose `SimStem` branch ignores the stored values.
 
 ---
 
@@ -224,7 +228,7 @@ Fixpoint sim_node_hash (n : SimNode) : Bytes32 :=
 | `empty_tree` | `UnifiedBinaryTree::new()` | **Proven** | `NewLink.new_refines` | Empty tree creation |
 | `sim_tree_get` | `tree.get()` | **Axiom** | `GetLink.get_executes` | Requires monadic semantics |
 | `sim_tree_insert` | `tree.insert()` | **Axiom** | `InsertLink.insert_executes` | Requires HashMap linking |
-| `sim_tree_delete` | `tree.delete()` | **Proven** | `DeleteLink.delete_executes` | Follows from insert |
+| `sim_tree_delete` | `tree.delete()` | **Conditional** | `DeleteLink.delete_executes` (theorem; applies axiom `InsertLink.insert_executes`) | Proven for `rust_delete`, defined as `rust_insert` with `zero32`; no link to the Rust `delete()` method |
 | `sim_root_hash` | `tree.root_hash().unwrap()` | **Axiom** | `HashLink.root_hash_executes` | Requires hash linking |
 | `wf_tree` | — | **Proven** | `insert_preserves_wf` | Well-formedness invariant |
 | `get_empty` | — | **Proven** | Direct | Empty returns None |

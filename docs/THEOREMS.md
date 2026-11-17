@@ -17,6 +17,8 @@ The security proofs rely on axioms in `formal/simulations/crypto.v`:
 | `hash_stem_collision_resistant` | `hash_stem s1 h1 = hash_stem s2 h2 → stem_eq s1 s2 = true ∧ h1 = h2` |
 | `hash_value_nonzero` | Non-zero values hash to non-zero outputs (now a lemma derived from `hash_value_collision_resistant` and the axiom `hash_zero_value : hash_value zero32 = zero32`) |
 
+Five theorems below also apply axioms that `formal/simulations/security.v` declares. The Status column names the axiom for each of them.
+
 ## Core Security Theorems
 
 ### Section 1-2: Data Integrity
@@ -46,7 +48,7 @@ The security proofs rely on axioms in `formal/simulations/crypto.v`:
 
 | Theorem | Status | Description |
 |---------|--------|-------------|
-| `witness_non_malleable` | Proven | Modifying witness changes computed root |
+| `witness_non_malleable` | Proven from axiom `witness_modification_changes_root` | Modifying witness changes computed root |
 | `value_non_malleable` | Proven | Modifying value changes verification |
 
 ### Section 10: Commitment Binding
@@ -55,7 +57,7 @@ The security proofs rely on axioms in `formal/simulations/crypto.v`:
 |---------|--------|-------------|
 | `commitment_binding` | Proven | Root uniquely binds each position to one value |
 | `stem_commitment_binding` | Proven | Stem hash uniquely determines stem and subtree |
-| `tree_binding` | Proven | Same root => same values for all keys |
+| `tree_binding` | Proven from axiom `tree_binding_axiom` | Same root => same values for all keys |
 
 ### Section 11: Soundness
 
@@ -70,8 +72,8 @@ The security proofs rely on axioms in `formal/simulations/crypto.v`:
 
 | Theorem | Status | Description |
 |---------|--------|-------------|
-| `inclusion_completeness` | Proven | Valid proof exists for every key-value pair |
-| `exclusion_completeness` | Proven | Valid exclusion proof exists for absent keys |
+| `inclusion_completeness` | Proven from axiom `inclusion_completeness_construction` | Valid proof exists for every key-value pair |
+| `exclusion_completeness` | Proven from axiom `exclusion_completeness_construction` | Valid exclusion proof exists for absent keys |
 
 ### Section 13: History Independence
 
@@ -79,7 +81,7 @@ The security proofs rely on axioms in `formal/simulations/crypto.v`:
 |---------|--------|-------------|
 | `history_independence_semantics` | Proven | Insertion order doesn't matter (different stems) |
 | `history_independence_same_stem` | Proven | Insertion order doesn't matter (same stem) |
-| `multi_key_history_independence` | Proven | Generalized to arbitrary permutations |
+| `multi_key_history_independence` | Proven from axiom `apply_insertions_permutation_invariant` | Generalized to arbitrary permutations |
 
 ### Section 14: Batch Proof Security
 
