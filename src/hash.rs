@@ -31,6 +31,15 @@ use sha2::{Digest, Sha256};
 ///   the rule gives hashes that do not agree with EIP-7864.
 /// - [`hash_raw`](Self::hash_raw) returns `B256::ZERO` when every input byte is zero,
 ///   as [`Sha256Hasher`] and [`Blake3Hasher`] do.
+/// - A zero hash means "empty subtree" in the whole crate: in the root hash, in
+///   [`StemNode::hash`](crate::StemNode::hash), and in
+///   [`Proof::compute_root`](crate::Proof::compute_root). `hash_32` must not return
+///   `B256::ZERO`, and `hash_64` must not return `B256::ZERO` unless both inputs are
+///   zero. For a cryptographic hash function this holds unless a preimage of zero is
+///   found. With an implementation that breaks this rule, a present leaf can hash
+///   as an absent leaf, and a proof from
+///   [`generate_stem_proof`](crate::generate_stem_proof) for a stem node whose
+///   subtree root is zero does not reconstruct `StemNode::hash`.
 ///
 /// # Thread Safety
 ///
