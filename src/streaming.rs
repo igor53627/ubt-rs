@@ -70,6 +70,7 @@ use crate::{error::Result, Blake3Hasher, Hasher, Stem, SubIndex, TreeKey};
 /// let builder: StreamingTreeBuilder<Blake3Hasher> = StreamingTreeBuilder::new();
 /// let root = builder.build_root_hash(entries).unwrap();
 /// ```
+#[derive(Clone, Debug)]
 pub struct StreamingTreeBuilder<H: Hasher = Blake3Hasher> {
     hasher: H,
 }

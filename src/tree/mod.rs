@@ -281,6 +281,20 @@ mod tests {
     }
 
     #[test]
+    fn test_public_types_implement_debug_clone_copy() {
+        fn assert_debug<T: std::fmt::Debug>() {}
+        fn assert_clone<T: Clone>() {}
+        fn assert_copy<T: Copy>() {}
+
+        assert_debug::<UnifiedBinaryTree<Blake3Hasher>>();
+        assert_debug::<UnifiedBinaryTree<crate::Sha256Hasher>>();
+        assert_debug::<crate::StreamingTreeBuilder<Blake3Hasher>>();
+        assert_clone::<crate::StreamingTreeBuilder<Blake3Hasher>>();
+        assert_debug::<crate::AccountStem>();
+        assert_copy::<crate::AccountStem>();
+    }
+
+    #[test]
     fn test_single_insert() {
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
         let key = TreeKey::from_bytes(B256::repeat_byte(0x01));

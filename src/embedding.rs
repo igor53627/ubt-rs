@@ -248,6 +248,7 @@ impl BasicDataLeaf {
 }
 
 /// Helper struct for computing account keys.
+#[derive(Clone, Copy, Debug)]
 pub struct AccountStem {
     /// The account address
     pub address: Address,

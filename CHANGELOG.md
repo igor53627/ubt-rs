@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Property tests P58-P61 for the binary codec: encode/decode round-trip, size prediction, determinism, and `decode_node` dispatch
 - "Binary Codec" section in `README.md`
+- `Debug` for `Blake3Hasher` and `Sha256Hasher`, so `UnifiedBinaryTree` with a built-in hasher now implements `Debug`; `Debug`, `Clone`, and `Copy` for `AccountStem`; `Debug` and `Clone` for `StreamingTreeBuilder`
 - Unit tests for `StreamingTreeBuilder`: `build_root_hash_parallel` with more stems than the rayon threshold (the parallel branch had no test), and zero-value handling
 
 ### Changed

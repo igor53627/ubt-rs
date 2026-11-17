@@ -52,7 +52,7 @@ pub trait Hasher: Clone + Default + Send + Sync {
 /// SHA256-based hasher (go-ethereum compatible).
 ///
 /// This matches the go-ethereum bintrie implementation.
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Sha256Hasher;
 
 impl Hasher for Sha256Hasher {
@@ -87,7 +87,7 @@ impl Hasher for Sha256Hasher {
 ///
 /// **Note**: BLAKE3 is used for development/experimentation. The final hash function
 /// for EIP-7864 is TBD (candidates: Keccak, Poseidon2).
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Blake3Hasher;
 
 impl Hasher for Blake3Hasher {
