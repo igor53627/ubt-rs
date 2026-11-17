@@ -117,18 +117,7 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
     where
         S: Default,
     {
-        let mut store = S::default();
-        store.reserve(capacity);
-        Self {
-            hasher: H::default(),
-            store,
-            root_dirty: false,
-            stem_hash_cache: HashMap::with_capacity(capacity),
-            dirty_stem_hashes: HashSet::new(),
-            root_hash_cached: B256::ZERO,
-            node_hash_cache: HashMap::with_capacity(capacity * 2),
-            incremental_enabled: false,
-        }
+        Self::with_hasher_and_capacity(H::default(), capacity)
     }
 
     /// Create a new tree with a custom hasher and pre-allocated capacity.
@@ -136,18 +125,9 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
     where
         S: Default,
     {
-        let mut store = S::default();
-        store.reserve(capacity);
-        Self {
-            hasher,
-            store,
-            root_dirty: false,
-            stem_hash_cache: HashMap::with_capacity(capacity),
-            dirty_stem_hashes: HashSet::new(),
-            root_hash_cached: B256::ZERO,
-            node_hash_cache: HashMap::with_capacity(capacity * 2),
-            incremental_enabled: false,
-        }
+        let mut tree: Self = Self::with_hasher_and_store(hasher, S::default());
+        tree.reserve_stems(capacity);
+        tree
     }
 
     /// Create a new tree with a custom storage backend.
@@ -155,19 +135,7 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
     /// If the store already contains stems, they are marked dirty so that
     /// the next [`root_hash`](Self::root_hash) call computes correctly.
     pub fn with_store(store: S) -> Self {
-        let capacity = store.len();
-        let dirty_stem_hashes: HashSet<Stem> = store.iter().map(|(s, _)| *s).collect();
-        let root_dirty = !dirty_stem_hashes.is_empty();
-        Self {
-            hasher: H::default(),
-            store,
-            root_dirty,
-            stem_hash_cache: HashMap::with_capacity(capacity),
-            dirty_stem_hashes,
-            root_hash_cached: B256::ZERO,
-            node_hash_cache: HashMap::with_capacity(capacity * 2),
-            incremental_enabled: false,
-        }
+        Self::with_hasher_and_store(H::default(), store)
     }
 
     /// Create a new tree with a custom hasher and storage backend.

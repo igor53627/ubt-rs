@@ -76,47 +76,36 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
         }
     }
 
-    #[cfg(feature = "parallel")]
+    /// Compute the hash of each dirty stem.
+    ///
+    /// Uses rayon when the `parallel` feature is enabled and there are enough stems
+    /// to offset the rayon overhead.
     fn compute_stem_updates(&self, dirty_stems: &[Stem]) -> Vec<(Stem, B256)> {
-        // Only use parallel processing if we have enough stems to offset rayon overhead
+        #[cfg(feature = "parallel")]
         if dirty_stems.len() >= PARALLEL_STEM_THRESHOLD {
-            dirty_stems
+            return dirty_stems
                 .par_iter()
                 .map(|stem| (*stem, self.compute_stem_hash(stem)))
-                .collect()
-        } else {
-            dirty_stems
-                .iter()
-                .map(|stem| (*stem, self.compute_stem_hash(stem)))
-                .collect()
+                .collect();
         }
+
+        dirty_stems
+            .iter()
+            .map(|stem| (*stem, self.compute_stem_hash(stem)))
+            .collect()
     }
 
     /// Rebuild the root from all stem nodes.
     fn rebuild_root(&mut self) -> Result<()> {
         // Don't clear `dirty_stem_hashes` until we've successfully rebuilt the root.
         // Otherwise, a failure would lose information needed for a retry.
-        let dirty_stems: Vec<_> = self.dirty_stem_hashes.iter().copied().collect();
+        let mut dirty_stems: Vec<Stem> = self.dirty_stem_hashes.iter().copied().collect();
 
-        #[cfg(feature = "parallel")]
-        {
-            let stem_updates = self.compute_stem_updates(&dirty_stems);
-            for (stem, hash) in &stem_updates {
-                if hash.is_zero() {
-                    self.stem_hash_cache.remove(stem);
-                } else {
-                    self.stem_hash_cache.insert(*stem, *hash);
-                }
-            }
-        }
-
-        #[cfg(not(feature = "parallel"))]
-        for stem in &dirty_stems {
-            let hash = self.compute_stem_hash(stem);
+        for (stem, hash) in self.compute_stem_updates(&dirty_stems) {
             if hash.is_zero() {
-                self.stem_hash_cache.remove(stem);
+                self.stem_hash_cache.remove(&stem);
             } else {
-                self.stem_hash_cache.insert(*stem, hash);
+                self.stem_hash_cache.insert(stem, hash);
             }
         }
 
@@ -127,23 +116,22 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
             return Ok(());
         }
 
-        if self.incremental_enabled && !self.node_hash_cache.is_empty() {
-            self.rebuild_root_incremental(&dirty_stems)?;
+        let mut stem_hashes: Vec<(Stem, B256)> =
+            self.stem_hash_cache.iter().map(|(s, h)| (*s, *h)).collect();
+        stem_hashes.sort_by_key(|(s, _)| *s);
+
+        let root_hash: B256 = if !self.incremental_enabled {
+            root_from_sorted_stem_hashes(&self.hasher, &stem_hashes, 0)?
+        } else if self.node_hash_cache.is_empty() {
+            self.build_root_hash_with_cache(&stem_hashes, 0, B256::ZERO)?
         } else {
-            let mut stem_hashes: Vec<_> =
-                self.stem_hash_cache.iter().map(|(s, h)| (*s, *h)).collect();
-            stem_hashes.sort_by_key(|(s, _)| *s);
+            // `incremental_hash_update` splits the dirty stems with `partition_point`,
+            // so they must be sorted.
+            dirty_stems.sort();
+            self.incremental_hash_update(&stem_hashes, 0, B256::ZERO, &dirty_stems)?
+        };
 
-            let root_hash = if self.incremental_enabled {
-                self.node_hash_cache.clear();
-                self.build_root_hash_with_cache(&stem_hashes, 0, B256::ZERO)?
-            } else {
-                root_from_sorted_stem_hashes(&self.hasher, &stem_hashes, 0)?
-            };
-
-            self.root_hash_cached = root_hash;
-        }
-
+        self.root_hash_cached = root_hash;
         self.dirty_stem_hashes.clear();
         Ok(())
     }
@@ -185,29 +173,6 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
 
         self.node_hash_cache.insert((depth, path_prefix), node_hash);
         Ok(node_hash)
-    }
-
-    /// Perform incremental root update for dirty stems.
-    /// Only recomputes paths from changed stems to root, using cached sibling hashes.
-    fn rebuild_root_incremental(&mut self, dirty_stems: &[Stem]) -> Result<()> {
-        let mut stem_hashes: Vec<_> = self.stem_hash_cache.iter().map(|(s, h)| (*s, *h)).collect();
-        stem_hashes.sort_by_key(|(s, _)| *s);
-
-        if stem_hashes.is_empty() {
-            self.root_hash_cached = B256::ZERO;
-            self.node_hash_cache.clear();
-            return Ok(());
-        }
-
-        let mut dirty_stems_sorted: Vec<_> = dirty_stems.to_vec();
-        dirty_stems_sorted.sort();
-        dirty_stems_sorted.dedup();
-
-        let root_hash =
-            self.incremental_hash_update(&stem_hashes, 0, B256::ZERO, &dirty_stems_sorted)?;
-
-        self.root_hash_cached = root_hash;
-        Ok(())
     }
 
     /// Recursively update the tree hash, only recomputing paths that contain dirty stems.
@@ -385,19 +350,7 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
         &mut self,
         entries: impl IntoIterator<Item = (TreeKey, B256)>,
     ) -> Result<()> {
-        let mut inserted_any = false;
-        for (key, value) in entries {
-            inserted_any = true;
-            let stem_node = self.store.get_or_create(key.stem);
-            stem_node.set_value(key.subindex, value);
-            self.dirty_stem_hashes.insert(key.stem);
-        }
-        if inserted_any {
-            self.root_dirty = true;
-            self.rebuild_root()?;
-            self.root_dirty = false;
-        }
-        Ok(())
+        self.insert_batch_with_progress(entries, |_| {})
     }
 
     /// Batch insert multiple key-value pairs with progress callback.
@@ -410,18 +363,13 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
         entries: impl IntoIterator<Item = (TreeKey, B256)>,
         mut on_progress: impl FnMut(usize),
     ) -> Result<()> {
-        let mut count = 0usize;
-        let mut inserted_any = false;
+        let mut count: usize = 0;
         for (key, value) in entries {
-            inserted_any = true;
-            let stem_node = self.store.get_or_create(key.stem);
-            stem_node.set_value(key.subindex, value);
-            self.dirty_stem_hashes.insert(key.stem);
+            self.insert(key, value);
             count += 1;
             on_progress(count);
         }
-        if inserted_any {
-            self.root_dirty = true;
+        if count > 0 {
             self.rebuild_root()?;
             self.root_dirty = false;
         }
