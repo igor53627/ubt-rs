@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `docs/eip-7864.md` and `docs/eip-7864-json.json` (copies of the upstream EIP text; `README.md` links the official EIP)
 
 ### Fixed
+- `get_code_chunk_key` handles every `u64` chunk number. For the last 128 chunk numbers (`chunk_number > u64::MAX - 128`), `CODE_OFFSET + chunk_number` overflowed `u64`: debug builds panicked, and release builds returned a key in the account stem (for `u64::MAX - 127`, the basic data key). The position is now computed in 128 bits. Keys for all other chunk numbers are unchanged.
 - `release.yml` and `fuzz.yml` no longer check out submodules, which failed after the submodule upstream was deleted
 - Local absolute paths (`file:///Users/...`) and dead links to the deleted repositories removed from the docs
 
