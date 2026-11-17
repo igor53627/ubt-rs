@@ -132,7 +132,7 @@ $ make check-deps
 
 Rocq version: The Rocq Prover, version 9.0.1
 compiled with OCaml 5.2.0
-RocqOfRust: /Users/user/pse/paradigm/rocq-of-rust/RocqOfRust
+RocqOfRust: $HOME/pse/paradigm/rocq-of-rust/RocqOfRust
 RocqOfRust library: compiled
 ```
 

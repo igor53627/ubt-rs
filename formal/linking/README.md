@@ -86,7 +86,7 @@ Establishes that running translated Rust code produces results equivalent to sim
 |--------|-------|-----------|
 | `GetLink` | `get_executes` | `rust_get ≈ sim_tree_get` |
 | `InsertLink` | `insert_executes` | `rust_insert ≈ sim_tree_insert` |
-| `DeleteLink` | `delete_executes` | `rust_delete ≈ sim_tree_delete` |
+| `DeleteLink` | `delete_executes` (proven theorem, not an axiom) | `rust_delete ≈ sim_tree_delete` |
 | `NewLink` | `new_executes` | `rust_new ≈ empty_tree` |
 | `HashLink` | `root_hash_executes` | `rust_root_hash ≈ sim_root_hash` |
 
@@ -186,7 +186,7 @@ eval $(opam env --switch=rocq-9)
 
 ## CI Integration
 
-The linking layer is included in CI builds but skipped if RocqOfRust is not available:
+The `proofs.yml` workflow does not build the linking layer, because the RocqOfRust build takes a long time. Build it locally:
 
 ```bash
 make ci   # clean + all + linking (requires RocqOfRust)

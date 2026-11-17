@@ -21,9 +21,6 @@ endif
 # See docs/LINKING_LAYER_SETUP.md for setup instructions
 ROCQOFRUST_PATH ?= $(HOME)/pse/paradigm/rocq-of-rust/RocqOfRust
 
-# Path to rocq-of-rust-interp library (submodule)
-INTERP_LIB_PATH ?= lib/rocq-of-rust-interp/src
-
 # Flags for our code (specs, simulations, proofs)
 # STDLIB_PATH is set for Coq 8.x compatibility with "From Stdlib" imports
 COQFLAGS := $(STDLIB_PATH) -Q specs UBT.Specs -Q simulations UBT.Sim -Q proofs UBT.Proofs
@@ -50,8 +47,8 @@ TRANS_VO := $(TRANS_FILES:.v=.vo)
 LINKING_FILES := $(wildcard linking/*.v)
 LINKING_VO := $(LINKING_FILES:.v=.vo)
 
-# Flags for linking layer (needs RocqOfRust + simulations + src + interp library)
-COQFLAGS_LINKING := $(STDLIB_PATH) -R $(ROCQOFRUST_PATH) RocqOfRust -Q simulations UBT.Sim -Q src src -Q linking UBT.Linking -Q $(INTERP_LIB_PATH) RocqInterp
+# Flags for linking layer (needs RocqOfRust + simulations + src)
+COQFLAGS_LINKING := $(STDLIB_PATH) -R $(ROCQOFRUST_PATH) RocqOfRust -Q simulations UBT.Sim -Q src src -Q linking UBT.Linking
 
 .PHONY: all clean specs simulations proofs proofs-core quickchick quickchick-ci test translate translation linking extract extract-test extract-clean docs docs-clean check-deps help ci ci-full audit verify-axioms check-admits
 

@@ -1,6 +1,6 @@
 # UBT Formal Verification Documentation
 
-**Status:** **VERIFICATION COMPLETE** (December 2024)
+**Status:** **VERIFICATION COMPLETE** (December 2025)
 
 This is the formal verification of the Unified Binary Tree (UBT) implementation for Ethereum's EIP-7864.
 
@@ -38,7 +38,7 @@ make docs
 │                                                                  │
 │  ┌─────────────┐                                                │
 │  │   Rust      │  Original implementation (../src/)             │
-│  │   Code      │  tree.rs, node.rs, key.rs, hash.rs, etc.       │
+│  │   Code      │  tree/, node.rs, key.rs, hash.rs, etc.         │
 │  └──────┬──────┘                                                │
 │         │ rocq-of-rust                                          │
 │         ▼                                                        │
@@ -79,7 +79,6 @@ make docs
 - [Tree Operations](html/UBT.Sim.tree.html) - Main implementation
 - [Verkle Support](html/UBT.Sim.verkle.html) - Polynomial commitment proofs
 - [Correctness Proofs](html/UBT.Proofs.correctness.html) - Main theorems
-- [Examples](html/UBT.Proofs.examples.html) - Concrete test cases
 
 ### Manual Documentation
 
@@ -148,9 +147,9 @@ See [VERIFICATION_SUMMARY.md](VERIFICATION_SUMMARY.md) for complete details.
 
 | Theorem | Location | Statement |
 |---------|----------|-----------|
-| `inclusion_proof_soundness` | tree.v | Valid proof ⟹ key-value exists |
-| `inclusion_proof_completeness` | tree.v | Value exists ⟹ proof exists |
-| `exclusion_completeness` | tree.v | Key absent ⟹ exclusion proof exists |
+| `inclusion_proof_soundness` (axiom) | tree.v | Valid proof ⟹ key-value exists |
+| `inclusion_completeness` (from axiom `inclusion_completeness_construction`) | security.v | Value exists ⟹ proof exists |
+| `exclusion_completeness` (from axiom `exclusion_completeness_construction`) | security.v | Key absent ⟹ exclusion proof exists |
 
 ## Build Targets
 

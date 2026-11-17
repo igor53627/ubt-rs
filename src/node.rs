@@ -9,6 +9,7 @@
 use alloy_primitives::B256;
 use std::collections::HashMap;
 
+use crate::merkle::hash_stem_values;
 use crate::{Hasher, Stem, SubIndex};
 
 /// A node in the UBT.
@@ -120,30 +121,7 @@ impl StemNode {
     /// 2. Build 8-level binary tree (256 leaves)
     /// 3. `hash(stem || 0x00 || subtree_root)`
     pub fn hash<H: Hasher>(&self, hasher: &H) -> B256 {
-        // Step 1: Hash all values
-        let mut data = [B256::ZERO; 256];
-        for (&idx, &value) in &self.values {
-            data[idx as usize] = hasher.hash_32(&value);
-        }
-
-        // Step 2: Build 8-level binary tree from bottom up
-        // Level 1: 256 -> 128
-        // Level 2: 128 -> 64
-        // ...
-        // Level 8: 2 -> 1
-        for level in 1..=8 {
-            let pairs = 256 >> level;
-            for i in 0..pairs {
-                let left = data[i * 2];
-                let right = data[i * 2 + 1];
-                data[i] = hasher.hash_64(&left, &right);
-            }
-        }
-
-        let subtree_root = data[0];
-
-        // Step 3: hash(stem || 0x00 || subtree_root)
-        hasher.hash_stem_node(self.stem.as_bytes(), &subtree_root)
+        hash_stem_values(hasher, &self.stem, &self.values)
     }
 }
 
@@ -231,6 +209,6 @@ mod tests {
         let hash = node.hash(&hasher);
         // With all-zero stem and all-zero values, subtree is zero
         // hash(0^31 || 0x00 || 0^32) should be computed
-        println!("Empty stem node hash: {}", hash);
+        println!("Empty stem node hash: {hash}");
     }
 }

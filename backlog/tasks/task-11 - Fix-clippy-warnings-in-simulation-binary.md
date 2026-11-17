@@ -1,7 +1,7 @@
 ---
 id: TASK-11
 title: Fix clippy warnings in simulation binary
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-04-01 06:13'
 labels: []

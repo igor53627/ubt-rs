@@ -134,7 +134,7 @@ Incremental mode is optimal for block-by-block processing where few stems change
 
 ### Tree Storage
 
-**Theorem: `tree_space_linear_in_entries`**
+**Axiom: `tree_space_linear_in_entries`**
 ```
 stem_count t ≤ tree_size t
 ```
@@ -175,16 +175,16 @@ While UBT has deeper trees, the binary structure and co-location make it more ef
 | `depth_bound` | ✓ Proven | Direct from definition |
 | `insert_preserves_depth_bound` | ✓ Proven | Structural induction |
 | `inserts_preserve_depth_bound` | ✓ Proven | Corollary |
-| `proof_size_logarithmic` | Admitted | Requires proof gen axiom |
-| `stem_colocation_shared_tree_proof` | Admitted | Structural property |
-| `stem_colocation_reduces_proofs` | Admitted | Follows from above |
-| `multiproof_shared_stem_efficiency` | Admitted | Deduplication property |
-| `multiproof_more_efficient` | Admitted | Deduplication property |
-| `tree_space_linear_in_entries` | ✓ Proven | Structural induction |
+| `proof_size_logarithmic` | Qed, from axiom `proof_size_logarithmic_axiom` | Requires proof gen axiom |
+| `stem_colocation_shared_tree_proof` | Qed, from axiom `stem_colocation_shared_tree_proof_axiom` | Structural property |
+| `stem_colocation_reduces_proofs` | Qed, from axiom `stem_colocation_reduces_proofs_axiom` | Follows from above |
+| `multiproof_shared_stem_efficiency` | Qed, from axiom `multiproof_shared_stem_efficiency_axiom` | Deduplication property |
+| `multiproof_more_efficient` | Qed, from axiom `multiproof_more_efficient_axiom` | Deduplication property |
+| `tree_space_linear_in_entries` | Axiom | Not proven in `simulations/complexity.v` |
 
 ## References
 
 - [EIP-7864](https://eips.ethereum.org/EIPS/eip-7864): Ethereum State Using a Unified Binary Tree
-- [`src/tree.rs`](../../src/tree.rs): Rust implementation of tree operations
+- [`src/tree/`](../../src/tree/mod.rs): Rust implementation of tree operations
 - [`src/proof.rs`](../../src/proof.rs): Rust implementation of proof generation
 - [`formal/simulations/tree.v`](../simulations/tree.v): Formal tree specification

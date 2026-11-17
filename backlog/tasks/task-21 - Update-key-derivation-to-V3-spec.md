@@ -1,7 +1,7 @@
 ---
 id: TASK-21
 title: Update key derivation to V3 spec (remove LE reversal)
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-05-01 07:30'
 labels: []

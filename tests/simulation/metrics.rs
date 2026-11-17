@@ -324,13 +324,13 @@ impl Metrics {
         let chaos_total = self.op_counters.total_chaos_ops();
 
         let ops_per_sec = if uptime > 0.0 {
-            ops as f64 / uptime
+            counter_as_f64(ops) / uptime
         } else {
             0.0
         };
 
         let progress_pct = if total > 0 {
-            (completed as f64 / total as f64) * 100.0
+            (counter_as_f64(completed) / counter_as_f64(total)) * 100.0
         } else {
             0.0
         };
@@ -338,60 +338,49 @@ impl Metrics {
         let base_metrics = format!(
             r"# HELP ubt_sim_operations_total Total operations executed
 # TYPE ubt_sim_operations_total counter
-ubt_sim_operations_total {}
+ubt_sim_operations_total {ops}
 
 # HELP ubt_sim_operations_per_second Current operations per second
 # TYPE ubt_sim_operations_per_second gauge
-ubt_sim_operations_per_second {:.2}
+ubt_sim_operations_per_second {ops_per_sec:.2}
 
 # HELP ubt_sim_seeds_completed Total seeds completed
 # TYPE ubt_sim_seeds_completed counter
-ubt_sim_seeds_completed {}
+ubt_sim_seeds_completed {completed}
 
 # HELP ubt_sim_seeds_failed Total seeds that found failures
 # TYPE ubt_sim_seeds_failed counter
-ubt_sim_seeds_failed {}
+ubt_sim_seeds_failed {failed}
 
 # HELP ubt_sim_seeds_total Total seeds to process
 # TYPE ubt_sim_seeds_total gauge
-ubt_sim_seeds_total {}
+ubt_sim_seeds_total {total}
 
 # HELP ubt_sim_progress_percent Simulation progress percentage
 # TYPE ubt_sim_progress_percent gauge
-ubt_sim_progress_percent {:.2}
+ubt_sim_progress_percent {progress_pct:.2}
 
 # HELP ubt_sim_invariant_violations Total invariant violations found
 # TYPE ubt_sim_invariant_violations counter
-ubt_sim_invariant_violations {}
+ubt_sim_invariant_violations {violations}
 
 # HELP ubt_sim_active_workers Number of active worker threads
 # TYPE ubt_sim_active_workers gauge
-ubt_sim_active_workers {}
+ubt_sim_active_workers {workers}
 
 # HELP ubt_sim_seeds_remaining Seeds remaining to process
 # TYPE ubt_sim_seeds_remaining gauge
-ubt_sim_seeds_remaining {}
+ubt_sim_seeds_remaining {remaining}
 
 # HELP ubt_sim_uptime_seconds Simulation uptime in seconds
 # TYPE ubt_sim_uptime_seconds gauge
-ubt_sim_uptime_seconds {:.2}
+ubt_sim_uptime_seconds {uptime:.2}
 
 # HELP ubt_sim_chaos_ops_total Total chaos/BUGGIFY operations executed
 # TYPE ubt_sim_chaos_ops_total counter
-ubt_sim_chaos_ops_total {}
+ubt_sim_chaos_ops_total {chaos_total}
 
-",
-            ops,
-            ops_per_sec,
-            completed,
-            failed,
-            total,
-            progress_pct,
-            violations,
-            workers,
-            remaining,
-            uptime,
-            chaos_total
+"
         );
 
         format!("{}{}", base_metrics, self.op_counters.to_prometheus())
@@ -430,7 +419,7 @@ pub struct MetricsSnapshot {
 impl MetricsSnapshot {
     pub fn operations_per_second(&self) -> f64 {
         if self.uptime_secs > 0.0 {
-            self.operations_total as f64 / self.uptime_secs
+            counter_as_f64(self.operations_total) / self.uptime_secs
         } else {
             0.0
         }
@@ -438,7 +427,7 @@ impl MetricsSnapshot {
 
     pub fn failure_rate(&self) -> f64 {
         if self.seeds_completed > 0 {
-            self.seeds_failed as f64 / self.seeds_completed as f64
+            counter_as_f64(self.seeds_failed) / counter_as_f64(self.seeds_completed)
         } else {
             0.0
         }
@@ -446,11 +435,17 @@ impl MetricsSnapshot {
 
     pub fn progress_percent(&self) -> f64 {
         if self.seeds_total > 0 {
-            (self.seeds_completed as f64 / self.seeds_total as f64) * 100.0
+            (counter_as_f64(self.seeds_completed) / counter_as_f64(self.seeds_total)) * 100.0
         } else {
             0.0
         }
     }
+}
+
+/// Converts a counter to `f64` for rates and percentages.
+#[allow(clippy::cast_precision_loss)] // No lossless u64 -> f64 conversion exists; values are display-only.
+pub fn counter_as_f64(count: u64) -> f64 {
+    count as f64
 }
 
 /// Shared metrics handle for multi-threaded access.
@@ -463,7 +458,7 @@ pub fn create_shared_metrics() -> SharedMetrics {
 
 /// HTTP metrics server for Prometheus scraping.
 pub mod server {
-    use super::SharedMetrics;
+    use super::{Metrics, SharedMetrics};
     use std::io::{Read, Write};
     use std::net::TcpListener;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -483,16 +478,13 @@ pub mod server {
             let shutdown_clone = Arc::clone(&shutdown);
             let metrics_clone = Arc::clone(&metrics);
 
-            let listener = TcpListener::bind(format!("0.0.0.0:{}", port))?;
+            let listener = TcpListener::bind(format!("0.0.0.0:{port}"))?;
             listener.set_nonblocking(true)?;
 
-            eprintln!(
-                "[METRICS] Prometheus endpoint listening on http://0.0.0.0:{}/metrics",
-                port
-            );
+            eprintln!("[METRICS] Prometheus endpoint listening on http://0.0.0.0:{port}/metrics");
 
             let handle = thread::spawn(move || {
-                Self::run_server(listener, metrics_clone, shutdown_clone);
+                Self::run_server(&listener, &metrics_clone, &shutdown_clone);
             });
 
             Ok(Self {
@@ -502,7 +494,7 @@ pub mod server {
             })
         }
 
-        fn run_server(listener: TcpListener, metrics: SharedMetrics, shutdown: Arc<AtomicBool>) {
+        fn run_server(listener: &TcpListener, metrics: &Metrics, shutdown: &AtomicBool) {
             while !shutdown.load(Ordering::Relaxed) {
                 match listener.accept() {
                     Ok((mut stream, _addr)) => {
@@ -528,7 +520,7 @@ pub mod server {
                         thread::sleep(Duration::from_millis(100));
                     }
                     Err(e) => {
-                        eprintln!("[METRICS] Connection error: {}", e);
+                        eprintln!("[METRICS] Connection error: {e}");
                         thread::sleep(Duration::from_millis(100));
                     }
                 }

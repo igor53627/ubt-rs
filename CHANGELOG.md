@@ -7,6 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Property tests P58-P61 for the binary codec: encode/decode round-trip, size prediction, determinism, and `decode_node` dispatch
+- "Binary Codec" section in `README.md`
+- `Debug` for `Blake3Hasher` and `Sha256Hasher`, so `UnifiedBinaryTree` with a built-in hasher now implements `Debug`; `Debug`, `Clone`, and `Copy` for `AccountStem`; `Debug` and `Clone` for `StreamingTreeBuilder`
+- Unit tests for `StreamingTreeBuilder`: `build_root_hash_parallel` with more stems than the rayon threshold (the parallel branch had no test), and zero-value handling
+
+### Changed
+- **Repository re-created.** The GitHub repository was deleted and re-created from the last local clone. Issue and pull request numbers in the entries for 0.5.1 and earlier refer to the deleted repository and no longer resolve.
+- `backlog/`: the ADR task is now TASK-22 (two tasks had the id TASK-19); the codec (TASK-19), V3 key derivation (TASK-21), and simulation clippy (TASK-11) tasks are marked Done
+- Tests, benches, and the `simulate` binary are refactored so that `cargo clippy --all-targets --all-features` reports no warnings (TASK-11). `WorkloadRunner::run`, `generate_test_cases`, and `run_multi_seed` are split into smaller functions. Test behaviour is unchanged.
+- Documentation matched to the current code: file paths (`src/tree/`, `src/hash.rs`), line references, removed APIs, axiom and theorem status, and the V3 key derivation
+- `README.md`: `new_executes`, `get_executes`, `insert_executes`, and inclusion/exclusion proof soundness are shown as axioms, as declared in `formal/linking/operations.v` and `formal/simulations/tree.v`. A note states that `formal/src/` models the crate source before 0.5.0.
+- `docs/eip-7864-implementations.md`: go-ethereum status updated (binary trie removed from `master` on 2026-11-10)
+- `README.md`: new section "go-ethereum Compatibility" with the result of a comparison against `trie/bintrie` at commit `b0f9324c`: same keys, leaves, and roots with `Sha256Hasher` and non-zero values; differences in zero-value handling, the default hasher, and the node encoding
+- `README.md`: scope decision recorded. The crate stays an implementation of the unified binary tree as in go-ethereum `trie/bintrie` at `b0f9324c`. EIP-8297 (partitioned binary tree) is a different tree and is not planned for this crate.
+- Formal verification docs: axiom totals recounted (209 in specs, simulations, proofs, and linking; 46 in linking), theorems that rest on construction axioms are marked, and `delete_executes` is shown as conditional on the `insert_executes` axiom
+- Rustdoc: every public variant and field has a `///` comment and `#![warn(missing_docs)]` is enabled; the `NodeStore` invariants, the `Hasher` zero rule for implementers, the panics of `Stem::from_slice` and `Stem::bit_at`, and the immediate root rebuild of `insert_batch` are documented; the node type list in the crate docs matches the structs
+- Internal cleanup of `src/` with no change to the public API: the test-only modules `compat_tests` and `geth_compat` are compiled only for tests; the write-only `root` field of `UnifiedBinaryTree` and `src/tree/build.rs` are removed, so `root_hash()` no longer clones every `StemNode` and the `Debug` output of the tree has no `root` field; the `Poseidon2Hasher` stub, which no code outside its module could reach, is removed; the stem hash and the root recursion, each implemented twice (tree and `StreamingTreeBuilder`), are now single functions in the private module `src/merkle.rs`; the two stem grouping loops of `StreamingTreeBuilder` are one function; the four `UnifiedBinaryTree` constructors share one struct literal, and `insert_batch` calls `insert_batch_with_progress`
+
+### Removed
+- Git submodule `formal/lib/rocq-of-rust-interp`. The upstream repository no longer exists and no `.v` file imported it. `INTERP_LIB_PATH` is removed from `formal/Makefile`.
+- `docs/kanban.md` and `docs/backlog.md` (superseded by `backlog/`)
+- `docs/eip-7864.md` and `docs/eip-7864-json.json` (copies of the upstream EIP text; `README.md` links the official EIP)
+
+### Fixed
+- `Proof::compute_root` (and `Proof::verify`) read the subindex bits of a `ProofNode::Stem` in the wrong order. `generate_stem_proof` and the `subtree_siblings` documentation order the siblings from leaf to root, but the verifier used the highest bit of the subindex first. A proof from `generate_stem_proof` verified only for the 16 subindexes whose bit pattern is a palindrome (for example 0, 0x81, 0xFF) and failed for the other 240. The verifier now uses the lowest bit first. `formal/proofs/multiproof.v` still models the old bit order.
+- `get_code_chunk_key` handles every `u64` chunk number. For the last 128 chunk numbers (`chunk_number > u64::MAX - 128`), `CODE_OFFSET + chunk_number` overflowed `u64`: debug builds panicked, and release builds returned a key in the account stem (for `u64::MAX - 127`, the basic data key). The position is now computed in 128 bits. Keys for all other chunk numbers are unchanged.
+- `release.yml` and `fuzz.yml` no longer check out submodules, which failed after the submodule upstream was deleted
+- Local absolute paths (`file:///Users/...`) and dead links to the deleted repositories removed from the docs
+
+## [0.5.1] - 2026-05-01
+
+### Fixed
+- **Key derivation updated to the go-ethereum V3 algorithm** (TASK-21)
+  - `get_binary_tree_key` now shifts the first 31 bytes of the input key right by one byte (`buf[1..32] = input_key[0..31]`) and stores the overflow flag in `buf[0]`, matching go-ethereum `trie/bintrie/key_encoding.go` at commit `735bfd12`. The previous V2 algorithm reversed the first 31 bytes to little-endian.
+  - Stems change for storage slots >= 64 and for code chunks >= 128, so root hashes of trees that contain such keys differ from 0.5.0. Header storage slots, basic data, and code hash keys are unchanged.
+  - Test vectors in `test_key_derivation_geth_vectors` regenerated for V3.
+
+### Added
+- **Compact binary codec** (TASK-19): public module `ubt::codec`
+  - Canonical wire format with a 1-byte type tag: Empty (1 byte), Internal (65 bytes), Stem (`[tag][31B stem][32B bitmap][N x 32B values]`), Leaf (33 bytes)
+  - `encode_stem_node`, `decode_stem_node`, `encoded_stem_size`, `encode_internal_node`, `decode_internal_node`, `encode_leaf_node`, `decode_leaf_node`, `encode_empty_node`, `decode_node`, `DecodedNode`
+  - Decoders reject trailing bytes, so `encode(decode(x)) == x`
+  - `UbtError::InvalidEncoding` error variant
+
+### Removed
+- Module-private aliases `account_stem_basic_data`, `code_chunk_key`, `storage_key` in `src/embedding.rs` (deprecated since 0.2.0, never re-exported from the crate root)
+
+## [0.5.0] - 2026-05-01
+
+### Added
+- **`NodeStore` trait for pluggable storage backends**
+  - `NodeStore` abstracts stem node storage; `InMemoryStore` is the default `HashMap`-backed implementation
+  - Constructors `UnifiedBinaryTree::with_store()` and `with_hasher_and_store()`; accessors `store()`, `store_mut()`, `into_store()`
+  - Constructors seed the dirty-stem set from a populated store, so the first `root_hash()` is correct
+
+### Changed
+- `UnifiedBinaryTree<H>` is now `UnifiedBinaryTree<H, S = InMemoryStore>`. Code that names the type with one parameter still compiles.
+
 ## [0.4.2] - 2026-04-02
 
 ### Fixed
@@ -34,11 +93,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.0] - 2026-03-10
 
 ### Fixed
-- **Root hash divergence from Geth for single-child subtrees** ([#70](https://github.com/igor53627/ubt-rs/issues/70))
+- **Root hash divergence from Geth for single-child subtrees** (#70)
   - Always compute `hash_64(left, right)` for non-empty internal nodes, even when one child is zero, matching Geth's `InternalNode.Hash()`. Previously short-circuited by returning the non-empty child's hash directly, causing ~75% of non-trivial trees to diverge.
-- **`chunkify_code` metadata divergence for multi-chunk PUSH overflow** ([#71](https://github.com/igor53627/ubt-rs/issues/71))
+- **`chunkify_code` metadata divergence for multi-chunk PUSH overflow** (#71)
   - Rewrote `chunkify_code` to match Geth's exact `chunkOffset`/`codeOffset` tracking algorithm. The previous subtract-chunk-size approach produced incorrect metadata when PUSH instruction data spanned 2+ chunk boundaries.
-- **Key derivation mismatch with Geth** ([#69](https://github.com/igor53627/ubt-rs/issues/69))
+- **Key derivation mismatch with Geth** (#69)
   - `get_binary_tree_key` now reverses bytes 0-30 to little-endian and hashes a full 64-byte preimage, matching Geth's `getBinaryTreeKey`. Previously hashed only 63 bytes without byte reversal.
   - Added overflow flag for storage slots where `slot[0] == 0xff`, matching Geth's out-of-band overflow tracking.
 

@@ -10,6 +10,8 @@
 
 A Rust implementation of [EIP-7864: Ethereum state using a unified binary tree](https://eips.ethereum.org/EIPS/eip-7864).
 
+> **Scope:** this crate implements the unified binary tree with 32-byte keys and 256-value stem nodes, as go-ethereum implemented it in `trie/bintrie`. It does not implement the EIP-8297 partitioned binary tree, and it does not follow the June 2026 revision of the EIP-7864 text. See [Scope and Direction](#scope-and-direction).
+
 ## Overview
 
 This crate provides a binary tree structure intended to replace Ethereum's hexary patricia trees. Key features:
@@ -205,7 +207,7 @@ To disable default features:
 
 ```toml
 [dependencies]
-ubt = { version = "0.2", default-features = false }
+ubt = { version = "0.5", default-features = false }
 ```
 
 To run the simulation stress-test binary:
@@ -230,9 +232,35 @@ impl Hasher for MyHasher {
 }
 ```
 
+## go-ethereum Compatibility
+
+The crate was compared with go-ethereum `trie/bintrie` at commit `b0f9324c` (2026-11-09). That is the last commit that contains the package: commit `ddaa6957` (2026-11-10) removed the EIP-7864 binary trie in favour of the EIP-8297 partitioned binary tree (`trie/pbt`).
+
+With `Sha256Hasher` and non-zero values, the crate gives the same tree keys, leaf contents, and root hashes as go-ethereum at that commit. The comparison ran the go-ethereum hashing and key derivation code against the crate, and it includes the root that go-ethereum pins in `TestBinaryGenesisCommit`.
+
+Known differences:
+
+| Area | go-ethereum `trie/bintrie` | This crate |
+|------|----------------------------|------------|
+| Hash function | SHA-256 | BLAKE3 by default; use `Sha256Hasher` for go-ethereum roots |
+| Zero values | A leaf that holds 32 zero bytes is present and hashes to `sha256(0^32)`. Deletion writes zero; stems are never removed. | A zero value is absent. `delete` removes the value and an empty stem. |
+| Node encoding | Stem tag `1`, internal tag `2`, bitmap MSB-first, internal nodes stored in groups of up to 8 levels | `ubt::codec`: stem tag `2`, internal tag `1`, bitmap LSB-first, one internal node per record. Not wire-compatible. |
+| Account API, node database, iterator, witness | Present | Not implemented |
+| Proof verification, streaming builder, incremental mode | Not implemented (`Prove` panics) | Present |
+
+A tree that contains a zero-valued leaf, for example a storage slot set to zero or a deleted account, has a different root in go-ethereum.
+
+### Scope and Direction
+
+Decision (2026-11-17): `ubt` stays an implementation of the unified binary tree. EIP-8297 support is not planned for this crate.
+
+- The reference for this crate is go-ethereum `trie/bintrie` at commit `b0f9324c`, the last commit before go-ethereum removed the package.
+- The EIP-7864 text changed on 2026-06-24 (ethereum/EIPs pull request 11832). The current text puts a storage-type byte first in the key and allows keys of arbitrary length. This crate implements the earlier design with fixed 32-byte keys.
+- EIP-8297 (Partitioned Binary Tree, Draft, created 2026-06-11) is a different tree. It has variable-length keys with a zone byte (34 and 66 bytes), no stem node with a fixed 256-leaf subtree, tagged leaf and branch hashes with a bit prefix, and code keyed by code hash. Of this crate, only the code chunking and the basic data layout apply to it. An implementation of EIP-8297 belongs in a separate crate.
+
 ## Formal Verification Status
 
-**Status:** **VERIFICATION COMPLETE** (December 2024)
+**Status:** **VERIFICATION COMPLETE** (December 2025)
 
 [![Proof Verification](https://github.com/igor53627/ubt-rs/actions/workflows/proofs.yml/badge.svg)](https://github.com/igor53627/ubt-rs/actions/workflows/proofs.yml)
 [![Verification Summary](https://img.shields.io/badge/verification-95%25%20confidence-brightgreen)](formal/docs/VERIFICATION_SUMMARY.md)
@@ -245,9 +273,9 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 | Metric | Initial | Final | Change |
 |--------|---------|-------|--------|
 | **Theorems (Qed)** | ~20 | **641** | +3105% |
-| **Total Axioms** | 50+ | **185** | All documented |
-| **Linking Axioms** | N/A | **45** | Minimal trust base |
-| **Admitted** | 10+ | **91** | 0 `admit.` tactics in linking/simulations/proofs; 91 `Admitted.` theorems in generated code ([details](formal/docs/ADMITS_TRACKING.md)) |
+| **Total Axioms** | 50+ | **186** | All documented |
+| **Linking Axioms** | N/A | **46** | Minimal trust base |
+| **Admitted** | 10+ | **79** | 0 `admit.` tactics in linking/simulations/proofs; 79 `Admitted.` theorems in generated code (`formal/src/`) ([details](formal/docs/ADMITS_TRACKING.md)) |
 | **QuickChick Properties** | 5 | **22 CI / 50 total** | 11k/500k tests |
 | **Verification Confidence** | - | **95%** | Complete |
 
@@ -255,10 +283,10 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 
 | Component | Status | Confidence |
 |-----------|--------|------------|
-| new_executes | **PROVEN** | 100% |
+| new_executes | AXIOM (`linking/operations.v`) | 100% |
 | delete_executes | **PROVEN** | 100% |
-| get_executes | **PROVEN** | 90% |
-| insert_executes | **PROVEN** | 95% |
+| get_executes | AXIOM; `get_executes_derived` is proven from lower-level axioms | 90% |
+| insert_executes | AXIOM; `insert_executes_derived` is proven from lower-level axioms | 95% |
 | root_hash_executes | DERIVED | 75% |
 
 ### Proven Properties
@@ -274,20 +302,22 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 | Keys with same stem share subtree | Proven | Rust API |
 | Insert preserves well-formedness | Proven | Rust API |
 | Order independence (all cases) | Proven | Rust API |
-| Inclusion proof soundness | Proven | Formal model |
-| Exclusion proof soundness | Proven | Formal model |
+| Inclusion proof soundness | Axiom | Formal model |
+| Exclusion proof soundness | Axiom | Formal model |
 | Batch verification soundness | Proven | Formal model |
 | EUF-MPA security | Proven | Formal model |
 | Accumulator soundness | Proven | Formal model |
 
 **Note:** Properties marked "Formal model" are proven in the Rocq formal verification but the corresponding Rust APIs (batch verification, accumulators) are not yet exposed.
 
+**Note:** The translated Rust code in `formal/src/` and the linking layer model the crate source before 0.5.0. They do not cover `NodeStore`, the binary codec, or the V3 key derivation.
+
 ### Axiom Classification
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| **Total Axioms** | 185 | All Axiom declarations in linking+simulations |
-| **Linking Axioms** | 45 | Axioms in formal/linking/ layer |
+| **Total Axioms** | 186 | All Axiom declarations in linking+simulations (209 with specs and proofs) |
+| **Linking Axioms** | 46 | Axioms in formal/linking/ layer |
 | **IRREDUCIBLE** | 25 | Minimal trust base (monad laws, crypto, stdlib) |
 | **Parameters (non-axioms)** | 77 | Type/function abstractions, tracked separately |
 
@@ -296,7 +326,7 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 - **RocqOfRust Translation:** Assumes correct Rust-to-Rocq translation
 - **HashMap/Iterator Semantics:** Standard library behavior
 
-**Future work:** Full M monad interpreter to eliminate simulation axioms (tracked in [rocq-of-rust-interp#1](https://github.com/formal-land/rocq-of-rust-interp/issues/1)).
+**Future work:** Full M monad interpreter to eliminate simulation axioms (was tracked in rocq-of-rust-interp#1; that repository no longer exists).
 
 See [formal/docs/VERIFICATION_SUMMARY.md](formal/docs/VERIFICATION_SUMMARY.md) for complete verification summary.
 
@@ -327,14 +357,13 @@ formal/
 ├── simulations/     # Idiomatic Rocq implementation + security proofs
 ├── proofs/          # Correctness proofs + QuickChick tests
 ├── linking/         # Rust-to-Rocq refinement (complete)
-├── lib/             # Reusable libraries (submodules)
+├── lib/             # Local M monad interpreter library
 └── src/             # Auto-generated translation (24k lines)
 ```
 
 ### Dependencies
 
 - [rocq-of-rust](https://github.com/formal-land/rocq-of-rust) - Rust to Rocq translation
-- [rocq-of-rust-interp](https://github.com/igor53627/rocq-of-rust-interp) - M monad interpreter library (submodule)
 
 ## Comparison with MPT
 
@@ -351,12 +380,13 @@ formal/
 ```
 ubt/
 ├── src/             # Rust implementation
-│   ├── tree/        # Main tree structure (mod, build, hash)
+│   ├── tree/        # Main tree structure (mod, hash)
 │   ├── store.rs     # NodeStore trait and InMemoryStore
 │   ├── codec.rs     # Compact binary node encoding
 │   ├── node.rs      # Node types
 │   ├── key.rs       # Tree keys and stems
 │   ├── hash.rs      # Hash trait and implementations
+│   ├── merkle.rs    # Shared stem hash and root recursion
 │   ├── embedding.rs # State embedding
 │   ├── streaming.rs # Streaming tree builder
 │   └── ...

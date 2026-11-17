@@ -29,12 +29,12 @@ The verification follows a **refinement approach**:
 |------------|-------------|---------|
 | `specs/tree_spec.v` | — | Abstract specification (no Rust equivalent) |
 | `specs/embedding_spec.v` | `src/embedding.rs` | EIP-7864 key derivation |
-| `simulations/tree.v` | `src/tree.rs` | Tree data structure and operations |
-| `simulations/crypto.v` | `src/hasher.rs` | Hash function abstraction |
+| `simulations/tree.v` | `src/tree/` | Tree data structure and operations |
+| `simulations/crypto.v` | `src/hash.rs` | Hash function abstraction |
 | `simulations/verkle.v` | — | Verkle proof support (future) |
 | `linking/types.v` | — | Type linking (φ encoding) |
 | `linking/operations.v` | — | Behavioral equivalence proofs |
-| `src/tree.v` | `src/tree.rs` | Auto-translated Rust code |
+| `src/tree.v` | `src/tree/` (translated when it was the single file `src/tree.rs`) | Auto-translated Rust code |
 | `src/node.v` | `src/node.rs` | Node types |
 | `src/key.v` | `src/key.rs` | Key types (Stem, TreeKey) |
 
@@ -44,23 +44,23 @@ The verification follows a **refinement approach**:
 
 ### Type Structure
 
-**Coq SimTree** (simulations/tree.v:343-345):
+**Coq SimTree** (simulations/tree.v:532-534):
 ```coq
 Record SimTree := mkSimTree {
   st_stems : StemMap
 }.
 ```
 
-**Rust UnifiedBinaryTree** (src/tree.rs):
+**Rust UnifiedBinaryTree** (src/tree/mod.rs, cache fields omitted):
 ```rust
-pub struct UnifiedBinaryTree<H: Hasher> {
-    root: Node,
+pub struct UnifiedBinaryTree<H: Hasher = Blake3Hasher, S: NodeStore = InMemoryStore> {
     hasher: H,
-    stems: HashMap<Stem, StemNode>,
+    store: S,
+    // ... dirty flags and hash caches
 }
 ```
 
-### φ Encoding (linking/types.v:194-205)
+### φ Encoding (linking/types.v, module `SimTreeLink` at line 615)
 
 The `SimTreeLink` module defines how Coq `SimTree` values encode to Rust `Value.t`:
 
@@ -79,6 +79,8 @@ Module SimTreeLink.
 End SimTreeLink.
 ```
 
+**Note:** This encoding models the translated structure in `formal/src/`, which predates crate version 0.5.0. That structure has one type parameter and the fields `root`, `hasher` and `stems`. The encoding does not cover the current `UnifiedBinaryTree<H, S>` shown above, which has a `store: S` field and no `root` field.
+
 ### Refinement Relation (linking/operations.v:171-172)
 
 ```coq
@@ -96,8 +98,8 @@ This states that a Rust tree value `rust_tree` **refines** a simulation tree `si
 
 | Aspect | Coq | Rust |
 |--------|-----|------|
-| Definition | `simulations/tree.v:350-354` | `src/tree.rs::get()` |
-| Linking | `linking/operations.v:314` | — |
+| Definition | `simulations/tree.v:539-543` | `src/tree/mod.rs::get()` |
+| Linking | `linking/operations.v:372` | — |
 | Verification | Axiom `get_executes` | — |
 
 **Coq Definition:**
@@ -133,8 +135,8 @@ Axiom get_executes :
 
 | Aspect | Coq | Rust |
 |--------|-----|------|
-| Definition | `simulations/tree.v:357-366` | `src/tree.rs::insert()` |
-| Linking | `linking/operations.v:379` | — |
+| Definition | `simulations/tree.v:546-555` | `src/tree/mod.rs::insert()` |
+| Linking | `linking/operations.v:488` | — |
 | Verification | Axiom `insert_executes` | — |
 
 **Coq Definition:**
@@ -172,9 +174,9 @@ Axiom insert_executes :
 
 | Aspect | Coq | Rust |
 |--------|-----|------|
-| Definition | `simulations/tree.v:369-370` | Insert with zero value |
-| Linking | `linking/operations.v:457-458` | — |
-| Verification | Axiom `delete_executes` | — |
+| Definition | `simulations/tree.v:558-559` | `src/tree/mod.rs::delete()` |
+| Linking | `linking/operations.v:635-650` | — |
+| Verification | Theorem `delete_executes`, proven for the model term `rust_delete` by applying the axiom `insert_executes` | — |
 
 **Coq Definition:**
 ```coq
@@ -182,9 +184,9 @@ Definition sim_tree_delete (t : SimTree) (k : TreeKey) : SimTree :=
   sim_tree_insert t k zero32.
 ```
 
-Delete is defined as insert with the zero value, matching the Rust implementation.
+In the Coq model, delete is defined as insert with the zero value. The linking layer also defines `rust_delete` as `rust_insert` with `zero32` (`linking/operations.v:573-574`); it does not use a translation of the Rust `delete()` method. The Rust `delete()` is a separate method: it removes the value (`set_value` with `B256::ZERO`) only when the stem exists, and it removes the stem node when no values are left.
 
-**Linking Theorem** (operations.v:484-491):
+**Linking Theorem** (operations.v:611-618):
 ```coq
 Theorem delete_is_insert_zero :
   forall (t : SimTree) (k : TreeKey),
@@ -197,21 +199,25 @@ Theorem delete_is_insert_zero :
 
 | Aspect | Coq | Rust |
 |--------|-----|------|
-| Definition | `simulations/tree.v` (via `sim_node_hash`) | `src/tree.rs::root_hash()` |
-| Linking | `linking/operations.v:567-583` | — |
+| Definition | `simulations/tree.v:1001-1003` (folds `stem_entry_hash` over `st_stems`; `stem_entry_hash` uses `subindex_map_hash`) | `src/tree/hash.rs::root_hash()` |
+| Linking | `linking/operations.v:779-785` | — |
 | Verification | Axiom `root_hash_executes` | — |
 
-The root hash computation uses the abstract hash functions defined in `simulations/crypto.v`:
+The root hash computation uses the abstract hash functions defined in `simulations/crypto.v` (`simulations/tree.v:993-1003`):
 
 ```coq
-Fixpoint sim_node_hash (n : SimNode) : Bytes32 :=
-  match n with
-  | SimEmpty => zero32
-  | SimInternal l r => hash_pair (sim_node_hash l) (sim_node_hash r)
-  | SimStem s values => hash_stem s zero32
-  | SimLeaf v => hash_value v
-  end.
+Definition subindex_map_hash (m : SubIndexMap) : Bytes32 :=
+  fold_left (fun acc p => hash_pair acc (hash_value (snd p))) m zero32.
+
+Definition stem_entry_hash (s : Stem) (m : SubIndexMap) : Bytes32 :=
+  hash_stem s (subindex_map_hash m).
+
+Definition sim_root_hash (t : SimTree) : Bytes32 :=
+  fold_left (fun acc p => hash_pair acc (stem_entry_hash (fst p) (snd p)))
+            (st_stems t) zero32.
 ```
+
+`sim_root_hash` does not call `sim_node_hash` (`simulations/tree.v:372-379`), whose `SimStem` branch ignores the stored values.
 
 ---
 
@@ -222,7 +228,7 @@ Fixpoint sim_node_hash (n : SimNode) : Bytes32 :=
 | `empty_tree` | `UnifiedBinaryTree::new()` | **Proven** | `NewLink.new_refines` | Empty tree creation |
 | `sim_tree_get` | `tree.get()` | **Axiom** | `GetLink.get_executes` | Requires monadic semantics |
 | `sim_tree_insert` | `tree.insert()` | **Axiom** | `InsertLink.insert_executes` | Requires HashMap linking |
-| `sim_tree_delete` | `tree.delete()` | **Axiom** | `DeleteLink.delete_executes` | Follows from insert |
+| `sim_tree_delete` | `tree.delete()` | **Conditional** | `DeleteLink.delete_executes` (theorem; applies axiom `InsertLink.insert_executes`) | Proven for `rust_delete`, defined as `rust_insert` with `zero32`; no link to the Rust `delete()` method |
 | `sim_root_hash` | `tree.root_hash().unwrap()` | **Axiom** | `HashLink.root_hash_executes` | Requires hash linking |
 | `wf_tree` | — | **Proven** | `insert_preserves_wf` | Well-formedness invariant |
 | `get_empty` | — | **Proven** | Direct | Empty returns None |
@@ -230,10 +236,10 @@ Fixpoint sim_node_hash (n : SimNode) : Bytes32 :=
 | `get_insert_other_stem` | — | **Proven** | Direct | Non-interference |
 | `get_insert_other_subindex` | — | **Proven** | Direct | Non-interference |
 | `get_delete` | — | **Proven** | Direct | Delete correctness |
-| `insert_order_independent_stems` | — | **Admitted** | Partial | Edge cases incomplete |
-| `hash_value` | `Hasher::hash()` | **Axiom** | Abstract parameter | Crypto abstraction |
-| `hash_pair` | `Hasher::hash_pair()` | **Axiom** | Abstract parameter | Crypto abstraction |
-| `hash_stem` | `Hasher::hash_stem()` | **Axiom** | Abstract parameter | Crypto abstraction |
+| `insert_order_independent_stems` | — | **Proven** | Direct | Closed with `Qed` in `simulations/tree.v` |
+| `hash_value` | `Hasher::hash_32()` | **Axiom** | Abstract parameter | Crypto abstraction |
+| `hash_pair` | `Hasher::hash_64()` | **Axiom** | Abstract parameter | Crypto abstraction |
+| `hash_stem` | `Hasher::hash_stem_node()` | **Axiom** | Abstract parameter | Crypto abstraction |
 | `verify_inclusion_proof` | `proof.verify()` | **Axiom** | `verify_executes` | Merkle proof verification |
 | `verify_batch_inclusion` | `batch_verify()` | **Axiom** | `rust_verify_batch_inclusion_executes` | Batch proof verification |
 | `InclusionProof` | `InclusionProof` | Stub | — | Proof structure (axiomatized) |
@@ -271,7 +277,7 @@ Fixpoint sim_node_hash (n : SimNode) : Bytes32 :=
    - HashMap implementation correctness
 
 2. **Hash Function Implementations**
-   - `PoseidonHasher`, `Keccak256Hasher` behave as specified
+   - `Blake3Hasher`, `Sha256Hasher` behave as specified
    - Collision resistance holds for the hash function
    - Zero values hash to zero (EIP-7864 requirement)
 
@@ -327,7 +333,7 @@ Fixpoint sim_node_hash (n : SimNode) : Bytes32 :=
 - Property-based testing of simulation operations
 - Randomized tree construction and queries
 - Shrinking for counterexample minimization
-- See `proofs/quickchick_test.v` for test definitions
+- See `proofs/quickchick_tests.v` for test definitions
 
 ---
 

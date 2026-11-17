@@ -6,80 +6,40 @@ This directory contains the M monad interpreter library for UBT's linking layer.
 
 ```
 formal/lib/
-├── rocq-of-rust-interp/    # Git submodule: general-purpose M monad interpreter
-│   └── src/
-│       ├── MInterpreter.v  # Core stepping semantics
-│       ├── StdlibHashMap.v # HashMap as association list
-│       ├── StdlibVec.v     # Vec as Rocq list
-│       └── ...
-├── MInterpreter.v          # [DEPRECATED] Local copy, use submodule instead
-├── StdlibHashMap.v         # [DEPRECATED] Local copy, use submodule instead
-└── README.md               # This file
++-- MInterpreter.v          # Core stepping semantics (general-purpose M monad interpreter)
++-- StdlibHashMap.v         # HashMap as association list
++-- README.md               # This file
 ```
 
 ## Usage
 
-The general-purpose library is now at https://github.com/igor53627/rocq-of-rust-interp
+`MInterpreter.v` and `StdlibHashMap.v` are the local copies of the general-purpose library and are the only copies in this repository.
 
-Import in your .v files:
-```coq
-Require Import RocqInterp.MInterpreter.
-Require Import RocqInterp.StdlibHashMap.
-```
+The git submodule `formal/lib/rocq-of-rust-interp` (upstream `https://github.com/igor53627/rocq-of-rust-interp`) is removed. The upstream repository no longer exists, and no `.v` file imported `RocqInterp`.
 
-The Makefile includes the library path via `-Q lib/rocq-of-rust-interp/src RocqInterp`.
+`formal/Makefile` does not compile the files in this directory and does not map a logical path to it. No `.v` file in `specs/`, `simulations/`, `proofs/`, or `linking/` imports them. The linking layer uses its own modules (`linking/MRun.v`, `linking/hashmap_bridge.v`, `linking/ubt_stepping.v`) that follow the same design.
+
+Both files require the RocqOfRust library (`RocqOfRust.RocqOfRust`, `RocqOfRust.links.M`; `MInterpreter.v` also requires `RocqOfRust.simulations.M`).
 
 ## Extension Points for UBT
 
-The library provides parameters that UBT implements in `linking/interpreter.v`:
+The library provides parameters that UBT implements in `linking/ubt_stepping.v`:
 
 ### step_primitive_ext
-Project-specific primitive stepping (not needed for core UBT operations).
+Project-specific primitive stepping (not needed for core UBT operations; `ubt_step_primitive_ext` returns `None`).
 
-### step_closure_ext  
-UBT implements this for:
-- `rust_get` - Tree get operation
-- `rust_insert` - Tree insert operation  
-- `rust_delete` - Tree delete operation
-- `rust_root_hash` - Root hash computation
+### step_closure_ext
+UBT implements this (`ubt_step_closure_ext`) for:
+- `StemNode::new` - Stem node constructor
+- `or_insert_with` - HashMap entry default factory
+
+Closure stepping for `rust_get`, `rust_insert`, `rust_delete`, and `rust_root_hash` is listed as remaining work in `linking/ubt_stepping.v`.
 
 ### TraitRegistry
-UBT registers trait implementations for:
-- `Hash` trait on node types
-- Iterator traits for tree traversal
-
-## Migration from Local Copy
-
-The local `MInterpreter.v` and `StdlibHashMap.v` files are identical to the library.
-They are kept for backward compatibility but should be considered deprecated.
-
-To migrate existing code:
-```coq
-(* Old *)
-Require Import UBT.Lib.MInterpreter.
-
-(* New *)
-Require Import RocqInterp.MInterpreter.
-```
-
-## Submodule Management
-
-Update to latest library version:
-```bash
-cd formal/lib/rocq-of-rust-interp
-git pull origin main
-cd ../../..
-git add formal/lib/rocq-of-rust-interp
-git commit -m "Update rocq-of-rust-interp submodule"
-```
-
-Initialize submodule after clone:
-```bash
-git submodule update --init --recursive
-```
+`MInterpreter.v` defines a `TraitRegistry` module for trait implementations. UBT's trait registry for the `Hasher` trait is in `linking/interpreter.v`.
 
 ## See Also
 
-- [rocq-of-rust-interp](https://github.com/igor53627/rocq-of-rust-interp) - The general-purpose library
 - [linking/interpreter.v](../linking/interpreter.v) - UBT-specific stepping implementation
-- [Issue #60](https://github.com/igor53627/ubt-rs/issues/60) - Axiom reduction roadmap
+- [linking/ubt_stepping.v](../linking/ubt_stepping.v) - UBT implementation of the extension points
+- Issue #60 (old repository numbering; no longer resolves) - Axiom reduction roadmap

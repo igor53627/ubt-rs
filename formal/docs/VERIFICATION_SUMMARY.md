@@ -1,6 +1,6 @@
 # UBT Formal Verification Summary
 
-**Date:** December 2024  
+**Date:** December 2025  
 **Status:** VERIFICATION COMPLETE  
 **Confidence:** 95%
 
@@ -12,7 +12,7 @@ The Unified Binary Tree (UBT) Rust implementation has undergone comprehensive fo
 
 - **697 proven theorems** (Qed count) across linking and simulation layers
 - **0 Admitted proofs** in linking/simulations/proofs (82 total in RocqOfRust src/)
-- **155 axioms** in linking layer (25 classified as irreducible)
+- **46 axioms** in the linking layer, **209** in specs, simulations, proofs and linking together (25 classified as irreducible)
 - **22 QuickChick CI properties** with 11,000+ tests
 - **Full OCaml extraction** with working FFI bridge and Rust integration tests
 
@@ -25,7 +25,7 @@ The verification provides high confidence (95%) that the Rust implementation cor
 | Metric | Initial | Final | Change |
 |--------|---------|-------|--------|
 | Proven Theorems (Qed) | ~20 | 697 | +3385% |
-| Linking Axioms (total) | 50+ | 155 | All documented |
+| Linking Axioms (total) | 50+ | 46 | All documented |
 | Irreducible Axioms | N/A | 25 | Minimal trust base |
 | Parameters | Unknown | 77 | Type abstractions |
 | Admitted Proofs | 10+ | 0 | All proven |
@@ -44,9 +44,10 @@ The verification provides high confidence (95%) that the Rust implementation cor
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| **Total Axioms** | 155 | All Axiom declarations in linking layer |
-| **IRREDUCIBLE** | 25 | Minimal trust base (cannot be proven) |
-| **DERIVABLE** | 128 | Could be proven with additional effort |
+| **Total Axioms** | 46 | All `Axiom` declarations in the linking layer (`formal/linking/`), counted outside comments |
+| **Total Axioms (all layers)** | 209 | specs 15, simulations 140, proofs 8, linking 46 |
+| **IRREDUCIBLE** | 25 | Minimal trust base (cannot be proven). December 2025 classification, not recounted |
+| **DERIVABLE** | 128 | Could be proven with additional effort. December 2025 classification, not recounted; it does not agree with the current totals |
 | **Parameters** | 77 | Type/function abstractions (not logical axioms) |
 
 ### Irreducible Core Axioms (8 of 25)
@@ -68,16 +69,18 @@ These represent the core minimal trust base (full inventory in "Axioms by File" 
 
 | File | Axioms | Parameters | Notes |
 |------|--------|------------|-------|
-| interpreter.v | 40 | 22 | Core M monad stepping |
-| operations.v | 23 | 9 | Run module, operation links |
-| types.v | 12 | 0 | Encoding axioms |
-| insert_stepping.v | 9 | 0 | Insert derivation |
-| field_stepping.v | 4 | 0 | Struct field access |
-| get_stepping.v | 3 | 0 | Get derivation |
+| types.v | 18 | 0 | Encoding axioms |
+| interpreter.v | 10 | 19 | Core M monad stepping |
+| operations.v | 10 | 8 | Run module, operation links |
+| field_stepping.v | 2 | 0 | Struct field access |
+| get_stepping.v | 2 | 0 | Get derivation |
+| MRun.v | 1 | 2 | Relational run semantics |
 | axiom_elimination.v | 1 | 0 | Fuel axiom elimination |
-| **Total Linking** | **92** | **31** | See AXIOM_CATALOG.md |
+| fuel_bridge.v | 1 | 0 | Bridge between interpreter fuel and MRun fuel |
+| insert_stepping.v | 1 | 0 | Insert derivation |
+| **Total Linking** | **46** | **29** | See AXIOM_CATALOG.md |
 
-Note: Axiom count includes all `Axiom` declarations. The 25 "irreducible" axioms are those that cannot be reduced to simpler proofs. Additional axioms exist in simulations/ and other directories.
+Note: Axiom count includes all `Axiom` declarations outside comments. The other five files in `formal/linking/` declare no axioms and no parameters. The 25 "irreducible" axioms are those that cannot be reduced to simpler proofs. Additional axioms exist outside the linking layer: 15 in `specs/`, 140 in `simulations/` and 8 in `proofs/`. The total for the four directories is 209.
 
 ---
 
@@ -253,7 +256,7 @@ Note: Axiom count includes all `Axiom` declarations. The 25 "irreducible" axioms
 - Final metrics:
   - **697 Qed** (proven theorems)
   - **0 Admitted** in linking/simulations/proofs (82 in RocqOfRust src/)
-  - **155 axioms** (25 irreducible)
+  - **46 linking axioms**, 209 axioms in specs, simulations, proofs and linking (25 irreducible)
 
 ---
 
@@ -264,7 +267,7 @@ Note: Axiom count includes all `Axiom` declarations. The 25 "irreducible" axioms
 | Linking layer | Basic stubs | 8 complete modules |
 | Admitted proofs | 10+ | 0 in linking/simulations/proofs |
 | Proven theorems | ~20 | 697 |
-| Linking axioms | 78 | 155 (25 irreducible) |
+| Linking axioms | 78 | 46 (25 irreducible) |
 | Axiom documentation | None | Full catalog |
 | Test coverage | Manual only | QuickChick + OCaml |
 | Rocq version | 8.x | 9.x migrated |
@@ -338,8 +341,8 @@ Note: Axiom count includes all `Axiom` declarations. The 25 "irreducible" axioms
 ## External Dependencies
 
 - [rocq-of-rust](https://github.com/formal-land/rocq-of-rust) - Rust to Rocq translation tool
-- [rocq-of-rust-interp](https://github.com/igor53627/rocq-of-rust-interp) - M monad interpreter library (submodule at `formal/lib/rocq-of-rust-interp`)
+- The M monad interpreter library is local: `formal/lib/MInterpreter.v` and `formal/lib/StdlibHashMap.v` (the `rocq-of-rust-interp` submodule is removed)
 
 ---
 
-Last updated: December 2024 (Final: 697 Qed, 155 Axioms (25 irreducible), 0 Admitted in linking/simulations/proofs)
+Last updated: December 2025 (Final: 697 Qed, 46 linking axioms and 209 axioms in specs, simulations, proofs and linking (25 irreducible), 0 Admitted in linking/simulations/proofs)

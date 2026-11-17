@@ -11,7 +11,9 @@ use crate::{error::Result, Hasher, Stem, StemNode, TreeKey, UbtError, STEM_LEN};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Direction {
+    /// The proven node is the left child; the sibling hash is the right input of the hash.
     Left,
+    /// The proven node is the right child; the sibling hash is the left input of the hash.
     Right,
 }
 
@@ -20,15 +22,26 @@ pub enum Direction {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ProofNode {
     /// Sibling hash at an internal node level
-    Internal { sibling: B256, direction: Direction },
+    Internal {
+        /// Hash of the sibling subtree.
+        sibling: B256,
+        /// Side of the internal node on which the proven node is.
+        direction: Direction,
+    },
     /// Stem node with the stem and subtree sibling hashes
     Stem {
+        /// Stem of the stem node.
         stem: Stem,
         /// Sibling hashes for the 8-level subtree (from leaf to root)
         subtree_siblings: Vec<B256>,
     },
     /// Extension proof (stem differs from expected)
-    Extension { stem: Stem, stem_hash: B256 },
+    Extension {
+        /// Stem of the stem node that is in the tree at this position.
+        stem: Stem,
+        /// Hash of that stem node.
+        stem_hash: B256,
+    },
 }
 
 /// A Merkle proof for a value in the UBT.
@@ -91,9 +104,10 @@ impl Proof {
                         )));
                     }
 
-                    // Rebuild subtree hash from siblings
+                    // Siblings are ordered from leaf to root, so level 0 uses the
+                    // lowest bit of the subindex.
                     for (level, sibling) in subtree_siblings.iter().enumerate() {
-                        let bit = (self.key.subindex >> (7 - level)) & 1;
+                        let bit = (self.key.subindex >> level) & 1;
                         current_hash = if bit == 0 {
                             hasher.hash_64(&current_hash, sibling)
                         } else {
@@ -120,7 +134,7 @@ impl Proof {
 
     /// Get the size of the proof in bytes.
     pub fn size(&self) -> usize {
-        let mut size = 32 + 1; // key stem + subindex
+        let mut size = 32 + 1; // key, counted as 33 bytes (stem and subindex occupy 32)
         size += 33; // value (32 bytes + 1 byte for Option tag)
 
         for node in &self.path {
@@ -275,7 +289,7 @@ mod tests {
         let proof = Proof::new(key, Some(B256::repeat_byte(0x42)), path);
 
         let size = proof.size();
-        println!("Proof size: {} bytes", size);
+        println!("Proof size: {size} bytes");
         assert!(size > 0);
     }
 
@@ -319,6 +333,84 @@ mod tests {
 
         assert!(result.is_ok());
         assert!(result.unwrap());
+    }
+
+    /// A proof from `generate_stem_proof` must verify against `StemNode::hash`
+    /// for every subindex of a full stem node.
+    #[test]
+    fn test_stem_proof_verifies_for_every_subindex() {
+        let hasher = Sha256Hasher;
+        let stem = Stem::new([7u8; 31]);
+        let mut node = StemNode::new(stem);
+        for subindex in 0u8..=255 {
+            let mut value = [0x11u8; 32];
+            value[0] = subindex;
+            node.set_value(subindex, B256::from(value));
+        }
+        let expected_root: B256 = node.hash(&hasher);
+
+        let mut failed: Vec<u8> = Vec::new();
+        for subindex in 0u8..=255 {
+            let (value, siblings) = generate_stem_proof(&node, subindex, &hasher);
+            let proof = Proof::new(
+                TreeKey::new(stem, subindex),
+                value,
+                vec![ProofNode::Stem {
+                    stem,
+                    subtree_siblings: siblings,
+                }],
+            );
+            if !proof.verify(&hasher, &expected_root).unwrap() {
+                failed.push(subindex);
+            }
+        }
+
+        assert!(
+            failed.is_empty(),
+            "{} of 256 subindexes do not verify: {failed:?}",
+            failed.len()
+        );
+
+        let (_, siblings) = generate_stem_proof(&node, 0, &hasher);
+        let wrong_value = Proof::new(
+            TreeKey::new(stem, 0),
+            Some(B256::repeat_byte(0xee)),
+            vec![ProofNode::Stem {
+                stem,
+                subtree_siblings: siblings,
+            }],
+        );
+        assert!(!wrong_value.verify(&hasher, &expected_root).unwrap());
+    }
+
+    /// The expected root is built by hand, without `generate_stem_proof` and
+    /// without `StemNode::hash`: values at subindexes 0 and 1, proof for subindex 1.
+    #[test]
+    fn test_compute_root_hand_built_stem_proof() {
+        let hasher = Sha256Hasher;
+        let stem = Stem::new([9u8; 31]);
+        let value0 = B256::repeat_byte(0xa0);
+        let value1 = B256::repeat_byte(0xa1);
+
+        let mut subtree_root: B256 =
+            hasher.hash_64(&hasher.hash_32(&value0), &hasher.hash_32(&value1));
+        for _ in 1..8 {
+            subtree_root = hasher.hash_64(&subtree_root, &B256::ZERO);
+        }
+        let expected_root: B256 = hasher.hash_stem_node(stem.as_bytes(), &subtree_root);
+
+        let mut siblings: Vec<B256> = vec![B256::ZERO; 8];
+        siblings[0] = hasher.hash_32(&value0);
+        let proof = Proof::new(
+            TreeKey::new(stem, 1),
+            Some(value1),
+            vec![ProofNode::Stem {
+                stem,
+                subtree_siblings: siblings,
+            }],
+        );
+
+        assert_eq!(proof.compute_root(&hasher).unwrap(), expected_root);
     }
 
     #[test]

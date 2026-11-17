@@ -5,7 +5,7 @@
       "author": "maintainer"
     },
     {
-      "content": "Key architectural layers: 1) Rust implementation (src/tree.rs, src/hasher.rs) - the actual tree with stems, leaves, and incremental updates. 2) Simulation layer (formal/simulations/) - abstract Coq model of tree operations. 3) Specification layer (formal/specs/) - EIP-7864 formal spec. 4) Linking layer (formal/linking/) - connects Rust translation to Coq proofs via RocqOfRust.",
+      "content": "Key architectural layers: 1) Rust implementation (src/tree/, src/hash.rs, src/store.rs, src/codec.rs) - the actual tree with stems, leaves, incremental updates, the NodeStore storage trait, and the binary node codec. 2) Simulation layer (formal/simulations/) - abstract Coq model of tree operations. 3) Specification layer (formal/specs/) - EIP-7864 formal spec. 4) Linking layer (formal/linking/) - connects Rust translation to Coq proofs via RocqOfRust.",
       "author": "maintainer"
     },
     {
@@ -73,11 +73,11 @@
       "author": "maintainer"
     },
     {
-      "content": "rocq-of-rust-interp library (PR #61): General-purpose M monad interpreter extracted to https://github.com/igor53627/rocq-of-rust-interp. Integrated as git submodule at formal/lib/rocq-of-rust-interp. Provides reusable stepping infrastructure for any RocqOfRust project.",
+      "content": "M monad interpreter library: the general-purpose M monad interpreter is local in formal/lib/MInterpreter.v and formal/lib/StdlibHashMap.v. The git submodule formal/lib/rocq-of-rust-interp (PR #61) is removed because the upstream repository no longer exists and no .v file imported RocqInterp. formal/Makefile does not compile formal/lib/.",
       "author": "maintainer"
     },
     {
-      "content": "Session work (December 2024): 1) Created rocq-of-rust-interp#1 issue for full M monad interpreter. 2) Added 6 new QuickChick iterator properties (P32-P37). 3) Fixed CodeRabbit PR #61 feedback: test counts, trivial properties, wiki metrics, error handling. 4) All metrics aligned: 641 Qed, 185 Axioms (45 in linking), 0 Admitted in linking layer (82 total in src/specs). 5) Build verified: 22 CI QuickChick tests pass.",
+      "content": "Session work (December 2025): 1) Created rocq-of-rust-interp#1 issue for full M monad interpreter. 2) Added 6 new QuickChick iterator properties (P32-P37). 3) Fixed CodeRabbit PR #61 feedback: test counts, trivial properties, wiki metrics, error handling. 4) All metrics aligned: 641 Qed, 185 Axioms (45 in linking), 0 Admitted in linking layer (82 total in src/specs). 5) Build verified: 22 CI QuickChick tests pass.",
       "author": "maintainer"
     },
     {
@@ -92,7 +92,7 @@
     },
     {
       "title": "Rust Implementation",
-      "purpose": "Document the core Rust code in src/: UnifiedBinaryTree struct, StemNode, TreeKey, insert/get/delete operations, and the hasher trait",
+      "purpose": "Document the core Rust code in src/: UnifiedBinaryTree<H, S> struct, StemNode, TreeKey, insert/get/delete operations, the Hasher trait, the NodeStore trait and InMemoryStore (src/store.rs), the codec module (src/codec.rs), and the StreamingTreeBuilder",
       "parent": "Overview"
     },
     {
@@ -127,7 +127,7 @@
     },
     {
       "title": "Axiom Audit",
-      "purpose": "Summarize axiom counts: 185 total (45 in linking layer, 25 irreducible; rest from RocqOfRust-generated code). Categorization of linking axioms (monad, termination, hashmap, trait resolution, state, batch, stdlib), and trust assumptions. Reference formal/docs/AXIOM_CATALOG.md",
+      "purpose": "Summarize axiom counts: 186 total (46 in linking layer, 25 irreducible; rest in formal/simulations/). Categorization of linking axioms (monad, termination, hashmap, trait resolution, state, batch, stdlib), and trust assumptions. Reference formal/docs/AXIOM_CATALOG.md",
       "parent": "Formal Verification"
     },
     {
@@ -157,7 +157,7 @@
     },
     {
       "title": "QuickChick Testing",
-      "purpose": "Document the property-based testing in formal/proofs/quickchick_tests.v: the 5 properties tested, generators, and CI integration",
+      "purpose": "Document the property-based testing in formal/proofs/quickchick_tests.v and formal/proofs/quickchick_tests_ci.v (22 properties in the CI file): the properties tested, generators, and CI integration",
       "parent": "Formal Verification"
     },
     {

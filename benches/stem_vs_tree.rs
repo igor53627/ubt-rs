@@ -11,21 +11,25 @@ use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criteri
 use std::collections::HashMap;
 use ubt::{Blake3Hasher, Hasher, Stem, TreeKey};
 
+fn low_byte(value: usize) -> u8 {
+    value.to_le_bytes()[0]
+}
+
 fn generate_test_data(num_stems: usize, values_per_stem: usize) -> Vec<(TreeKey, B256)> {
     let mut entries = Vec::with_capacity(num_stems * values_per_stem);
 
     for i in 0..num_stems {
         let mut stem_bytes = [0u8; 31];
-        stem_bytes[0] = (i >> 16) as u8;
-        stem_bytes[1] = (i >> 8) as u8;
-        stem_bytes[2] = i as u8;
-        stem_bytes[15] = ((i * 7) % 256) as u8;
+        stem_bytes[0] = low_byte(i >> 16);
+        stem_bytes[1] = low_byte(i >> 8);
+        stem_bytes[2] = low_byte(i);
+        stem_bytes[15] = low_byte((i * 7) % 256);
         let stem = Stem::new(stem_bytes);
 
         for j in 0..values_per_stem {
-            let subindex = (j % 256) as u8;
+            let subindex = low_byte(j % 256);
             let key = TreeKey::new(stem, subindex);
-            let value = B256::repeat_byte(((i + j) % 255 + 1) as u8);
+            let value = B256::repeat_byte(low_byte((i + j) % 255 + 1));
             entries.push((key, value));
         }
     }
@@ -99,9 +103,7 @@ fn build_tree_hash(hasher: &Blake3Hasher, stem_hashes: &[(Stem, B256)], depth: u
         return stem_hashes[0].1;
     }
 
-    if depth >= 248 {
-        panic!("Tree depth exceeded");
-    }
+    assert!(depth < 248, "Tree depth exceeded");
 
     let split_point = stem_hashes.partition_point(|(s, _)| !s.bit_at(depth));
     let (left, right) = stem_hashes.split_at(split_point);
@@ -136,7 +138,7 @@ fn bench_stem_hashing(c: &mut Criterion) {
                         stem_hashes.push((*stem, hash));
                     }
                     black_box(stem_hashes)
-                })
+                });
             },
         );
     }
@@ -152,12 +154,12 @@ fn bench_tree_building(c: &mut Criterion) {
         let mut stem_hashes: Vec<(Stem, B256)> = Vec::with_capacity(num_stems);
         for i in 0..num_stems {
             let mut stem_bytes = [0u8; 31];
-            stem_bytes[0] = (i >> 16) as u8;
-            stem_bytes[1] = (i >> 8) as u8;
-            stem_bytes[2] = i as u8;
-            stem_bytes[15] = ((i * 7) % 256) as u8;
+            stem_bytes[0] = low_byte(i >> 16);
+            stem_bytes[1] = low_byte(i >> 8);
+            stem_bytes[2] = low_byte(i);
+            stem_bytes[15] = low_byte((i * 7) % 256);
             let stem = Stem::new(stem_bytes);
-            let hash = B256::repeat_byte(((i % 255) + 1) as u8);
+            let hash = B256::repeat_byte(low_byte((i % 255) + 1));
             stem_hashes.push((stem, hash));
         }
         stem_hashes.sort_by(|a, b| a.0.cmp(&b.0));
@@ -196,7 +198,7 @@ fn bench_full_rebuild(c: &mut Criterion) {
                     stem_hashes.sort_by(|a, b| a.0.cmp(&b.0));
 
                     black_box(build_tree_hash(&hasher, &stem_hashes, 0))
-                })
+                });
             },
         );
     }

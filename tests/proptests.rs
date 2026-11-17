@@ -1,6 +1,6 @@
 //! Property-based tests for UBT using proptest.
 //!
-//! These tests mirror the QuickChick properties in formal/proofs/quickchick_tests.v
+//! These tests mirror the `QuickChick` properties in `formal/proofs/quickchick_tests.v`
 //! to ensure the Rust implementation matches the formal specification.
 
 use proptest::prelude::*;
@@ -908,7 +908,7 @@ proptest! {
         };
 
         let mut idx = query_idx as usize;
-        for sibling in siblings.iter() {
+        for sibling in &siblings {
             // Bottom-up: level 0 is leaf level, bit is idx & 1
             let is_right = (idx & 1) == 1;
             current = if is_right {
@@ -1249,9 +1249,9 @@ proptest! {
         slot2 in 0u64..64
     ) {
         let mut s1 = [0u8; 32];
-        s1[31] = slot1 as u8;
+        s1[31] = u8::try_from(slot1).expect("slot fits in u8");
         let mut s2 = [0u8; 32];
-        s2[31] = slot2 as u8;
+        s2[31] = u8::try_from(slot2).expect("slot fits in u8");
         let key1 = get_storage_slot_key(&addr, &s1);
         let key2 = get_storage_slot_key(&addr, &s2);
         // Header slots should share stem with basic data

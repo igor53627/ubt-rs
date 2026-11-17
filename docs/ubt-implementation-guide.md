@@ -97,6 +97,8 @@ def get_tree_key(address: bytes20, tree_index: int, sub_index: int) -> bytes32:
     return stem + bytes([sub_index])
 ```
 
+The pseudo-code above is a simplified illustration, not a specification. It encodes the tree index as 32 little-endian bytes. `spec/EIP-7864-spec.md` (section 4.1) hashes a 63-byte preimage that ends with the first 31 bytes of the input key, and the `ubt` crate puts those 31 big-endian bytes in `buf[1..32]`. The pseudo-code gives the same preimage as the crate only for tree index 0. Do not use it to derive keys. The `ubt` crate (since 0.5.1) follows the go-ethereum V3 derivation: `buf[0]` = overflow flag, `buf[1..32] = input_key[0..31]`, stem = first 31 bytes of `SHA256(zero[:12] || address || buf)`, subindex = `input_key[31]`. See the module docs in `src/embedding.rs`.
+
 ## Account Subtree Layout
 
 For any account, tree_index=0 gives the account subtree:
@@ -247,34 +249,7 @@ for block in blocks {
 
 ### Reorg Support with Block Diffs
 
-Use `UbtBlockDiff` to enable chain reorganization support:
-
-```rust
-use ubt::{UnifiedBinaryTree, UbtBlockDiff, TreeKey, Blake3Hasher};
-
-let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
-tree.enable_incremental_mode();
-
-// Process a block with diff tracking
-let mut diff = UbtBlockDiff::new();
-for (key, value) in block.writes {
-    tree.insert_with_diff(key, value, &mut diff);
-}
-for key in block.deletes {
-    tree.delete_with_diff(&key, &mut diff);
-}
-let post_block_root = tree.root_hash().unwrap();
-
-// Store diff for potential reorg (e.g., in a ring buffer of last N blocks)
-block_diffs.push(diff);
-
-// On reorg: revert blocks in reverse order
-for diff in block_diffs.drain(..).rev() {
-    tree.revert_diff(diff);
-}
-```
-
-**Note:** Only apply a diff to the tree state it was created from. Reverting diffs out of order or to a different state is undefined behavior.
+The `ubt` crate does not have a block diff API at this time. `UbtBlockDiff`, `insert_with_diff`, `delete_with_diff`, and `revert_diff` were removed in December 2025 and are not in the public API of `src/lib.rs`.
 
 ### Capacity Pre-allocation
 

@@ -24,7 +24,11 @@ impl Stem {
         Self(bytes)
     }
 
-    /// Create a stem from a slice. Panics if length != 31.
+    /// Create a stem from a slice.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the length of `slice` is not [`STEM_LEN`] (31).
     pub fn from_slice(slice: &[u8]) -> Self {
         let mut bytes = [0u8; STEM_LEN];
         bytes.copy_from_slice(slice);
@@ -43,6 +47,10 @@ impl Stem {
 
     /// Get bit at position (0 = MSB of first byte, 247 = LSB of last byte).
     /// This is used for tree traversal.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `pos` is 248 or more.
     pub fn bit_at(&self, pos: usize) -> bool {
         debug_assert!(pos < STEM_LEN * 8);
         let byte_idx = pos / 8;
@@ -156,7 +164,7 @@ mod tests {
     #[test]
     fn test_stem_bit_at() {
         let mut bytes = [0u8; STEM_LEN];
-        bytes[0] = 0b10000000; // MSB set
+        bytes[0] = 0b1000_0000; // MSB set
         let stem = Stem(bytes);
 
         assert!(stem.bit_at(0));
@@ -168,13 +176,13 @@ mod tests {
     fn test_first_differing_bit() {
         let stem1 = Stem([0u8; STEM_LEN]);
         let mut bytes2 = [0u8; STEM_LEN];
-        bytes2[0] = 0b10000000;
+        bytes2[0] = 0b1000_0000;
         let stem2 = Stem(bytes2);
 
         assert_eq!(stem1.first_differing_bit(&stem2), Some(0));
 
         let mut bytes3 = [0u8; STEM_LEN];
-        bytes3[0] = 0b00000001;
+        bytes3[0] = 0b0000_0001;
         let stem3 = Stem(bytes3);
 
         assert_eq!(stem1.first_differing_bit(&stem3), Some(7));

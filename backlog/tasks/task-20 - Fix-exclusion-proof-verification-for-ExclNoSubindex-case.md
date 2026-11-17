@@ -1,7 +1,7 @@
 ---
 id: TASK-20
 title: Fix exclusion proof verification for ExclNoSubindex case
-status: Completed
+status: Done
 assignee: [Gemini]
 created_date: '2026-04-01'
 updated_date: '2026-04-02'

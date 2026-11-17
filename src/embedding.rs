@@ -129,9 +129,7 @@ pub fn get_storage_slot_key(address: &Address, slot: &[u8; 32]) -> TreeKey {
         // slot // 256 as 31-byte big-endian: [slot[0], slot[1], ..., slot[30]]
         // Sum: tree_index[0] = 1 + slot[0], tree_index[1..31] = slot[1..31]
 
-        for i in (1..31).rev() {
-            k[i] = slot[i];
-        }
+        k[1..31].copy_from_slice(&slot[1..31]);
 
         // Byte 0: 1 (from 256^30) + slot[0], modulo 256.
         // When slot[0] == 0xff, this wraps to 0 and we track overflow
@@ -152,33 +150,18 @@ pub fn get_storage_slot_key_u256(address: &Address, slot: U256) -> TreeKey {
 
 /// Get the tree key for a code chunk.
 ///
-/// Per EIP-7864:
+/// Per EIP-7864, `pos = CODE_OFFSET + chunk_number`, `tree_index = pos // 256`,
+/// and `subindex = pos % 256`:
 /// - First 128 chunks (pos 128-255) go in account stem at subindex `128 + chunk_number`
-/// - Chunks >= 128 go in separate stems calculated from `stem_index`
+/// - Chunks >= 128 go in separate stems calculated from `tree_index`
 ///
-/// # Panics
-///
-/// Panics if internal indexing invariants are violated and a computed subindex does not
-/// fit in `u8` (subindexes are always in 0..256 by construction).
+/// Every `u64` chunk number is valid: `pos` is computed in 128 bits.
 pub fn get_code_chunk_key(address: &Address, chunk_number: u64) -> TreeKey {
-    let pos = u64::from(CODE_OFFSET) + chunk_number;
+    let pos: u128 = u128::from(CODE_OFFSET) + u128::from(chunk_number);
 
-    // First 128 chunks (pos < 256) go in account stem
-    if pos < STEM_SUBTREE_WIDTH {
-        let mut k = [0u8; 32];
-        k[31] = u8::try_from(pos).expect("pos < 256 by construction"); // subindex 128..255
-        return get_binary_tree_key(address, &k);
-    }
-
-    // Chunks >= 128 go in separate stems per EIP
-    let stem_index = pos / STEM_SUBTREE_WIDTH;
-    let subindex = u8::try_from(pos % STEM_SUBTREE_WIDTH).expect("subindex < 256 by construction");
-
+    // `tree_index || subindex` is `pos` as a 32-byte big-endian integer.
     let mut k = [0u8; 32];
-    // Encode stem_index into first 31 bytes (big-endian)
-    let stem_bytes = stem_index.to_be_bytes();
-    k[23..31].copy_from_slice(&stem_bytes); // align to end of 31-byte prefix
-    k[31] = subindex;
+    k[16..32].copy_from_slice(&pos.to_be_bytes());
     get_binary_tree_key(address, &k)
 }
 
@@ -248,6 +231,7 @@ impl BasicDataLeaf {
 }
 
 /// Helper struct for computing account keys.
+#[derive(Clone, Copy, Debug)]
 pub struct AccountStem {
     /// The account address
     pub address: Address,
@@ -329,7 +313,7 @@ mod tests {
 
     #[test]
     fn test_basic_data_roundtrip() {
-        let original = BasicDataLeaf::new(42, 1000000, 1024);
+        let original = BasicDataLeaf::new(42, 1_000_000, 1024);
         let encoded = original.encode();
         let decoded = BasicDataLeaf::decode(encoded);
         assert_eq!(original, decoded);
@@ -368,18 +352,86 @@ mod tests {
         let address = Address::repeat_byte(0x42);
 
         // Test that code chunk keys are deterministic
-        let key0a = get_code_chunk_key(&address, 0);
-        let key0b = get_code_chunk_key(&address, 0);
-        assert_eq!(key0a, key0b);
+        let key0_a = get_code_chunk_key(&address, 0);
+        let key0_b = get_code_chunk_key(&address, 0);
+        assert_eq!(key0_a, key0_b);
 
         // Different chunks have different keys
         let key1 = get_code_chunk_key(&address, 1);
-        assert_ne!(key0a.to_bytes(), key1.to_bytes());
+        assert_ne!(key0_a.to_bytes(), key1.to_bytes());
 
         // Different addresses have different keys for same chunk
         let addr2 = Address::repeat_byte(0x43);
         let key0_addr2 = get_code_chunk_key(&addr2, 0);
-        assert_ne!(key0a.stem, key0_addr2.stem);
+        assert_ne!(key0_a.stem, key0_addr2.stem);
+    }
+
+    /// Expected key for a code chunk: `get_binary_tree_key` of the 32-byte big-endian
+    /// encoding of `pos = CODE_OFFSET + chunk_number`, given as `(index, byte)` pairs.
+    fn code_chunk_key_from_pos_bytes(address: &Address, pos_bytes: &[(usize, u8)]) -> TreeKey {
+        let mut input = [0u8; 32];
+        for &(index, byte) in pos_bytes {
+            input[index] = byte;
+        }
+        get_binary_tree_key(address, &input)
+    }
+
+    #[test]
+    fn test_code_chunk_key_pinned_positions() {
+        let address = Address::repeat_byte(0x42);
+
+        // (chunk_number, non-zero bytes of pos = 128 + chunk_number as 32-byte big-endian)
+        let cases: [(u64, &[(usize, u8)]); 8] = [
+            (0, &[(31, 0x80)]),
+            (127, &[(31, 0xff)]),
+            (128, &[(30, 0x01)]),
+            (255, &[(30, 0x01), (31, 0x7f)]),
+            (383, &[(30, 0x01), (31, 0xff)]),
+            (384, &[(30, 0x02)]),
+            (1 << 32, &[(27, 0x01), (31, 0x80)]),
+            (
+                u64::MAX - 128,
+                &[
+                    (24, 0xff),
+                    (25, 0xff),
+                    (26, 0xff),
+                    (27, 0xff),
+                    (28, 0xff),
+                    (29, 0xff),
+                    (30, 0xff),
+                    (31, 0xff),
+                ],
+            ),
+        ];
+
+        for (chunk_number, pos_bytes) in cases {
+            assert_eq!(
+                get_code_chunk_key(&address, chunk_number),
+                code_chunk_key_from_pos_bytes(&address, pos_bytes),
+                "chunk {chunk_number}"
+            );
+        }
+    }
+
+    /// `CODE_OFFSET + chunk_number` does not fit in `u64` for the last 128 chunk numbers.
+    #[test]
+    fn test_code_chunk_key_pos_above_u64_max() {
+        let address = Address::repeat_byte(0x42);
+
+        // pos = 2^64
+        assert_eq!(
+            get_code_chunk_key(&address, u64::MAX - 127),
+            code_chunk_key_from_pos_bytes(&address, &[(23, 0x01)])
+        );
+        // pos = 2^64 + 127
+        assert_eq!(
+            get_code_chunk_key(&address, u64::MAX),
+            code_chunk_key_from_pos_bytes(&address, &[(23, 0x01), (31, 0x7f)])
+        );
+        assert_ne!(
+            get_code_chunk_key(&address, u64::MAX - 127),
+            get_basic_data_key(&address)
+        );
     }
 
     #[test]
@@ -411,10 +463,12 @@ mod tests {
             let chunk_key = get_code_chunk_key(&address, chunk_idx);
             assert_eq!(
                 chunk_key.stem, basic_key.stem,
-                "Chunk {} should share account stem",
-                chunk_idx
+                "Chunk {chunk_idx} should share account stem"
             );
-            assert_eq!(chunk_key.subindex, (128 + chunk_idx) as u8);
+            assert_eq!(
+                chunk_key.subindex,
+                u8::try_from(128 + chunk_idx).expect("subindex fits in u8")
+            );
         }
 
         // Chunk 128+ should be in different stems

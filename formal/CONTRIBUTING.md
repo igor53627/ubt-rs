@@ -16,11 +16,11 @@ Runs the full verification pipeline:
 
 | Step | Command | Description |
 |------|---------|-------------|
-| Core proofs | `make all` | Compile specs, simulations, proofs |
-| Linking layer | `make linking` | Compile linking with RocqOfRust |
+| Core proofs | `make specs`, `make simulations`, `make proofs-core` | Compile specs, simulations, core proofs |
+| QuickChick | `make quickchick-ci` | Run the CI property tests |
 | OCaml extraction | `make extract` | Generate and verify extracted.ml |
 | Documentation | `make docs` | Generate coqdoc HTML |
-| Audit | `make audit` | Count axioms/admits |
+| Audit | `make audit`, `make verify-axioms` | Count and list axioms/admits |
 | Threshold check | `make check-admits` | Fail if admits exceed threshold |
 
 ### Proof Lint (`lint.yml`)

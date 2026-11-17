@@ -169,7 +169,7 @@ These properties are assumed rather than proven:
 
 2. **alloy-primitives**: The B256, FixedBytes types are trusted.
 
-3. **Hasher implementations**: PoseidonHasher, Keccak256Hasher implementations are trusted.
+3. **Hasher implementations**: `Blake3Hasher` and `Sha256Hasher` implementations are trusted.
 
 ## Coverage of Rust Implementation
 
@@ -211,11 +211,11 @@ These properties are assumed rather than proven:
 
 ```text
 Source Files:
-  specs/          2 files,   ~650 lines
-  simulations/    3 files, ~1,250 lines  
-  proofs/         2 files,   ~470 lines
-  linking/        2 files, ~1,000 lines
-  src/            8 files, ~24,500 lines (auto-generated)
+  specs/          4 files,  ~1,000 lines
+  simulations/   10 files,  ~9,200 lines
+  proofs/         4 files,  ~2,250 lines
+  linking/       14 files, ~11,700 lines
+  src/            9 files, ~24,500 lines (auto-generated)
 
 Theorems:
   Fully proven:          ~30

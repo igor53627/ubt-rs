@@ -1,8 +1,7 @@
 //! Go-ethereum compatibility tests using their test vectors.
 //!
-//! These tests ensure our SHA256-based hashing and stem layout are
-//! deterministic and structurally compatible with go-ethereum's
-//! bintrie. Root hashes may differ due to tree structure differences.
+//! These tests use `Sha256Hasher` and assert that root hashes are equal to the
+//! roots that go-ethereum's bintrie produces for the same entries.
 
 #[cfg(test)]
 mod tests {
@@ -25,7 +24,7 @@ mod tests {
         hex_to_b256("0202020202020202020202020202020202020202020202020202020202020202")
     }
 
-    /// TestSingleEntry from go-ethereum
+    /// `TestSingleEntry` from go-ethereum
     /// Expected root: aab1060e04cb4f5dc6f697ae93156a95714debbf77d54238766adc5709282b6f
     #[test]
     fn test_single_entry_sha256() {
@@ -45,7 +44,7 @@ mod tests {
         assert_eq!(root, expected, "single entry root must match go-ethereum");
     }
 
-    /// TestTwoEntriesDiffFirstBit from go-ethereum
+    /// `TestTwoEntriesDiffFirstBit` from go-ethereum
     /// Expected root: dfc69c94013a8b3c65395625a719a87534a7cfd38719251ad8c8ea7fe79f065e
     #[test]
     fn test_two_entries_diff_first_bit_sha256() {
@@ -80,7 +79,7 @@ mod tests {
         node.set_value(0, one_key());
 
         let hash = node.hash(&hasher);
-        println!("Stem node hash (single value at idx 0): {}", hash);
+        println!("Stem node hash (single value at idx 0): {hash}");
 
         // The hash should be:
         // 1. hash(value) for leaf
@@ -113,11 +112,11 @@ mod tests {
         assert_eq!(tree.len(), 2);
 
         let root = tree.root_hash().unwrap();
-        println!("Colocated values root: {}", root);
+        println!("Colocated values root: {root}");
         assert_ne!(root, B256::ZERO);
     }
 
-    /// Regression test for #70: one-sided subtrees must hash_64 against zero,
+    /// Regression test for #70: one-sided subtrees must `hash_64` against zero,
     /// not short-circuit by returning the non-empty child's hash directly.
     /// Two stems that both start with bit 0 produce a one-sided tree at depth 0.
     /// Expected root from go-ethereum: eb3937998684b2dbf1f87c9b48ff3dd0282ca3073d3f87611e06586b88297c91
@@ -147,7 +146,7 @@ mod tests {
         );
     }
 
-    /// Same test via StreamingTreeBuilder for #70 coverage.
+    /// Same test via `StreamingTreeBuilder` for #70 coverage.
     #[test]
     fn test_one_sided_subtree_streaming() {
         use crate::{StreamingTreeBuilder, TreeKey};
@@ -218,8 +217,8 @@ mod tests {
         let expected = hasher.hash_64(&left_hash, &right_hash);
         assert_eq!(internal_hash, expected);
 
-        println!("Left stem hash:  {}", left_hash);
-        println!("Right stem hash: {}", right_hash);
-        println!("Internal hash:   {}", internal_hash);
+        println!("Left stem hash:  {left_hash}");
+        println!("Right stem hash: {right_hash}");
+        println!("Internal hash:   {internal_hash}");
     }
 }

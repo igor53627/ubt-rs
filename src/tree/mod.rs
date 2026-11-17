@@ -18,20 +18,17 @@
 //! Where S = total stems, D = 248 (tree depth), C = changed stems since last rebuild.
 //!
 //! Note: incremental mode improves hash recomputation to O(D * C), but the current
-//! implementation still sorts stems and rebuilds structure (O(S log S)), so incremental
+//! implementation still collects and sorts all stem hashes (O(S log S)), so incremental
 //! `root_hash` time is written as `O(S log S + D * C)`.
 
-mod build;
 mod hash;
 
 use alloy_primitives::B256;
 use std::collections::{HashMap, HashSet};
 
+use crate::merkle::MAX_DEPTH;
 use crate::store::{InMemoryStore, NodeStore};
-use crate::{Blake3Hasher, Hasher, Node, Stem, StemNode, TreeKey, STEM_LEN};
-
-/// Maximum tree depth (248 bits = 31 bytes * 8)
-const MAX_DEPTH: usize = STEM_LEN * 8;
+use crate::{Blake3Hasher, Hasher, Stem, StemNode, TreeKey};
 
 /// Key for intermediate node cache: (depth, `path_prefix` as B256)
 /// The `path_prefix` contains the bits from the root to this node.
@@ -56,14 +53,12 @@ type NodeCacheKey = (usize, B256);
 /// hashes in `node_hash_cache`. This makes hash recomputation O(D * C) where D=248
 /// (tree depth) and C=changed stems per block.
 ///
-/// Note: the current rebuild path still does structural work (sorting/rebuilding),
+/// Note: the current rebuild path still collects and sorts all stem hashes,
 /// so end-to-end `root_hash()` may remain O(S log S).
 ///
 /// This is the recommended approach for block-by-block state updates.
 #[derive(Clone, Debug)]
 pub struct UnifiedBinaryTree<H: Hasher = Blake3Hasher, S: NodeStore = InMemoryStore> {
-    /// Root node of the tree (kept for potential proof generation)
-    root: Node,
     /// Hasher instance
     hasher: H,
     /// Stem node storage backend
@@ -79,7 +74,7 @@ pub struct UnifiedBinaryTree<H: Hasher = Blake3Hasher, S: NodeStore = InMemorySt
     /// Cache of intermediate node hashes for incremental updates.
     /// Key: (depth, `path_prefix`), Value: hash at that node.
     /// This enables O(D * C) hash recomputation where D=248 depth and C=changed stems.
-    /// Note: end-to-end rebuilds still include structural work (e.g., sorting/rebuilding).
+    /// Note: end-to-end rebuilds still collect and sort all stem hashes.
     node_hash_cache: HashMap<NodeCacheKey, B256>,
     /// Whether incremental mode is active (cache is populated and valid)
     incremental_enabled: bool,
@@ -122,19 +117,7 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
     where
         S: Default,
     {
-        let mut store = S::default();
-        store.reserve(capacity);
-        Self {
-            root: Node::Empty,
-            hasher: H::default(),
-            store,
-            root_dirty: false,
-            stem_hash_cache: HashMap::with_capacity(capacity),
-            dirty_stem_hashes: HashSet::new(),
-            root_hash_cached: B256::ZERO,
-            node_hash_cache: HashMap::with_capacity(capacity * 2),
-            incremental_enabled: false,
-        }
+        Self::with_hasher_and_capacity(H::default(), capacity)
     }
 
     /// Create a new tree with a custom hasher and pre-allocated capacity.
@@ -142,19 +125,9 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
     where
         S: Default,
     {
-        let mut store = S::default();
-        store.reserve(capacity);
-        Self {
-            root: Node::Empty,
-            hasher,
-            store,
-            root_dirty: false,
-            stem_hash_cache: HashMap::with_capacity(capacity),
-            dirty_stem_hashes: HashSet::new(),
-            root_hash_cached: B256::ZERO,
-            node_hash_cache: HashMap::with_capacity(capacity * 2),
-            incremental_enabled: false,
-        }
+        let mut tree: Self = Self::with_hasher_and_store(hasher, S::default());
+        tree.reserve_stems(capacity);
+        tree
     }
 
     /// Create a new tree with a custom storage backend.
@@ -162,20 +135,7 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
     /// If the store already contains stems, they are marked dirty so that
     /// the next [`root_hash`](Self::root_hash) call computes correctly.
     pub fn with_store(store: S) -> Self {
-        let capacity = store.len();
-        let dirty_stem_hashes: HashSet<Stem> = store.iter().map(|(s, _)| *s).collect();
-        let root_dirty = !dirty_stem_hashes.is_empty();
-        Self {
-            root: Node::Empty,
-            hasher: H::default(),
-            store,
-            root_dirty,
-            stem_hash_cache: HashMap::with_capacity(capacity),
-            dirty_stem_hashes,
-            root_hash_cached: B256::ZERO,
-            node_hash_cache: HashMap::with_capacity(capacity * 2),
-            incremental_enabled: false,
-        }
+        Self::with_hasher_and_store(H::default(), store)
     }
 
     /// Create a new tree with a custom hasher and storage backend.
@@ -187,7 +147,6 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
         let dirty_stem_hashes: HashSet<Stem> = store.iter().map(|(s, _)| *s).collect();
         let root_dirty = !dirty_stem_hashes.is_empty();
         Self {
-            root: Node::Empty,
             hasher,
             store,
             root_dirty,
@@ -261,7 +220,8 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
     /// Get mutable access to a stem node, creating it if it doesn't exist.
     ///
     /// Note: This is a low-level mutating API. Any modifications to the returned
-    /// `StemNode` will affect the tree's root hash.
+    /// `StemNode` will affect the tree's root hash. Do not change the `stem` field
+    /// of the returned node: the tree finds the node by `stem` and hashes the field.
     pub fn get_or_create_stem(&mut self, stem: Stem) -> &mut StemNode {
         self.dirty_stem_hashes.insert(stem);
         self.root_dirty = true;
@@ -321,6 +281,20 @@ mod tests {
     }
 
     #[test]
+    fn test_public_types_implement_debug_clone_copy() {
+        fn assert_debug<T: std::fmt::Debug>() {}
+        fn assert_clone<T: Clone>() {}
+        fn assert_copy<T: Copy>() {}
+
+        assert_debug::<UnifiedBinaryTree<Blake3Hasher>>();
+        assert_debug::<UnifiedBinaryTree<crate::Sha256Hasher>>();
+        assert_debug::<crate::StreamingTreeBuilder<Blake3Hasher>>();
+        assert_clone::<crate::StreamingTreeBuilder<Blake3Hasher>>();
+        assert_debug::<crate::AccountStem>();
+        assert_copy::<crate::AccountStem>();
+    }
+
+    #[test]
     fn test_single_insert() {
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
         let key = TreeKey::from_bytes(B256::repeat_byte(0x01));
@@ -354,11 +328,11 @@ mod tests {
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
 
         let mut stem1_bytes = [0u8; 31];
-        stem1_bytes[0] = 0b00000000;
+        stem1_bytes[0] = 0b0000_0000;
         let stem1 = Stem::new(stem1_bytes);
 
         let mut stem2_bytes = [0u8; 31];
-        stem2_bytes[0] = 0b10000000;
+        stem2_bytes[0] = 0b1000_0000;
         let stem2 = Stem::new(stem2_bytes);
 
         tree.insert(TreeKey::new(stem1, 0), B256::repeat_byte(0x01));
@@ -849,8 +823,9 @@ mod tests {
             .collect();
 
         for (i, key) in keys.iter().enumerate() {
-            tree_full.insert(*key, B256::repeat_byte((i as u8).max(1)));
-            tree_incr.insert(*key, B256::repeat_byte((i as u8).max(1)));
+            let value_byte: u8 = u8::try_from(i).expect("index fits in u8").max(1);
+            tree_full.insert(*key, B256::repeat_byte(value_byte));
+            tree_incr.insert(*key, B256::repeat_byte(value_byte));
         }
 
         tree_full.root_hash().unwrap();

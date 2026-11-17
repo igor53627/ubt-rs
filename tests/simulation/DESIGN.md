@@ -66,17 +66,17 @@ Verifies Merkle tree properties:
 
 ### Single seed (debugging)
 ```bash
-cargo run --bin simulate -- --seed 12345 --ops 10000
+cargo run --bin simulate --features simulate -- --seed 12345 --ops 10000
 ```
 
 ### Multi-threaded simulation
 ```bash
-cargo run --release --bin simulate -- --seeds 0..100000 --workers 8
+cargo run --release --bin simulate --features simulate -- --seeds 0..100000 --workers 8
 ```
 
 ### Reproduce a failure
 ```bash
-cargo run --bin simulate -- --seed <failed_seed> --ops 1000
+cargo run --bin simulate --features simulate -- --seed <failed_seed> --ops 1000
 ```
 
 ## Chaos/Nemesis Operations (BUGGIFY)
@@ -122,7 +122,7 @@ The simulation exposes metrics via a built-in HTTP server for Prometheus scrapin
 
 ```bash
 # Start simulation with metrics endpoint
-cargo run --release --bin simulate -- --seeds 0..1000000 --metrics-port 9090
+cargo run --release --bin simulate --features simulate -- --seeds 0..1000000 --metrics-port 9090
 ```
 
 #### Available Metrics
@@ -192,7 +192,7 @@ The dashboard includes:
 
 ```bash
 # Terminal 1: Start simulation
-cargo run --release --bin simulate -- \
+cargo run --release --bin simulate --features simulate -- \
   --seeds 0..1000000 \
   --workers 8 \
   --metrics-port 9090

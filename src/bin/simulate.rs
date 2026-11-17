@@ -11,9 +11,12 @@ use std::time::Duration;
 #[path = "../../tests/simulation/mod.rs"]
 mod simulation;
 
+use simulation::metrics::{counter_as_f64, Metrics};
+use simulation::ubt_adapter::UbtDatabase;
+use simulation::workload::TestableDatabase;
 use simulation::{
-    create_shared_metrics, Coordinator, CoordinatorConfig, TestableDatabase, UbtDatabase,
-    WorkloadConfig, WorkloadContext, WorkloadRunner,
+    create_shared_metrics, Coordinator, CoordinatorConfig, WorkloadConfig, WorkloadContext,
+    WorkloadRunner,
 };
 
 fn main() {
@@ -25,12 +28,10 @@ fn main() {
     }
 
     let single_seed = parse_arg(&args, "--seed").map(|s| s.parse::<u64>().expect("invalid seed"));
-    let ops = parse_arg(&args, "--ops")
-        .map(|s| s.parse::<u64>().expect("invalid ops"))
-        .unwrap_or(1000);
-    let workers = parse_arg(&args, "--workers")
-        .map(|s| s.parse::<usize>().expect("invalid workers"))
-        .unwrap_or(num_cpus::get());
+    let ops = parse_arg(&args, "--ops").map_or(1000, |s| s.parse::<u64>().expect("invalid ops"));
+    let workers = parse_arg(&args, "--workers").map_or(num_cpus::get(), |s| {
+        s.parse::<usize>().expect("invalid workers")
+    });
     let metrics_port =
         parse_arg(&args, "--metrics-port").map(|s| s.parse::<u16>().expect("invalid metrics port"));
 
@@ -43,11 +44,11 @@ fn main() {
     };
 
     println!("=== UBT Simulation Testing ===");
-    println!("Seeds: {}..{}", seed_start, seed_end);
-    println!("Workers: {}", workers);
-    println!("Ops per seed: {}", ops);
+    println!("Seeds: {seed_start}..{seed_end}");
+    println!("Workers: {workers}");
+    println!("Ops per seed: {ops}");
     if let Some(port) = metrics_port {
-        println!("Metrics: http://0.0.0.0:{}/metrics", port);
+        println!("Metrics: http://0.0.0.0:{port}/metrics");
     }
     println!();
 
@@ -59,7 +60,7 @@ fn main() {
 }
 
 fn run_single_seed(seed: u64, ops: u64) {
-    println!("Running single seed: {}", seed);
+    println!("Running single seed: {seed}");
 
     let config = WorkloadConfig {
         operations_per_run: ops,
@@ -110,7 +111,7 @@ fn run_single_seed(seed: u64, ops: u64) {
             seed, result.operations_executed, result.duration
         );
         for violation in &result.violations {
-            println!("  Violation: {}", violation);
+            println!("  Violation: {violation}");
         }
         std::process::exit(1);
     }
@@ -152,11 +153,30 @@ fn run_multi_seed(
     if duration_secs > 0.0 {
         println!(
             "Ops/sec: {:.0}",
-            result.stats.total_operations as f64 / duration_secs
+            counter_as_f64(result.stats.total_operations) / duration_secs
         );
     }
     println!();
-    println!("Chaos operations: {}", msnap.chaos_ops_total);
+    print_chaos_breakdown(&metrics, msnap.chaos_ops_total);
+
+    if !result.failed_seeds.is_empty() {
+        println!();
+        println!("Failed seeds:");
+        for seed in &result.failed_seeds {
+            println!("  {seed}");
+        }
+        println!();
+        println!("To reproduce a failure, run:");
+        println!(
+            "  cargo run --bin simulate -- --seed {} --ops {}",
+            result.failed_seeds[0], ops
+        );
+        std::process::exit(1);
+    }
+}
+
+fn print_chaos_breakdown(metrics: &Metrics, chaos_ops_total: u64) {
+    println!("Chaos operations: {chaos_ops_total}");
     println!(
         "  Toggle incremental: {}",
         metrics
@@ -227,28 +247,13 @@ fn run_multi_seed(
             .chaos_verify_last_root
             .load(std::sync::atomic::Ordering::Relaxed)
     );
-
-    if !result.failed_seeds.is_empty() {
-        println!();
-        println!("Failed seeds:");
-        for seed in &result.failed_seeds {
-            println!("  {}", seed);
-        }
-        println!();
-        println!("To reproduce a failure, run:");
-        println!(
-            "  cargo run --bin simulate -- --seed {} --ops {}",
-            result.failed_seeds[0], ops
-        );
-        std::process::exit(1);
-    }
 }
 
 fn parse_arg<'a>(args: &'a [String], name: &str) -> Option<&'a str> {
     args.iter()
         .position(|a| a == name)
         .and_then(|i| args.get(i + 1))
-        .map(|s| s.as_str())
+        .map(std::string::String::as_str)
 }
 
 fn parse_seed_range(s: &str) -> (u64, u64) {

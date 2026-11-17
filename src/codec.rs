@@ -298,8 +298,8 @@ mod tests {
     #[test]
     fn test_roundtrip_full() {
         let mut node = StemNode::new(Stem::new([0xBB; 31]));
-        for i in 0u16..256 {
-            node.set_value(i as u8, B256::repeat_byte((i as u8).max(1)));
+        for i in 0u8..=255 {
+            node.set_value(i, B256::repeat_byte(i.max(1)));
         }
 
         let bytes = encode_stem_node(&node);
@@ -307,11 +307,8 @@ mod tests {
 
         let decoded = decode_stem_node(&bytes).unwrap();
         assert_eq!(decoded.values.len(), 256);
-        for i in 0u16..256 {
-            assert_eq!(
-                decoded.get_value(i as u8),
-                Some(B256::repeat_byte((i as u8).max(1)))
-            );
+        for i in 0u8..=255 {
+            assert_eq!(decoded.get_value(i), Some(B256::repeat_byte(i.max(1))));
         }
     }
 

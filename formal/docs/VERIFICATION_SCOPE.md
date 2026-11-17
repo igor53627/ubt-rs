@@ -1,6 +1,6 @@
 # Verification Scope
 
-**Status:** **VERIFICATION COMPLETE** (December 2024)
+**Status:** **VERIFICATION COMPLETE** (December 2025)
 
 This document defines the boundaries of what is formally verified in the UBT implementation, what relies on external assumptions, and what is out of scope.
 

@@ -14,6 +14,15 @@ use sha2::{Digest, Sha256};
 /// - `hash([0x00] * 64) = [0x00] * 32` (empty input produces zero hash)
 /// - For all other inputs, use the underlying hash function
 ///
+/// # Implementing this trait
+///
+/// The crate does not apply the zero rule for the implementation. Each implementation
+/// must return `B256::ZERO` from [`hash_32`](Self::hash_32), [`hash_64`](Self::hash_64),
+/// and [`hash_raw`](Self::hash_raw) when the input is all zeros, as [`Sha256Hasher`] and
+/// [`Blake3Hasher`] do. [`StemNode::hash`](crate::StemNode::hash) calls `hash_64` for
+/// every pair of nodes in the 256-leaf subtree, including the empty pairs, so an
+/// implementation without the rule gives hashes that do not agree with EIP-7864.
+///
 /// # Thread Safety
 ///
 /// This trait is always `Send + Sync` so that hashers can be used safely in
@@ -43,7 +52,7 @@ pub trait Hasher: Clone + Default + Send + Sync {
 /// SHA256-based hasher (go-ethereum compatible).
 ///
 /// This matches the go-ethereum bintrie implementation.
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Sha256Hasher;
 
 impl Hasher for Sha256Hasher {
@@ -78,7 +87,7 @@ impl Hasher for Sha256Hasher {
 ///
 /// **Note**: BLAKE3 is used for development/experimentation. The final hash function
 /// for EIP-7864 is TBD (candidates: Keccak, Poseidon2).
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Blake3Hasher;
 
 impl Hasher for Blake3Hasher {
@@ -106,32 +115,6 @@ impl Hasher for Blake3Hasher {
             return B256::ZERO;
         }
         B256::from_slice(blake3::hash(input).as_bytes())
-    }
-}
-
-/// Poseidon2 hasher (EXPERIMENTAL stub - NOT FOR PRODUCTION USE).
-///
-/// ⚠️ **WARNING**: This is a stub implementation that currently falls back to BLAKE3.
-/// Do not use in production expecting actual Poseidon2 hashes.
-///
-/// This type is hidden from public API until a real implementation exists.
-#[doc(hidden)]
-#[derive(Clone, Default)]
-pub struct Poseidon2Hasher;
-
-impl Hasher for Poseidon2Hasher {
-    fn hash_32(&self, value: &B256) -> B256 {
-        // TODO: Implement actual Poseidon2 hashing when crate is available
-        // For now, fall back to BLAKE3
-        Blake3Hasher.hash_32(value)
-    }
-
-    fn hash_64(&self, left: &B256, right: &B256) -> B256 {
-        Blake3Hasher.hash_64(left, right)
-    }
-
-    fn hash_raw(&self, input: &[u8]) -> B256 {
-        Blake3Hasher.hash_raw(input)
     }
 }
 

@@ -2,7 +2,7 @@
 #![allow(dead_code)] // Test infrastructure with room for future expansion
 
 use crate::simulation::context::WorkloadContext;
-use crate::simulation::metrics::SharedMetrics;
+use crate::simulation::metrics::{counter_as_f64, SharedMetrics};
 use crate::simulation::workload::{WorkloadConfig, WorkloadResult};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -149,10 +149,7 @@ impl Coordinator {
             match MetricsServer::start(port, Arc::clone(&metrics)) {
                 Ok(server) => Some(server),
                 Err(e) => {
-                    eprintln!(
-                        "[WARN] Failed to start metrics server on port {}: {}",
-                        port, e
-                    );
+                    eprintln!("[WARN] Failed to start metrics server on port {port}: {e}");
                     None
                 }
             }
@@ -173,12 +170,12 @@ impl Coordinator {
             let handle = thread::spawn(move || {
                 worker_loop(
                     worker_id,
-                    queue,
-                    stats,
-                    shutdown,
-                    failed,
-                    config,
-                    worker_metrics,
+                    &queue,
+                    &stats,
+                    &shutdown,
+                    &failed,
+                    &config,
+                    &worker_metrics,
                 );
             });
             handles.push(handle);
@@ -193,7 +190,8 @@ impl Coordinator {
             while !shutdown_for_progress.load(Ordering::Acquire) {
                 thread::sleep(interval);
                 let snap = stats_for_progress.snapshot();
-                let pct = (snap.seeds_completed as f64 / total_seeds as f64) * 100.0;
+                let pct =
+                    (counter_as_f64(snap.seeds_completed) / counter_as_f64(total_seeds)) * 100.0;
                 let msnap = metrics_for_progress.snapshot();
                 eprintln!(
                     "[PROGRESS] {:.1}% ({}/{}) - {} ops ({:.0}/s) - {} chaos ops - {} failures",
@@ -237,12 +235,12 @@ impl Coordinator {
 
 fn worker_loop(
     _worker_id: usize,
-    queue: Arc<std::sync::Mutex<std::vec::IntoIter<u64>>>,
-    stats: Arc<SimulationStats>,
-    shutdown: Arc<AtomicBool>,
-    failed_seeds: Arc<std::sync::Mutex<Vec<u64>>>,
-    config: WorkloadConfig,
-    metrics: SharedMetrics,
+    queue: &std::sync::Mutex<std::vec::IntoIter<u64>>,
+    stats: &SimulationStats,
+    shutdown: &AtomicBool,
+    failed_seeds: &std::sync::Mutex<Vec<u64>>,
+    config: &WorkloadConfig,
+    metrics: &SharedMetrics,
 ) {
     use crate::simulation::ubt_adapter::UbtDatabase;
     use crate::simulation::workload::{TestableDatabase, WorkloadRunner};
@@ -259,13 +257,12 @@ fn worker_loop(
             q.next()
         };
 
-        let seed = match seed {
-            Some(s) => s,
-            None => break,
+        let Some(seed) = seed else {
+            break;
         };
 
         let db = UbtDatabase::create();
-        let mut runner = WorkloadRunner::with_metrics(db, config.clone(), Arc::clone(&metrics));
+        let mut runner = WorkloadRunner::with_metrics(db, config.clone(), Arc::clone(metrics));
         let mut ctx = WorkloadContext::new(seed, 0);
 
         let result = runner.run(&mut ctx);

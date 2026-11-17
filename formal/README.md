@@ -1,6 +1,6 @@
 # Formal Verification of UBT (EIP-7864)
 
-**Status:** **VERIFICATION COMPLETE** (December 2024)
+**Status:** **VERIFICATION COMPLETE** (December 2025)
 
 This directory contains formal verification artifacts for the Unified Binary Tree implementation.
 
@@ -21,10 +21,10 @@ This directory contains formal verification artifacts for the Unified Binary Tre
 
 | Metric | Count |
 |--------|-------|
-| Total axioms | **155** |
+| Total axioms | **209** (`Axiom` declarations outside comments: specs 15, simulations 140, proofs 8, linking 46). `scripts/count_axioms.sh` prints 208 because it does not match `insert_run_refines` in `linking/insert_stepping.v`, which is indented four spaces |
 | Irreducible axioms | **25** |
-| Parameters | **77** |
-| Admitted proofs | **0** (all closed) |
+| Parameters | **107** (specs 8, simulations 69, proofs 1, linking 29) |
+| Admitted proofs | **0** in simulations, proofs, linking; **1** in specs (`pair_round_trip` in `specs/serialization_spec.v`) |
 
 See [docs/VERIFICATION_SUMMARY.md](docs/VERIFICATION_SUMMARY.md) for current metrics.
 
@@ -46,7 +46,7 @@ The following theorems are proven at the simulation level:
 
 ### All Theorems Complete
 
-- Order independence: Fully proven (December 2024)
+- Order independence: Fully proven (December 2025)
 - Stem equality transitivity: Fully proven
 - Verkle aggregation: Fully proven
 - Linking layer: Fully proven
@@ -72,30 +72,30 @@ formal/
 ├── INSTALL.md          # Detailed setup instructions
 ├── Makefile            # Build automation
 ├── specs/              # Mathematical specifications
-│   ├── tree_spec.v     # Tree operation specs (191 lines)
-│   └── embedding_spec.v # State embedding specs (175 lines)
+│   ├── tree_spec.v     # Tree operation specs (347 lines)
+│   └── embedding_spec.v # State embedding specs (287 lines)
 ├── simulations/        # Idiomatic Rocq implementation
-│   ├── tree.v          # Tree operations (550 lines)
+│   ├── tree.v          # Tree operations (1,987 lines)
 │   ├── crypto.v        # Hash function axioms
 │   ├── verkle.v        # Verkle commitment support
 │   ├── iterator.v      # Iterator modeling (low priority)
 │   └── security.v      # Game-based security proofs (1000+ lines)
 ├── proofs/             # Formal proofs
-│   ├── correctness.v   # Main theorems (230 lines)
-│   └── quickchick_tests.v # Property-based tests (5 properties)
+│   ├── correctness.v   # Main theorems (232 lines)
+│   └── quickchick_tests.v # Property-based tests (41 QuickChick commands)
 ├── docs/               # Documentation
 │   ├── THEOREMS.md     # Theorem reference
-│   ├── axiom_audit.md  # Axiom audit (84 total)
+│   ├── axiom_audit.md  # Axiom audit
 │   └── FFI_INTEGRATION.md # FFI bridge docs
 └── src/                # Auto-generated translation
-    ├── tree.v          # ~4,000 lines
-    ├── node.v          # ~6,000 lines
-    ├── hash.v          # ~3,000 lines
-    ├── key.v           # ~3,500 lines
+    ├── tree.v          # ~3,500 lines
+    ├── node.v          # ~3,200 lines
+    ├── hash.v          # ~2,600 lines
+    ├── key.v           # ~2,000 lines
     ├── embedding.v     # ~3,000 lines
     ├── code.v          # ~2,000 lines
-    ├── proof.v         # ~2,500 lines
-    └── error.v         # ~500 lines
+    ├── proof.v         # ~6,200 lines
+    └── error.v         # ~2,100 lines
 ```
 
 ## Verification Approach
@@ -182,11 +182,11 @@ opam install coq-quickchick
 | `prop_insert_idempotent` | `insert (insert t k v) k v ≈ insert t k v` |
 | `prop_empty_get` | `get empty_tree k = None` |
 
-The file includes manual test cases that work without QuickChick, and commented QuickChick commands to run when installed.
+The file includes manual test cases and `QuickChick` commands. `make quickchick` runs them and requires QuickChick.
 
 ## Completed Milestones
 
-All verification goals achieved (December 2024):
+All verification goals achieved (December 2025):
 
 1. **Linking proofs** - Translation matches simulation behavior
 2. **Panic freedom** - Monadic structure analyzed, no-panic proven
@@ -198,7 +198,7 @@ All verification goals achieved (December 2024):
 
 - [Verification Scope](docs/VERIFICATION_SCOPE.md) - What is and isn't formally verified
 - [Verification Status](docs/VERIFICATION_STATUS.md) - Current proof status
-- [Axiom Audit](docs/axiom_audit.md) - Detailed audit of all 155 axioms
+- [Axiom Audit](docs/axiom_audit.md) - Detailed axiom audit
 - [Theorems Reference](docs/THEOREMS.md) - Complete theorem documentation including security proofs
 - [Linking Layer Setup](docs/LINKING_LAYER_SETUP.md) - RocqOfRust setup and linking layer
 - [Spec-Rust Linkage](docs/SPEC_RUST_LINKAGE.md) - Type/operation mapping

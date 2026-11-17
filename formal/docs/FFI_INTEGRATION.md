@@ -50,7 +50,7 @@ This document describes the integration between the formally verified OCaml code
 │                    UBT Rust Crate                                       │
 │  (./src/)                                    │
 │                                                                         │
-│  • Full tree implementation (tree.rs)                                   │
+│  • Full tree implementation (tree/)                                     │
 │  • Key types (key.rs: Stem, TreeKey)                                    │
 │  • Node types (node.rs: Node, StemNode, InternalNode)                   │
 │  • Hash traits and implementations (hash.rs)                            │

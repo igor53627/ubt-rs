@@ -67,9 +67,9 @@ export ROCQOFRUST_PATH=/path/to/rocq-of-rust/RocqOfRust
 make linking ROCQOFRUST_PATH=/path/to/rocq-of-rust/RocqOfRust
 ```
 
-Or edit `formal/Makefile` line 8:
+Or edit the `ROCQOFRUST_PATH ?=` line in `formal/Makefile`:
 ```makefile
-ROCQOFRUST_PATH := /your/custom/path/RocqOfRust
+ROCQOFRUST_PATH ?= /your/custom/path/RocqOfRust
 ```
 
 ## Building the Linking Layer
@@ -109,10 +109,14 @@ make ci  # Runs: clean all linking
 
 ### Error Messages
 
-If RocqOfRust is not found:
+If RocqOfRust is not found, `make check-deps` prints:
 ```
-Error: RocqOfRust not found at ~/rocq-of-rust/RocqOfRust (or your path)
-Build it first: cd rocq-of-rust/RocqOfRust && make
+RocqOfRust: NOT FOUND
+```
+
+If the directory exists but the library is not compiled, `make check-deps` prints:
+```
+RocqOfRust library: NOT compiled (run 'make' in RocqOfRust/)
 ```
 
 If RocqOfRust is not compiled:
@@ -272,8 +276,8 @@ make translation
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `linking/types.v` | 212 | Type correspondence (φ encoding) |
-| `linking/operations.v` | ~800 | Behavioral equivalence proofs |
+| `linking/types.v` | 857 | Type correspondence (φ encoding) |
+| `linking/operations.v` | 2,023 | Behavioral equivalence proofs |
 
 ## See Also
 

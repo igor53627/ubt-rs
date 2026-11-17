@@ -36,12 +36,12 @@ impl WorkloadContext {
         self.client_id
     }
 
-    /// Get mutable reference to seeded RNG - use this instead of rand::random().
+    /// Get mutable reference to seeded RNG - use this instead of `rand::random()`.
     pub fn rng(&mut self) -> &mut StdRng {
         &mut self.rng
     }
 
-    /// Get elapsed simulation time - use this instead of SystemTime::now().
+    /// Get elapsed simulation time - use this instead of `SystemTime::now()`.
     pub fn elapsed(&self) -> Duration {
         self.start_time.elapsed()
     }
@@ -73,7 +73,7 @@ impl WorkloadContext {
 
     /// Generate a deterministic key based on index (for predictable patterns).
     /// Pads the index to 32 bytes.
-    pub fn indexed_key(&self, index: u64) -> [u8; 32] {
+    pub fn indexed_key(index: u64) -> [u8; 32] {
         let mut key = [0u8; 32];
         key[24..32].copy_from_slice(&index.to_be_bytes());
         key
@@ -101,14 +101,13 @@ impl WorkloadContext {
     pub fn chance(&mut self, probability: f64) -> bool {
         debug_assert!(
             (0.0..=1.0).contains(&probability),
-            "probability must be between 0.0 and 1.0, got {}",
-            probability
+            "probability must be between 0.0 and 1.0, got {probability}"
         );
         self.rng.gen::<f64>() < probability.clamp(0.0, 1.0)
     }
 }
 
-/// Deterministic map wrapper - always use BTreeMap for deterministic iteration.
+/// Deterministic map wrapper - always use `BTreeMap` for deterministic iteration.
 pub type DeterministicMap<K, V> = BTreeMap<K, V>;
 
 #[cfg(test)]
@@ -146,9 +145,8 @@ mod tests {
 
     #[test]
     fn test_indexed_keys_deterministic() {
-        let ctx = WorkloadContext::new(999, 0);
-        let key0 = ctx.indexed_key(0);
-        let key255 = ctx.indexed_key(255);
+        let key0 = WorkloadContext::indexed_key(0);
+        let key255 = WorkloadContext::indexed_key(255);
 
         assert_eq!(&key0[24..32], &[0, 0, 0, 0, 0, 0, 0, 0]);
         assert_eq!(&key255[24..32], &[0, 0, 0, 0, 0, 0, 0, 255]);

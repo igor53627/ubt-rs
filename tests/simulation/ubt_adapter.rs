@@ -1,4 +1,4 @@
-//! UBT adapter implementing TestableDatabase trait.
+//! UBT adapter implementing `TestableDatabase` trait.
 
 use crate::simulation::workload::{KeyValueEntries, TestableDatabase};
 use std::collections::BTreeMap;

@@ -1,7 +1,7 @@
 # UBT Formal Verification - Axiom Audit
 
-**Generated:** December 2024  
-**Last Updated:** December 2024 (axiom reduction)  
+**Generated:** December 2025  
+**Last Updated:** December 2025 (axiom reduction)  
 **Status:** **VERIFICATION COMPLETE** - All admits closed
 **Rocq Version:** 9.x
 
@@ -20,7 +20,7 @@
 | Admitted Proofs | **0** | Complete | All admits closed |
 | **Total Axioms** | **78** | - | - |
 
-**Recent Axiom Reductions (December 2024):**
+**Recent Axiom Reductions (December 2025):**
 - `hash_deterministic_value` (crypto.v) --> Lemma via reflexivity
 - `hash_deterministic_pair` (crypto.v) --> Lemma via reflexivity  
 - `hash_deterministic_stem` (crypto.v) --> Lemma via hash_stem_respects_stem_eq
@@ -30,7 +30,7 @@
 - `hash_injective` (tree_spec.v) --> Trivially provable (conclusion was True)
 - `hash_collision_resistant` (tree_spec.v) --> Trivially provable (disjunct was True)
 
-**Verification Complete (December 2024):**
+**Verification Complete (December 2025):**
 - All 11 previously admitted proofs have been closed
 - Verkle aggregation proofs completed
 - Linking layer proofs completed
@@ -122,7 +122,7 @@ This is the contrapositive of collision resistance for fixed first input.
 
 **Standard Reference:** Menezes, van Oorschot, Vanstone, "Handbook of Applied Cryptography" (1996), §9.2.2
 
-**Status:** [DONE] Converted to lemma in crypto.v (December 2024).
+**Status:** [DONE] Converted to lemma in crypto.v (December 2025).
 ```coq
 Lemma hash_value_second_preimage : forall v1 v2,
   v1 <> v2 -> hash_value v1 <> hash_value v2.
@@ -148,7 +148,7 @@ For any function f, determinism states: ∀x y. x = y → f(x) = f(y)
 
 **Standard Reference:** Basic functional programming semantics
 
-**Status:** [DONE] All converted to lemmas in crypto.v (December 2024):
+**Status:** [DONE] All converted to lemmas in crypto.v (December 2025):
 ```coq
 Lemma hash_deterministic_value : forall v1 v2, 
   v1 = v2 -> hash_value v1 = hash_value v2.
@@ -207,7 +207,7 @@ Non-zero inputs produce non-zero outputs: ∀v ≠ 0^n. H(v) ≠ 0^n
 
 **Standard Reference:** Domain separation is a standard technique; see Bellare & Rogaway, "Collision-Resistant Hashing" (2006)
 
-**Status:** [DONE] Converted to lemma in crypto.v (December 2024):
+**Status:** [DONE] Converted to lemma in crypto.v (December 2025):
 ```coq
 Lemma hash_value_nonzero : forall v,
   (forallb (fun b => Z.eqb b 0) v = false) -> 
@@ -260,7 +260,7 @@ Polynomial commitment schemes (KZG, IPA) require additional axioms for their alg
 | `simulations/verkle.v:589-593` | `verkle_exclusion_soundness_axiom` | Exclusion proof → key absent or zero |
 | `simulations/verkle.v:617-622` | `verkle_exclusion_completeness_axiom` | Absent key → valid exclusion proof exists |
 
-**New Exclusion Proof Axioms (December 2024):**
+**New Exclusion Proof Axioms (December 2025):**
 - `verkle_exclusion_soundness_axiom`: Core exclusion soundness. A verified exclusion proof (opening to zero32) implies the key is either absent or maps to zero32. Relies on same binding property as inclusion.
 - `verkle_exclusion_completeness_axiom`: Constructive completeness. For any key not in the tree, we can construct a valid exclusion proof. The tree commits to zero32 at absent positions.
 
@@ -302,7 +302,7 @@ High-level correctness properties that define expected behavior.
 | `specs/tree_spec.v:179` | `get_insert_same` | Get after insert returns value | Should be theorem |
 | `specs/tree_spec.v:185` | `get_insert_other` | Get at different key unchanged | Should be theorem |
 
-**Axioms Converted to Lemmas (December 2024):**
+**Axioms Converted to Lemmas (December 2025):**
 - `hash_collision_resistant`: Had `\/ True` disjunct, making it trivially provable
 - `hash_injective`: Had `True` conclusion (placeholder), now properly documented
 
@@ -363,7 +363,7 @@ These axioms bridge the gap between:
 
 ## 5. Admitted Proofs
 
-**Status:** **ALL ADMITS CLOSED** (December 2024)
+**Status:** **ALL ADMITS CLOSED** (December 2025)
 
 All previously admitted proofs have been completed. Below is the record of what was closed:
 
@@ -752,4 +752,4 @@ Axiom get_insert_same : forall t k v d, v <> zero32 -> tree_get (tree_insert t k
 
 ---
 
-*Last updated: December 2024*
+*Last updated: December 2025*

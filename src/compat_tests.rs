@@ -14,7 +14,7 @@ mod tests {
         B256::from_slice(&bytes)
     }
 
-    /// Test vectors from go-ethereum trie/bintrie/trie_test.go
+    /// Test vectors from go-ethereum `trie/bintrie/trie_test.go`
     const ZERO_KEY: B256 = B256::ZERO;
 
     fn one_key() -> B256 {
@@ -37,7 +37,7 @@ mod tests {
         hex_to_b256("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
     }
 
-    /// TestSingleEntry: Insert one entry and verify root hash
+    /// `TestSingleEntry`: Insert one entry and verify root hash
     /// go-ethereum expected: aab1060e04cb4f5dc6f697ae93156a95714debbf77d54238766adc5709282b6f
     #[test]
     fn test_single_entry() {
@@ -49,18 +49,17 @@ mod tests {
         let expected =
             hex_to_b256("aab1060e04cb4f5dc6f697ae93156a95714debbf77d54238766adc5709282b6f");
 
-        // Note: This test will fail if hash function differs from go-ethereum
-        // go-ethereum uses a specific hash function; we use BLAKE3
-        // The structure should be the same, but hashes will differ
-        println!("Single entry root (BLAKE3): {}", root);
-        println!("go-ethereum expected (their hash): {}", expected);
+        // The root is printed, not asserted: go-ethereum uses SHA256 and this test
+        // uses BLAKE3, so the two roots differ. `geth_compat` asserts the SHA256 roots.
+        println!("Single entry root (BLAKE3): {root}");
+        println!("go-ethereum expected (their hash): {expected}");
 
         // Verify tree structure is correct (single stem node)
         assert_eq!(tree.len(), 1);
         assert_eq!(tree.get_by_b256(&ZERO_KEY), Some(one_key()));
     }
 
-    /// TestTwoEntriesDiffFirstBit: Two entries differing in first bit
+    /// `TestTwoEntriesDiffFirstBit`: Two entries differing in first bit
     /// go-ethereum expected: dfc69c94013a8b3c65395625a719a87534a7cfd38719251ad8c8ea7fe79f065e
     #[test]
     fn test_two_entries_diff_first_bit() {
@@ -77,15 +76,15 @@ mod tests {
         let expected =
             hex_to_b256("dfc69c94013a8b3c65395625a719a87534a7cfd38719251ad8c8ea7fe79f065e");
 
-        println!("Two entries (diff first bit) root (BLAKE3): {}", root);
-        println!("go-ethereum expected: {}", expected);
+        println!("Two entries (diff first bit) root (BLAKE3): {root}");
+        println!("go-ethereum expected: {expected}");
 
         assert_eq!(tree.len(), 2);
         assert_eq!(tree.get_by_b256(&ZERO_KEY), Some(one_key()));
         assert_eq!(tree.get_by_b256(&key2), Some(two_key()));
     }
 
-    /// TestOneStemColocatedValues: Multiple values in same stem (same first 31 bytes)
+    /// `TestOneStemColocatedValues`: Multiple values in same stem (same first 31 bytes)
     #[test]
     fn test_one_stem_colocated_values() {
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
@@ -121,38 +120,42 @@ mod tests {
         assert_eq!(tree.len(), 4);
     }
 
-    /// TestTwoStemColocatedValues: Values colocated in two different stems
+    /// `TestTwoStemColocatedValues`: Values colocated in two different stems
     #[test]
     fn test_two_stem_colocated_values() {
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
 
         // Stem 1: 0x00...00
-        let key1a = hex_to_b256("0000000000000000000000000000000000000000000000000000000000000003");
-        let key1b = hex_to_b256("0000000000000000000000000000000000000000000000000000000000000004");
+        let key1_a =
+            hex_to_b256("0000000000000000000000000000000000000000000000000000000000000003");
+        let key1_b =
+            hex_to_b256("0000000000000000000000000000000000000000000000000000000000000004");
 
         // Stem 2: 0x80...00 (differs in first bit)
-        let key2a = hex_to_b256("8000000000000000000000000000000000000000000000000000000000000003");
-        let key2b = hex_to_b256("8000000000000000000000000000000000000000000000000000000000000004");
+        let key2_a =
+            hex_to_b256("8000000000000000000000000000000000000000000000000000000000000003");
+        let key2_b =
+            hex_to_b256("8000000000000000000000000000000000000000000000000000000000000004");
 
-        tree.insert_b256(key1a, one_key());
-        tree.insert_b256(key1b, two_key());
-        tree.insert_b256(key2a, one_key());
-        tree.insert_b256(key2b, two_key());
+        tree.insert_b256(key1_a, one_key());
+        tree.insert_b256(key1_b, two_key());
+        tree.insert_b256(key2_a, one_key());
+        tree.insert_b256(key2_b, two_key());
 
         // Verify stem grouping
-        let tk1a = TreeKey::from_bytes(key1a);
-        let tk1b = TreeKey::from_bytes(key1b);
-        let tk2a = TreeKey::from_bytes(key2a);
-        let tk2b = TreeKey::from_bytes(key2b);
+        let tk1_a = TreeKey::from_bytes(key1_a);
+        let tk1_b = TreeKey::from_bytes(key1_b);
+        let tk2_a = TreeKey::from_bytes(key2_a);
+        let tk2_b = TreeKey::from_bytes(key2_b);
 
-        assert_eq!(tk1a.stem, tk1b.stem); // Same stem
-        assert_eq!(tk2a.stem, tk2b.stem); // Same stem
-        assert_ne!(tk1a.stem, tk2a.stem); // Different stems
+        assert_eq!(tk1_a.stem, tk1_b.stem); // Same stem
+        assert_eq!(tk2_a.stem, tk2_b.stem); // Same stem
+        assert_ne!(tk1_a.stem, tk2_a.stem); // Different stems
 
         assert_eq!(tree.len(), 4);
     }
 
-    /// TestTwoKeysMatchFirst42Bits: Keys that share 42-bit prefix
+    /// `TestTwoKeysMatchFirst42Bits`: Keys that share 42-bit prefix
     #[test]
     fn test_two_keys_match_first_42_bits() {
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
@@ -171,7 +174,7 @@ mod tests {
         assert_eq!(tree.len(), 2);
     }
 
-    /// TestInsertDuplicateKey: Inserting same key twice updates value
+    /// `TestInsertDuplicateKey`: Inserting same key twice updates value
     #[test]
     fn test_insert_duplicate_key() {
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
@@ -184,28 +187,28 @@ mod tests {
         assert_eq!(tree.len(), 1);
     }
 
-    /// TestLargeNumberOfEntries: 256 entries with different first bytes
+    /// `TestLargeNumberOfEntries`: 256 entries with different first bytes
     #[test]
     fn test_large_number_of_entries() {
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
 
-        for i in 0..256u16 {
+        for i in 0..=255u8 {
             let mut key = [0u8; 32];
-            key[0] = i as u8;
+            key[0] = i;
             tree.insert_b256(B256::from(key), ff_key());
         }
 
         assert_eq!(tree.len(), 256);
 
         // Verify all entries retrievable
-        for i in 0..256u16 {
+        for i in 0..=255u8 {
             let mut key = [0u8; 32];
-            key[0] = i as u8;
+            key[0] = i;
             assert_eq!(tree.get_by_b256(&B256::from(key)), Some(ff_key()));
         }
     }
 
-    /// TestMerkleizeMultipleEntries: Multiple entries with known root hash
+    /// `TestMerkleizeMultipleEntries`: Multiple entries with known root hash
     /// go-ethereum expected: 9317155862f7a3867660ddd0966ff799a3d16aa4df1e70a7516eaa4a675191b5
     ///
     /// Note: go-ethereum uses value = i (little-endian u64), where i=0 gives zero value.
@@ -231,7 +234,7 @@ mod tests {
 
         let root = tree.root_hash().unwrap();
 
-        println!("Multiple entries root (BLAKE3): {}", root);
+        println!("Multiple entries root (BLAKE3): {root}");
         println!("Note: go-ethereum uses different hash function, roots will differ");
 
         // Verify all entries are retrievable
@@ -241,9 +244,7 @@ mod tests {
             assert_eq!(
                 tree.get_by_b256(key),
                 Some(B256::from(expected_v)),
-                "Failed to retrieve entry {} with key {}",
-                i,
-                key
+                "Failed to retrieve entry {i} with key {key}"
             );
         }
 

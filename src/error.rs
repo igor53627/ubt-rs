@@ -22,7 +22,10 @@ pub enum UbtError {
 
     /// Tree depth exceeded maximum allowed depth.
     #[error("tree depth exceeded maximum allowed depth (depth={depth})")]
-    TreeDepthExceeded { depth: usize },
+    TreeDepthExceeded {
+        /// Depth, in bits from the root, at which two or more stems were still not separated.
+        depth: usize,
+    },
 
     /// Stem collision during insertion (should not happen with proper key derivation)
     #[error("stem collision at {0:?}")]
@@ -47,7 +50,9 @@ pub enum UbtError {
     /// Storage slot not found
     #[error("storage slot {slot} not found for account {account}")]
     StorageNotFound {
+        /// Address of the account that owns the storage slot.
         account: alloy_primitives::Address,
+        /// Storage slot number.
         slot: alloy_primitives::U256,
     },
 
