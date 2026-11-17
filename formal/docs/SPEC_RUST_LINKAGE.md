@@ -175,7 +175,7 @@ Axiom insert_executes :
 | Aspect | Coq | Rust |
 |--------|-----|------|
 | Definition | `simulations/tree.v:607-616` | `src/tree/mod.rs::delete()` |
-| Linking | `linking/operations.v:687-695` | - |
+| Linking | `linking/operations.v:694-702` | - |
 | Verification | Axiom `delete_executes` for the translated `delete` method | - |
 
 **Coq Definition:**
@@ -198,7 +198,7 @@ The linking layer defines `rust_delete` as the translated `delete` method (`link
 
 `delete_executes` is an axiom. Before the zero-value change it was a theorem, proven from `insert_executes` for a `rust_delete` that was defined as `rust_insert` with `zero32`. That statement is kept as `InsertLink.zero_write_executes` (`linking/operations.v:582-593`).
 
-**Linking Theorems** (operations.v:701-709, tree.v:815-825):
+**Linking Theorems** (operations.v:708-716, tree.v:815-825):
 ```coq
 Theorem delete_is_not_insert_zero :
   forall (t : SimTree) (k : TreeKey),
@@ -219,7 +219,7 @@ Theorem insert_zero_not_delete : forall t k,
 | Aspect | Coq | Rust |
 |--------|-----|------|
 | Definition | `simulations/tree.v:1094-1096` (folds `stem_entry_hash` over `st_stems`; `stem_entry_hash` uses `subindex_map_hash`) | `src/tree/hash.rs::root_hash()` |
-| Linking | `linking/operations.v:838-844` | — |
+| Linking | `linking/operations.v:845-851` | — |
 | Verification | Axiom `root_hash_executes` | — |
 
 The root hash computation uses the abstract hash functions defined in `simulations/crypto.v` (`simulations/tree.v:1086-1096`):
@@ -248,7 +248,7 @@ Definition sim_root_hash (t : SimTree) : Bytes32 :=
 | `sim_tree_get` | `tree.get()` | **Axiom** | `GetLink.get_executes` | Requires monadic semantics |
 | `sim_tree_insert` | `tree.insert()` | **Axiom** | `InsertLink.insert_executes` | Requires HashMap linking |
 | `sim_tree_delete` | `tree.delete()` | **Axiom** | `DeleteLink.delete_executes` | Axiom for the translated `delete` method; delete is a real removal |
-| `sim_tree_insert` with `zero32` | `tree.insert(key, B256::ZERO)` | **Conditional** | `InsertLink.zero_write_executes` (theorem; applies axiom `InsertLink.insert_executes`) | A zero write stores a present zero leaf |
+| `sim_tree_insert` with `zero32` | `tree.insert(key, B256::ZERO)` | **Conditional** | `InsertLink.zero_write_executes` (theorem; applies axiom `InsertLink.insert_executes`) | A zero write stores a present zero leaf. The translated `set_value` in `formal/src/` removes the entry on a zero value, so `insert_executes` does not describe the translated term for `zero32` (see the delete paragraph above and issue #22) |
 | `sim_root_hash` | `tree.root_hash().unwrap()` | **Axiom** | `HashLink.root_hash_executes` | Requires hash linking |
 | `wf_tree` | — | **Proven** | `insert_preserves_wf`, `delete_preserves_wf` | Well-formedness invariant |
 | `get_empty` | — | **Proven** | Direct | Empty returns None |

@@ -36,7 +36,7 @@ The linking layer (`formal/linking/`) bridges translated Rust code to simulation
 |-----------|--------|------------|
 | new_executes | **PROVEN** | 100% |
 | delete_executes | AXIOM (real removal, since November 2026) | not assessed |
-| zero_write_executes | DERIVED from insert_executes | 95% (the value of insert_executes) |
+| zero_write_executes | DERIVED from insert_executes; conditional: the translated `set_value` in `formal/src/` removes a zero value, so the axiom does not describe the translated term for `zero32` (issue #22) | 95% (the value of insert_executes) |
 | get_executes | DERIVED | 90% |
 | insert_executes | **PROVEN** | 95% |
 | insert_executes_derived | **PROVEN** | 95% |

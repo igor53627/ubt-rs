@@ -121,7 +121,7 @@ This document compares the Rust UBT implementation (`src/`) with the formal Rocq
 | Aspect | Rust Implementation | Rocq Model | Gap |
 |--------|---------------------|------------|-----|
 | Tree structure | Full binary tree with `rebuild_root()` | Flat `StemMap` without internal nodes | Model doesn't capture tree shape |
-| StemNode internals | 8-level subtree hash computation | `hash_stem s zero32` (simplified) | Subtree hashing not fully modeled |
+| StemNode internals | 8-level subtree hash computation | `sim_node_hash`, `SimStem` arm: `hash_stem s zero32` (ignores the values). `sim_root_hash` path: `hash_stem s (subindex_map_hash m)`, a sequential fold over all present entries, also zero values | Subtree hashing not fully modeled: the model has no 8-level tree |
 | HashMap implementation | std::collections::HashMap | Association list | Performance model differs |
 
 ### 2. Missing from Model

@@ -5,7 +5,7 @@
 ## 1. Current State of root_hash_executes
 
 ### Location
-[operations.v:838-844](../formal/linking/operations.v#L838-L844)
+[operations.v:845-851](../formal/linking/operations.v#L845-L851)
 
 ```coq
 Axiom root_hash_executes :
@@ -57,7 +57,7 @@ fn rebuild_root(&mut self) -> Result<()> {
 ## 3. RootHashLink Infrastructure
 
 ### Location
-[interpreter.v:1832-2032](../formal/linking/interpreter.v#L1832-L2032)
+[interpreter.v:1838-2038](../formal/linking/interpreter.v#L1838-L2038)
 
 ### Existing Stepping Lemmas
 
