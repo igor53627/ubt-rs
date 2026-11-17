@@ -231,6 +231,6 @@ mod tests {
         let hash = node.hash(&hasher);
         // With all-zero stem and all-zero values, subtree is zero
         // hash(0^31 || 0x00 || 0^32) should be computed
-        println!("Empty stem node hash: {}", hash);
+        println!("Empty stem node hash: {hash}");
     }
 }

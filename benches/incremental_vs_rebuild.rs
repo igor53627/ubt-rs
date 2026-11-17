@@ -1,7 +1,7 @@
 //! Benchmark: Incremental updates vs Full rebuilds
 //!
 //! This benchmark compares the performance of:
-//! - Full rebuild: Recomputes entire tree on every root_hash() call
+//! - Full rebuild: Recomputes entire tree on every `root_hash()` call
 //! - Incremental mode: Caches intermediate nodes, only recomputes affected paths
 //!
 //! Results inform when to use each mode:
@@ -12,14 +12,18 @@ use alloy_primitives::B256;
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use ubt::{Blake3Hasher, Stem, TreeKey, UnifiedBinaryTree};
 
+fn low_byte(value: usize) -> u8 {
+    value.to_le_bytes()[0]
+}
+
 fn generate_stems(count: usize) -> Vec<Stem> {
     (0..count)
         .map(|i| {
             let mut stem_bytes = [0u8; 31];
-            stem_bytes[0] = (i >> 16) as u8;
-            stem_bytes[1] = (i >> 8) as u8;
-            stem_bytes[2] = i as u8;
-            stem_bytes[15] = ((i * 7) % 256) as u8;
+            stem_bytes[0] = low_byte(i >> 16);
+            stem_bytes[1] = low_byte(i >> 8);
+            stem_bytes[2] = low_byte(i);
+            stem_bytes[15] = low_byte((i * 7) % 256);
             Stem::new(stem_bytes)
         })
         .collect()
@@ -30,9 +34,12 @@ fn create_populated_tree(num_stems: usize) -> UnifiedBinaryTree<Blake3Hasher> {
     let stems = generate_stems(num_stems);
 
     for (i, stem) in stems.iter().enumerate() {
-        for j in 0..5 {
-            let key = TreeKey::new(*stem, j as u8);
-            tree.insert(key, B256::repeat_byte(((i + j) % 255 + 1) as u8));
+        for j in 0..5u8 {
+            let key = TreeKey::new(*stem, j);
+            tree.insert(
+                key,
+                B256::repeat_byte(low_byte((i + usize::from(j)) % 255 + 1)),
+            );
         }
     }
 
@@ -59,7 +66,7 @@ fn bench_single_update(c: &mut Criterion) {
                         black_box(tree.root_hash().expect("benchmark tree root_hash failed"))
                     },
                     criterion::BatchSize::SmallInput,
-                )
+                );
             },
         );
 
@@ -81,7 +88,7 @@ fn bench_single_update(c: &mut Criterion) {
                         black_box(tree.root_hash().expect("benchmark tree root_hash failed"))
                     },
                     criterion::BatchSize::SmallInput,
-                )
+                );
             },
         );
     }
@@ -101,7 +108,7 @@ fn bench_batch_update(c: &mut Criterion) {
         (100_000, 100),
         (100_000, 1_000),
     ] {
-        let label = format!("{}stems_{}changes", num_stems, changes_per_batch);
+        let label = format!("{num_stems}stems_{changes_per_batch}changes");
         group.throughput(Throughput::Elements(changes_per_batch as u64));
 
         let tree_full = create_populated_tree(num_stems);
@@ -115,13 +122,13 @@ fn bench_batch_update(c: &mut Criterion) {
                     || tree.clone(),
                     |mut tree| {
                         for i in 0..changes_per_batch {
-                            let key = TreeKey::new(stems[i % stems.len()], (i % 5) as u8);
+                            let key = TreeKey::new(stems[i % stems.len()], low_byte(i % 5));
                             tree.insert(key, B256::repeat_byte(0xAB));
                         }
                         black_box(tree.root_hash().expect("benchmark tree root_hash failed"))
                     },
                     criterion::BatchSize::SmallInput,
-                )
+                );
             },
         );
 
@@ -139,13 +146,13 @@ fn bench_batch_update(c: &mut Criterion) {
                     || tree.clone(),
                     |mut tree| {
                         for i in 0..changes_per_batch {
-                            let key = TreeKey::new(stems[i % stems.len()], (i % 5) as u8);
+                            let key = TreeKey::new(stems[i % stems.len()], low_byte(i % 5));
                             tree.insert(key, B256::repeat_byte(0xAB));
                         }
                         black_box(tree.root_hash().expect("benchmark tree root_hash failed"))
                     },
                     criterion::BatchSize::SmallInput,
-                )
+                );
             },
         );
     }
@@ -172,14 +179,14 @@ fn bench_block_simulation(c: &mut Criterion) {
             b.iter_batched(
                 || tree.clone(),
                 |mut tree| {
-                    for i in 0..changes_per_block {
-                        let key = TreeKey::new(stems[i], (i % 5) as u8);
+                    for (i, stem) in stems.iter().enumerate().take(changes_per_block) {
+                        let key = TreeKey::new(*stem, low_byte(i % 5));
                         tree.insert(key, B256::repeat_byte(0xCD));
                     }
                     black_box(tree.root_hash().expect("benchmark tree root_hash failed"))
                 },
                 criterion::BatchSize::LargeInput,
-            )
+            );
         },
     );
 
@@ -196,14 +203,14 @@ fn bench_block_simulation(c: &mut Criterion) {
             b.iter_batched(
                 || tree.clone(),
                 |mut tree| {
-                    for i in 0..changes_per_block {
-                        let key = TreeKey::new(stems[i], (i % 5) as u8);
+                    for (i, stem) in stems.iter().enumerate().take(changes_per_block) {
+                        let key = TreeKey::new(*stem, low_byte(i % 5));
                         tree.insert(key, B256::repeat_byte(0xCD));
                     }
                     black_box(tree.root_hash().expect("benchmark tree root_hash failed"))
                 },
                 criterion::BatchSize::LargeInput,
-            )
+            );
         },
     );
 
@@ -229,7 +236,7 @@ fn bench_memory_overhead(c: &mut Criterion) {
                         black_box(tree.root_hash().expect("benchmark tree root_hash failed"))
                     },
                     criterion::BatchSize::SmallInput,
-                )
+                );
             },
         );
     }

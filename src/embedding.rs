@@ -329,7 +329,7 @@ mod tests {
 
     #[test]
     fn test_basic_data_roundtrip() {
-        let original = BasicDataLeaf::new(42, 1000000, 1024);
+        let original = BasicDataLeaf::new(42, 1_000_000, 1024);
         let encoded = original.encode();
         let decoded = BasicDataLeaf::decode(encoded);
         assert_eq!(original, decoded);
@@ -368,18 +368,18 @@ mod tests {
         let address = Address::repeat_byte(0x42);
 
         // Test that code chunk keys are deterministic
-        let key0a = get_code_chunk_key(&address, 0);
-        let key0b = get_code_chunk_key(&address, 0);
-        assert_eq!(key0a, key0b);
+        let key0_a = get_code_chunk_key(&address, 0);
+        let key0_b = get_code_chunk_key(&address, 0);
+        assert_eq!(key0_a, key0_b);
 
         // Different chunks have different keys
         let key1 = get_code_chunk_key(&address, 1);
-        assert_ne!(key0a.to_bytes(), key1.to_bytes());
+        assert_ne!(key0_a.to_bytes(), key1.to_bytes());
 
         // Different addresses have different keys for same chunk
         let addr2 = Address::repeat_byte(0x43);
         let key0_addr2 = get_code_chunk_key(&addr2, 0);
-        assert_ne!(key0a.stem, key0_addr2.stem);
+        assert_ne!(key0_a.stem, key0_addr2.stem);
     }
 
     #[test]
@@ -411,10 +411,12 @@ mod tests {
             let chunk_key = get_code_chunk_key(&address, chunk_idx);
             assert_eq!(
                 chunk_key.stem, basic_key.stem,
-                "Chunk {} should share account stem",
-                chunk_idx
+                "Chunk {chunk_idx} should share account stem"
             );
-            assert_eq!(chunk_key.subindex, (128 + chunk_idx) as u8);
+            assert_eq!(
+                chunk_key.subindex,
+                u8::try_from(128 + chunk_idx).expect("subindex fits in u8")
+            );
         }
 
         // Chunk 128+ should be in different stems

@@ -10,5 +10,4 @@ pub mod workload;
 pub use context::WorkloadContext;
 pub use coordinator::{Coordinator, CoordinatorConfig};
 pub use metrics::create_shared_metrics;
-pub use ubt_adapter::UbtDatabase;
-pub use workload::{TestableDatabase, WorkloadConfig, WorkloadRunner};
+pub use workload::{WorkloadConfig, WorkloadRunner};

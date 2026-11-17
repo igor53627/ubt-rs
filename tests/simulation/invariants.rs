@@ -40,14 +40,14 @@ pub enum UbtOperation {
 impl UbtOperation {
     pub fn key(&self) -> &[u8; 32] {
         match self {
-            UbtOperation::Insert { key, .. } => key,
-            UbtOperation::Delete { key } => key,
-            UbtOperation::Get { key } => key,
+            UbtOperation::Insert { key, .. }
+            | UbtOperation::Delete { key }
+            | UbtOperation::Get { key } => key,
         }
     }
 }
 
-/// Reference model for UBT state using BTreeMap.
+/// Reference model for UBT state using `BTreeMap`.
 ///
 /// Maintains expected state for verification against actual tree operations.
 #[derive(Debug, Clone, Default)]
@@ -121,7 +121,7 @@ pub trait MerkleInvariantChecker {
 
 /// UBT-specific Merkle invariant checker.
 ///
-/// Uses StreamingTreeBuilder to rebuild tree from model and compare roots.
+/// Uses `StreamingTreeBuilder` to rebuild tree from model and compare roots.
 pub struct UbtMerkleChecker<H: Hasher = Blake3Hasher> {
     operation_index: usize,
     _marker: std::marker::PhantomData<H>,
@@ -145,7 +145,7 @@ impl<H: Hasher> UbtMerkleChecker<H> {
         self.operation_index = index;
     }
 
-    fn build_root_from_model(&self, model: &UbtReferenceModel) -> B256 {
+    fn build_root_from_model(model: &UbtReferenceModel) -> B256 {
         if model.is_empty() {
             return B256::ZERO;
         }
@@ -174,14 +174,14 @@ impl<H: Hasher> MerkleInvariantChecker for UbtMerkleChecker<H> {
         actual_root: B256,
         model: &UbtReferenceModel,
     ) -> Result<(), InvariantViolation> {
-        let expected_root = self.build_root_from_model(model);
+        let expected_root = Self::build_root_from_model(model);
 
         if actual_root != expected_root {
             return Err(InvariantViolation {
                 operation_index: self.operation_index,
                 description: "Root hash mismatch".to_string(),
-                expected: format!("{:?}", expected_root),
-                actual: format!("{:?}", actual_root),
+                expected: format!("{expected_root:?}"),
+                actual: format!("{actual_root:?}"),
             });
         }
 
@@ -200,8 +200,8 @@ impl<H: Hasher> MerkleInvariantChecker for UbtMerkleChecker<H> {
             return Err(InvariantViolation {
                 operation_index: self.operation_index,
                 description: format!("Get mismatch for key {:?}", &key[..4]),
-                expected: format!("{:?}", expected),
-                actual: format!("{:?}", actual_value),
+                expected: format!("{expected:?}"),
+                actual: format!("{actual_value:?}"),
             });
         }
 

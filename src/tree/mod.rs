@@ -354,11 +354,11 @@ mod tests {
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
 
         let mut stem1_bytes = [0u8; 31];
-        stem1_bytes[0] = 0b00000000;
+        stem1_bytes[0] = 0b0000_0000;
         let stem1 = Stem::new(stem1_bytes);
 
         let mut stem2_bytes = [0u8; 31];
-        stem2_bytes[0] = 0b10000000;
+        stem2_bytes[0] = 0b1000_0000;
         let stem2 = Stem::new(stem2_bytes);
 
         tree.insert(TreeKey::new(stem1, 0), B256::repeat_byte(0x01));
@@ -849,8 +849,9 @@ mod tests {
             .collect();
 
         for (i, key) in keys.iter().enumerate() {
-            tree_full.insert(*key, B256::repeat_byte((i as u8).max(1)));
-            tree_incr.insert(*key, B256::repeat_byte((i as u8).max(1)));
+            let value_byte: u8 = u8::try_from(i).expect("index fits in u8").max(1);
+            tree_full.insert(*key, B256::repeat_byte(value_byte));
+            tree_incr.insert(*key, B256::repeat_byte(value_byte));
         }
 
         tree_full.root_hash().unwrap();

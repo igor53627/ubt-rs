@@ -61,6 +61,13 @@ fn pad32(v: Vec<u8>) -> Vec<u8> {
 }
 
 fn generate_test_cases() -> Vec<TestCase> {
+    let mut cases: Vec<TestCase> = single_key_test_cases();
+    cases.extend(multi_key_test_cases());
+    cases.extend(edge_test_cases());
+    cases
+}
+
+fn single_key_test_cases() -> Vec<TestCase> {
     vec![
         TestCase {
             name: "empty_tree_get".to_string(),
@@ -110,6 +117,11 @@ fn generate_test_cases() -> Vec<TestCase> {
                 expected: None,
             }],
         },
+    ]
+}
+
+fn multi_key_test_cases() -> Vec<TestCase> {
+    vec![
         TestCase {
             name: "multiple_inserts_same_stem".to_string(),
             operations: vec![
@@ -193,6 +205,11 @@ fn generate_test_cases() -> Vec<TestCase> {
                 },
             ],
         },
+    ]
+}
+
+fn edge_test_cases() -> Vec<TestCase> {
+    vec![
         TestCase {
             name: "overwrite_value".to_string(),
             operations: vec![
@@ -281,7 +298,7 @@ fn run_test_case(test: &TestCase) -> Vec<(String, Option<Vec<u8>>)> {
             query
                 .stem
                 .iter()
-                .map(|b| b.to_string())
+                .map(std::string::ToString::to_string)
                 .collect::<Vec<_>>()
                 .join(","),
             query.subindex
@@ -294,12 +311,12 @@ fn run_test_case(test: &TestCase) -> Vec<(String, Option<Vec<u8>>)> {
 fn format_bytes(bytes: &[u8]) -> String {
     bytes
         .iter()
-        .map(|b| b.to_string())
+        .map(std::string::ToString::to_string)
         .collect::<Vec<_>>()
         .join(",")
 }
 
-fn format_result(result: &Option<Vec<u8>>) -> String {
+fn format_result(result: Option<&[u8]>) -> String {
     match result {
         None => "None".to_string(),
         Some(bytes) => format!("Some([{}])", format_bytes(bytes)),
@@ -350,7 +367,7 @@ fn export_test_data(path: &str) -> std::io::Result<()> {
                 format_bytes(&query.stem),
                 query.subindex
             )?;
-            writeln!(file, "EXPECT {}", format_result(&query.expected))?;
+            writeln!(file, "EXPECT {}", format_result(query.expected.as_deref()))?;
         }
         writeln!(file)?;
     }
@@ -367,9 +384,14 @@ fn run_and_export_results(path: &str) -> std::io::Result<()> {
 
     for test in &tests {
         writeln!(file, "TEST {}", test.name)?;
-        let results = run_test_case(&test);
+        let results = run_test_case(test);
         for (query_id, result) in results {
-            writeln!(file, "RESULT {} = {}", query_id, format_result(&result))?;
+            writeln!(
+                file,
+                "RESULT {} = {}",
+                query_id,
+                format_result(result.as_deref())
+            )?;
         }
         writeln!(file)?;
     }
@@ -387,8 +409,8 @@ fn test_export_integration_data() {
     export_test_data(&test_data_path).expect("Failed to export test data");
     run_and_export_results(&results_path).expect("Failed to export results");
 
-    println!("Test data exported to: {}", test_data_path);
-    println!("Results exported to: {}", results_path);
+    println!("Test data exported to: {test_data_path}");
+    println!("Results exported to: {results_path}");
 }
 
 #[test]
@@ -398,7 +420,7 @@ fn test_verify_expected_results() {
     let mut failed = 0;
 
     for test in &tests {
-        let results = run_test_case(&test);
+        let results = run_test_case(test);
         for (i, (query_id, result)) in results.iter().enumerate() {
             let expected = &test.queries[i].expected;
             if result == expected {
@@ -406,7 +428,7 @@ fn test_verify_expected_results() {
                     "[PASS] {}: {} = {}",
                     test.name,
                     query_id,
-                    format_result(result)
+                    format_result(result.as_deref())
                 );
                 passed += 1;
             } else {
@@ -414,8 +436,8 @@ fn test_verify_expected_results() {
                     "[FAIL] {}: {} = {} (expected {})",
                     test.name,
                     query_id,
-                    format_result(result),
-                    format_result(expected)
+                    format_result(result.as_deref()),
+                    format_result(expected.as_deref())
                 );
                 failed += 1;
             }

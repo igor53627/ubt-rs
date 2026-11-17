@@ -156,7 +156,7 @@ mod tests {
     #[test]
     fn test_stem_bit_at() {
         let mut bytes = [0u8; STEM_LEN];
-        bytes[0] = 0b10000000; // MSB set
+        bytes[0] = 0b1000_0000; // MSB set
         let stem = Stem(bytes);
 
         assert!(stem.bit_at(0));
@@ -168,13 +168,13 @@ mod tests {
     fn test_first_differing_bit() {
         let stem1 = Stem([0u8; STEM_LEN]);
         let mut bytes2 = [0u8; STEM_LEN];
-        bytes2[0] = 0b10000000;
+        bytes2[0] = 0b1000_0000;
         let stem2 = Stem(bytes2);
 
         assert_eq!(stem1.first_differing_bit(&stem2), Some(0));
 
         let mut bytes3 = [0u8; STEM_LEN];
-        bytes3[0] = 0b00000001;
+        bytes3[0] = 0b0000_0001;
         let stem3 = Stem(bytes3);
 
         assert_eq!(stem1.first_differing_bit(&stem3), Some(7));

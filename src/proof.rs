@@ -275,7 +275,7 @@ mod tests {
         let proof = Proof::new(key, Some(B256::repeat_byte(0x42)), path);
 
         let size = proof.size();
-        println!("Proof size: {} bytes", size);
+        println!("Proof size: {size} bytes");
         assert!(size > 0);
     }
 

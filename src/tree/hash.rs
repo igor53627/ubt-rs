@@ -482,11 +482,7 @@ mod tests {
     fn b256_from_zero(overrides: &[(usize, u8)]) -> B256 {
         let mut bytes = [0u8; 32];
         for &(idx, value) in overrides {
-            assert!(
-                idx < bytes.len(),
-                "byte index out of range: {byte_idx}",
-                byte_idx = idx
-            );
+            assert!(idx < bytes.len(), "byte index out of range: {idx}");
             bytes[idx] = value;
         }
         B256::from(bytes)
@@ -495,11 +491,7 @@ mod tests {
     fn b256_from_fill(fill: u8, overrides: &[(usize, u8)]) -> B256 {
         let mut bytes = [fill; 32];
         for &(idx, value) in overrides {
-            assert!(
-                idx < bytes.len(),
-                "byte index out of range: {byte_idx}",
-                byte_idx = idx
-            );
+            assert!(idx < bytes.len(), "byte index out of range: {idx}");
             bytes[idx] = value;
         }
         B256::from(bytes)
@@ -508,17 +500,11 @@ mod tests {
     fn assert_prefix_match(value: B256, prefix_ok: B256, prefix_bad: B256, depth: usize) {
         assert!(
             b256_matches_prefix(&value, &prefix_ok, depth),
-            "expected match at depth={depth_bits} (value={val:?}, prefix={prefix:?})",
-            depth_bits = depth,
-            val = value,
-            prefix = prefix_ok,
+            "expected match at depth={depth} (value={value:?}, prefix={prefix_ok:?})",
         );
         assert!(
             !b256_matches_prefix(&value, &prefix_bad, depth),
-            "expected mismatch at depth={depth_bits} (value={val:?}, prefix={prefix:?})",
-            depth_bits = depth,
-            val = value,
-            prefix = prefix_bad,
+            "expected mismatch at depth={depth} (value={value:?}, prefix={prefix_bad:?})",
         );
     }
 
