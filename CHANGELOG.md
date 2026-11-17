@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-11-17
+
 ### Added
 - Property tests P58-P61 for the binary codec: encode/decode round-trip, size prediction, determinism, and `decode_node` dispatch
 - "Binary Codec" section in `README.md`
@@ -14,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unit tests for `StreamingTreeBuilder`: `build_root_hash_parallel` with more stems than the rayon threshold (the parallel branch had no test), and zero-value handling
 
 ### Changed
+- **Release workflow uses crates.io Trusted Publishing.** `release.yml` gets a short-lived token through `rust-lang/crates-io-auth-action` (OIDC) and no longer reads the `CARGO_REGISTRY_TOKEN` secret. The authentication step runs before the GitHub Release is created.
 - **Repository re-created.** The GitHub repository was deleted and re-created from the last local clone. Issue and pull request numbers in the entries for 0.5.1 and earlier refer to the deleted repository and no longer resolve.
 - `backlog/`: the ADR task is now TASK-22 (two tasks had the id TASK-19); the codec (TASK-19), V3 key derivation (TASK-21), and simulation clippy (TASK-11) tasks are marked Done
 - Tests, benches, and the `simulate` binary are refactored so that `cargo clippy --all-targets --all-features` reports no warnings (TASK-11). `WorkloadRunner::run`, `generate_test_cases`, and `run_multi_seed` are split into smaller functions. Test behaviour is unchanged.
@@ -32,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `docs/eip-7864.md` and `docs/eip-7864-json.json` (copies of the upstream EIP text; `README.md` links the official EIP)
 
 ### Fixed
+- `README.md`: the DeepWiki badge image is a static shields.io badge. `deepwiki.com/badge.svg` returns HTTP 429 to the GitHub image proxy, so the image did not load.
 - `Proof::compute_root` (and `Proof::verify`) read the subindex bits of a `ProofNode::Stem` in the wrong order. `generate_stem_proof` and the `subtree_siblings` documentation order the siblings from leaf to root, but the verifier used the highest bit of the subindex first. A proof from `generate_stem_proof` verified only for the 16 subindexes whose bit pattern is a palindrome (for example 0, 0x81, 0xFF) and failed for the other 240. The verifier now uses the lowest bit first. `formal/proofs/multiproof.v` still models the old bit order.
 - `get_code_chunk_key` handles every `u64` chunk number. For the last 128 chunk numbers (`chunk_number > u64::MAX - 128`), `CODE_OFFSET + chunk_number` overflowed `u64`: debug builds panicked, and release builds returned a key in the account stem (for `u64::MAX - 127`, the basic data key). The position is now computed in 128 bits. Keys for all other chunk numbers are unchanged.
 - `release.yml` and `fuzz.yml` no longer check out submodules, which failed after the submodule upstream was deleted
