@@ -171,6 +171,260 @@ mod tests {
         );
     }
 
+    fn k80() -> B256 {
+        hex_to_b256("8000000000000000000000000000000000000000000000000000000000000000")
+    }
+
+    fn k03() -> B256 {
+        hex_to_b256("0000000000000000000000000000000000000000000000000000000000000003")
+    }
+
+    fn k04() -> B256 {
+        hex_to_b256("0000000000000000000000000000000000000000000000000000000000000004")
+    }
+
+    /// Entries of go-ethereum `TestMerkleizeMultipleEntries`: the value for key
+    /// number `i` is `i` as a little-endian `u64`, so the first value is all zero.
+    fn merkleize_entries() -> Vec<(B256, B256)> {
+        let keys: [B256; 4] = [
+            ZERO_KEY,
+            k80(),
+            hex_to_b256("0100000000000000000000000000000000000000000000000000000000000000"),
+            hex_to_b256("8100000000000000000000000000000000000000000000000000000000000000"),
+        ];
+        keys.iter()
+            .zip(0u64..)
+            .map(|(key, i)| {
+                let mut value = [0u8; 32];
+                value[..8].copy_from_slice(&i.to_le_bytes());
+                (*key, B256::from(value))
+            })
+            .collect()
+    }
+
+    fn tree_root(entries: &[(B256, B256)]) -> B256 {
+        let mut tree: UnifiedBinaryTree<Sha256Hasher> = UnifiedBinaryTree::new();
+        for (key, value) in entries {
+            tree.insert_b256(*key, *value);
+        }
+        tree.root_hash().unwrap()
+    }
+
+    /// A single leaf that holds 32 zero bytes is present and is hashed.
+    /// Root from the go-ethereum `trie/bintrie` code at commit `b0f9324c`.
+    #[test]
+    fn test_zero_value_only_sha256() {
+        let root: B256 = tree_root(&[(ZERO_KEY, B256::ZERO)]);
+        assert_eq!(
+            root,
+            hex_to_b256("d90841cd9ac38b304a3ba8bf706cb89b26aba153c72b73663fafb5445db8d39c"),
+            "zero_value_only root must match go-ethereum"
+        );
+    }
+
+    /// A zero value beside a non-zero value in the same stem.
+    /// Root from the go-ethereum `trie/bintrie` code at commit `b0f9324c`.
+    #[test]
+    fn test_zero_value_beside_value_sha256() {
+        let root: B256 = tree_root(&[(k03(), one_key()), (k04(), B256::ZERO)]);
+        assert_eq!(
+            root,
+            hex_to_b256("921070b0df7aaa65f5fe8a2d4470e60aafce0bc60dbb75fc63a842012ee4e43b"),
+            "zero_value_beside_value root must match go-ethereum"
+        );
+    }
+
+    /// A zero write over a value keeps the leaf and the stem.
+    /// Root from the go-ethereum `trie/bintrie` code at commit `b0f9324c`.
+    #[test]
+    fn test_write_then_zero_sha256() {
+        let root: B256 = tree_root(&[
+            (ZERO_KEY, one_key()),
+            (k80(), two_key()),
+            (k80(), B256::ZERO),
+        ]);
+        assert_eq!(
+            root,
+            hex_to_b256("99e98bcbc2472cb109aa6b706c25a5bdf1b703c4b1cf2c7c21b4dc35a6ca67d9"),
+            "write_then_zero root must match go-ethereum"
+        );
+    }
+
+    /// `TestMerkleizeMultipleEntries` from go-ethereum, with its inputs and its pinned root.
+    #[test]
+    fn test_merkleize_multiple_entries_sha256() {
+        let root: B256 = tree_root(&merkleize_entries());
+        assert_eq!(
+            root,
+            hex_to_b256("9317155862f7a3867660ddd0966ff799a3d16aa4df1e70a7516eaa4a675191b5"),
+            "merkleize root must match go-ethereum"
+        );
+    }
+
+    /// Assert the root that `StreamingTreeBuilder` gives for `writes`: entries sorted
+    /// by key, and only the last write of a repeated key.
+    fn assert_streaming_root(name: &str, writes: &[(B256, B256)], expected: &str) {
+        use crate::StreamingTreeBuilder;
+        use std::collections::BTreeMap;
+
+        let last_writes: BTreeMap<B256, B256> = writes.iter().copied().collect();
+        let entries: Vec<(TreeKey, B256)> = last_writes
+            .into_iter()
+            .map(|(key, value)| (TreeKey::from_bytes(key), value))
+            .collect();
+
+        let builder = StreamingTreeBuilder::<Sha256Hasher>::new();
+        assert_eq!(
+            builder.build_root_hash(entries.clone()).unwrap(),
+            hex_to_b256(expected),
+            "streaming {name} root must match go-ethereum"
+        );
+        #[cfg(feature = "parallel")]
+        assert_eq!(
+            builder.build_root_hash_parallel(entries).unwrap(),
+            hex_to_b256(expected),
+            "parallel streaming {name} root must match go-ethereum"
+        );
+    }
+
+    /// The four zero-value scenarios through `StreamingTreeBuilder`. The roots are
+    /// the go-ethereum roots of the tree tests above.
+    #[test]
+    fn test_zero_value_roots_streaming() {
+        assert_streaming_root(
+            "zero_value_only",
+            &[(ZERO_KEY, B256::ZERO)],
+            "d90841cd9ac38b304a3ba8bf706cb89b26aba153c72b73663fafb5445db8d39c",
+        );
+        assert_streaming_root(
+            "zero_value_beside_value",
+            &[(k03(), one_key()), (k04(), B256::ZERO)],
+            "921070b0df7aaa65f5fe8a2d4470e60aafce0bc60dbb75fc63a842012ee4e43b",
+        );
+        assert_streaming_root(
+            "write_then_zero",
+            &[
+                (ZERO_KEY, one_key()),
+                (k80(), two_key()),
+                (k80(), B256::ZERO),
+            ],
+            "99e98bcbc2472cb109aa6b706c25a5bdf1b703c4b1cf2c7c21b4dc35a6ca67d9",
+        );
+        assert_streaming_root(
+            "merkleize",
+            &merkleize_entries(),
+            "9317155862f7a3867660ddd0966ff799a3d16aa4df1e70a7516eaa4a675191b5",
+        );
+    }
+
+    /// The zero-value roots do not depend on the incremental mode: a zero write
+    /// after the node cache is populated gives the go-ethereum root too.
+    #[test]
+    fn test_write_then_zero_incremental_sha256() {
+        let mut tree: UnifiedBinaryTree<Sha256Hasher> = UnifiedBinaryTree::new();
+        tree.insert_b256(ZERO_KEY, one_key());
+        tree.insert_b256(k80(), two_key());
+        tree.enable_incremental_mode();
+        assert_eq!(
+            tree.root_hash().unwrap(),
+            hex_to_b256("dfc69c94013a8b3c65395625a719a87534a7cfd38719251ad8c8ea7fe79f065e")
+        );
+
+        tree.insert_b256(k80(), B256::ZERO);
+        assert_eq!(
+            tree.root_hash().unwrap(),
+            hex_to_b256("99e98bcbc2472cb109aa6b706c25a5bdf1b703c4b1cf2c7c21b4dc35a6ca67d9")
+        );
+        assert_eq!(tree.get_by_b256(&k80()), Some(B256::ZERO));
+        assert_eq!(tree.len(), 2);
+        assert_eq!(tree.stem_count(), 2);
+    }
+
+    /// `delete` has no go-ethereum counterpart. After the writes of the
+    /// `write_then_zero` scenario, `delete` of the zeroed key removes the leaf and its
+    /// stem, and the root is the root of a tree that never saw that key.
+    #[test]
+    fn test_delete_after_zero_write_restores_never_written_root() {
+        let mut never_written: UnifiedBinaryTree<Sha256Hasher> = UnifiedBinaryTree::new();
+        never_written.insert_b256(ZERO_KEY, one_key());
+        let expected: B256 = never_written.root_hash().unwrap();
+        assert_eq!(
+            expected,
+            hex_to_b256("aab1060e04cb4f5dc6f697ae93156a95714debbf77d54238766adc5709282b6f")
+        );
+
+        for incremental in [false, true] {
+            let mut tree: UnifiedBinaryTree<Sha256Hasher> = UnifiedBinaryTree::new();
+            if incremental {
+                tree.enable_incremental_mode();
+            }
+            tree.insert_b256(ZERO_KEY, one_key());
+            tree.insert_b256(k80(), two_key());
+            tree.insert_b256(k80(), B256::ZERO);
+            assert_eq!(
+                tree.root_hash().unwrap(),
+                hex_to_b256("99e98bcbc2472cb109aa6b706c25a5bdf1b703c4b1cf2c7c21b4dc35a6ca67d9")
+            );
+
+            tree.delete(&TreeKey::from_bytes(k80()));
+
+            assert_eq!(tree.get_by_b256(&k80()), None);
+            assert_eq!(tree.len(), 1);
+            assert_eq!(tree.stem_count(), 1);
+            assert_eq!(
+                tree.root_hash().unwrap(),
+                expected,
+                "incremental={incremental}"
+            );
+        }
+    }
+
+    /// A stem node that `get_or_create_stem` created, and that holds no value,
+    /// contributes nothing to the root. go-ethereum cannot have such a node.
+    #[test]
+    fn test_get_or_create_stem_without_write_keeps_root() {
+        let mut ghost_stem_bytes = [0u8; 31];
+        ghost_stem_bytes[0] = 0x40;
+        let ghost_stem = Stem::new(ghost_stem_bytes);
+
+        for incremental in [false, true] {
+            let mut only_ghost: UnifiedBinaryTree<Sha256Hasher> = UnifiedBinaryTree::new();
+            if incremental {
+                only_ghost.enable_incremental_mode();
+            }
+            let _ = only_ghost.get_or_create_stem(ghost_stem);
+            assert_eq!(only_ghost.root_hash().unwrap(), B256::ZERO);
+
+            let mut tree: UnifiedBinaryTree<Sha256Hasher> = UnifiedBinaryTree::new();
+            if incremental {
+                tree.enable_incremental_mode();
+            }
+            tree.insert_b256(ZERO_KEY, one_key());
+            tree.insert_b256(k80(), two_key());
+            let expected =
+                hex_to_b256("dfc69c94013a8b3c65395625a719a87534a7cfd38719251ad8c8ea7fe79f065e");
+            assert_eq!(tree.root_hash().unwrap(), expected);
+
+            let _ = tree.get_or_create_stem(ghost_stem);
+            assert_eq!(
+                tree.root_hash().unwrap(),
+                expected,
+                "incremental={incremental}"
+            );
+
+            tree.get_or_create_stem(ghost_stem).set_value(0, B256::ZERO);
+            let with_zero_leaf: B256 = tree.root_hash().unwrap();
+            assert_ne!(with_zero_leaf, expected);
+
+            tree.get_or_create_stem(ghost_stem).remove_value(0);
+            assert_eq!(
+                tree.root_hash().unwrap(),
+                expected,
+                "incremental={incremental}"
+            );
+        }
+    }
+
     /// Test hash determinism with SHA256
     #[test]
     fn test_hash_determinism_sha256() {

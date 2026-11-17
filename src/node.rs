@@ -80,16 +80,20 @@ impl InternalNode {
 /// The subtree contains 256 leaves indexed by the last byte (subindex).
 ///
 /// Per go-ethereum:
-/// 1. Hash each value: `data\[i\] = hash(value\[i\])` or zero if nil
+/// 1. Hash each present value: `data\[i\] = hash(value\[i\])`, or zero if the subindex
+///    is absent. A value of 32 zero bytes is present and is hashed.
 /// 2. Build 8-level binary tree from bottom up
 /// 3. Final hash = `hash(stem || 0x00 || subtree_root)`
+///
+/// A stem node with no values does not exist in go-ethereum. In this crate its hash
+/// is `B256::ZERO`, the same as an absent stem.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct StemNode {
     /// The 31-byte stem
     pub stem: Stem,
     /// Direct access to leaf values (sparse representation)
-    /// Maps subindex -> value
+    /// Maps subindex -> value. An entry is a present leaf, also when its value is zero.
     pub values: HashMap<SubIndex, B256>,
 }
 
@@ -103,23 +107,49 @@ impl StemNode {
     }
 
     /// Set a value at the given subindex.
+    ///
+    /// The value is stored as a present leaf for every `value`, including
+    /// `B256::ZERO`. As in go-ethereum, a zero write does not remove the leaf.
+    /// Use [`remove_value`](Self::remove_value) to make a subindex absent.
     pub fn set_value(&mut self, subindex: SubIndex, value: B256) {
-        if value.is_zero() {
-            self.values.remove(&subindex);
-        } else {
-            self.values.insert(subindex, value);
-        }
+        self.values.insert(subindex, value);
+    }
+
+    /// Remove the value at the given subindex and return it.
+    ///
+    /// After the call the subindex is absent, as if it was never written.
+    /// Returns `None` if the subindex was absent. This operation has no
+    /// go-ethereum counterpart: go-ethereum deletes with a zero write.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use ubt::{Stem, StemNode, B256};
+    ///
+    /// let mut node = StemNode::new(Stem::new([0u8; 31]));
+    /// node.set_value(7, B256::ZERO);
+    /// assert_eq!(node.get_value(7), Some(B256::ZERO));
+    /// assert_eq!(node.remove_value(7), Some(B256::ZERO));
+    /// assert_eq!(node.get_value(7), None);
+    /// ```
+    pub fn remove_value(&mut self, subindex: SubIndex) -> Option<B256> {
+        self.values.remove(&subindex)
     }
 
     /// Get a value at the given subindex.
+    ///
+    /// Returns `None` for an absent subindex and `Some(B256::ZERO)` for a present
+    /// zero value.
     pub fn get_value(&self, subindex: SubIndex) -> Option<B256> {
         self.values.get(&subindex).copied()
     }
 
     /// Calculate the hash per go-ethereum algorithm:
-    /// 1. Hash each value individually
+    /// 1. Hash each present value individually (a zero value is present and is hashed)
     /// 2. Build 8-level binary tree (256 leaves)
     /// 3. `hash(stem || 0x00 || subtree_root)`
+    ///
+    /// Returns `B256::ZERO` for a stem node with no values.
     pub fn hash<H: Hasher>(&self, hasher: &H) -> B256 {
         hash_stem_values(hasher, &self.stem, &self.values)
     }
@@ -199,16 +229,71 @@ mod tests {
         assert_eq!(hash, hash2);
     }
 
+    /// A stem node with no values hashes to zero for every stem, so that it
+    /// contributes nothing to the root, the same as an absent stem.
     #[test]
     fn test_stem_node_empty_hash() {
-        let hasher = Sha256Hasher;
-        let stem = Stem::new([0u8; 31]);
-        let node = StemNode::new(stem);
+        let zero_stem = StemNode::new(Stem::new([0u8; 31]));
+        let nonzero_stem = StemNode::new(Stem::new([0xabu8; 31]));
 
-        // Empty stem node should still have non-zero hash (stem contributes)
-        let hash = node.hash(&hasher);
-        // With all-zero stem and all-zero values, subtree is zero
-        // hash(0^31 || 0x00 || 0^32) should be computed
-        println!("Empty stem node hash: {hash}");
+        assert_eq!(zero_stem.hash(&Sha256Hasher), B256::ZERO);
+        assert_eq!(nonzero_stem.hash(&Sha256Hasher), B256::ZERO);
+        assert_eq!(zero_stem.hash(&Blake3Hasher), B256::ZERO);
+        assert_eq!(nonzero_stem.hash(&Blake3Hasher), B256::ZERO);
+    }
+
+    /// A zero value is a present leaf: `set_value` keeps it, the hash is not the
+    /// hash of a node without that leaf, and `remove_value` makes it absent again.
+    #[test]
+    fn test_stem_node_zero_value_is_present() {
+        let hasher = Sha256Hasher;
+        let stem = Stem::new([0x11u8; 31]);
+
+        let mut node = StemNode::new(stem);
+        node.set_value(3, B256::repeat_byte(0x42));
+        let hash_without_zero_leaf: B256 = node.hash(&hasher);
+
+        node.set_value(4, B256::ZERO);
+        assert_eq!(node.get_value(4), Some(B256::ZERO));
+        assert_eq!(node.values.len(), 2);
+        assert_ne!(node.hash(&hasher), hash_without_zero_leaf);
+
+        node.set_value(3, B256::ZERO);
+        assert_eq!(node.get_value(3), Some(B256::ZERO));
+        assert_eq!(node.values.len(), 2);
+        assert_ne!(node.hash(&hasher), B256::ZERO);
+
+        assert_eq!(node.remove_value(3), Some(B256::ZERO));
+        assert_eq!(node.remove_value(3), None);
+        assert_eq!(node.remove_value(4), Some(B256::ZERO));
+        assert!(node.values.is_empty());
+        assert_eq!(node.hash(&hasher), B256::ZERO);
+    }
+
+    /// The stem hash of a single zero leaf, built by hand from the go-ethereum rules.
+    /// For the all-zero stem this value is the root that go-ethereum gives for the
+    /// single entry `(0^32, 0^32)`.
+    #[test]
+    fn test_stem_node_single_zero_leaf_hash_sha256() {
+        use sha2::{Digest, Sha256};
+
+        let mut subtree_root: [u8; 32] = Sha256::digest([0u8; 32]).into();
+        for _ in 0..8 {
+            let mut pair = [0u8; 64];
+            pair[..32].copy_from_slice(&subtree_root);
+            subtree_root = Sha256::digest(pair).into();
+        }
+        let mut stem_input = [0u8; 64];
+        stem_input[32..].copy_from_slice(&subtree_root);
+        let expected: [u8; 32] = Sha256::digest(stem_input).into();
+
+        let mut node = StemNode::new(Stem::new([0u8; 31]));
+        node.set_value(0, B256::ZERO);
+
+        assert_eq!(node.hash(&Sha256Hasher), B256::from(expected));
+        assert_eq!(
+            hex::encode(expected),
+            "d90841cd9ac38b304a3ba8bf706cb89b26aba153c72b73663fafb5445db8d39c"
+        );
     }
 }

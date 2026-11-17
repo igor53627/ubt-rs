@@ -65,11 +65,7 @@ impl UbtReferenceModel {
     pub fn apply(&mut self, op: &UbtOperation) {
         match op {
             UbtOperation::Insert { key, value } => {
-                if *value == [0u8; 32] {
-                    self.state.remove(key);
-                } else {
-                    self.state.insert(*key, *value);
-                }
+                self.state.insert(*key, *value);
             }
             UbtOperation::Delete { key } => {
                 self.state.remove(key);
@@ -294,18 +290,42 @@ mod tests {
         assert!(model.is_empty());
     }
 
+    /// An insert of zero keeps the key as a present entry; only `Delete` removes it.
+    /// The checker agrees with the tree for both states.
     #[test]
-    fn test_reference_model_insert_zero_deletes() {
+    fn test_reference_model_insert_zero_is_present() {
+        let checker: UbtMerkleChecker<Blake3Hasher> = UbtMerkleChecker::new();
         let mut model = UbtReferenceModel::new();
+        let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
         let key = [1u8; 32];
         let value = [42u8; 32];
+        let tree_key = TreeKey::from_bytes(B256::from_slice(&key));
 
         model.apply(&UbtOperation::Insert { key, value });
         model.apply(&UbtOperation::Insert {
             key,
             value: [0u8; 32],
         });
+        tree.insert(tree_key, B256::from_slice(&value));
+        tree.insert(tree_key, B256::ZERO);
+
+        assert_eq!(model.get(&key), Some(&[0u8; 32]));
+        assert_eq!(model.len(), 1);
+        let root = tree.root_hash().expect("tree depth within bounds");
+        assert_ne!(root, B256::ZERO);
+        assert!(checker.verify_root(root, &model).is_ok());
+        assert!(checker
+            .verify_get(&key, tree.get(&tree_key), &model)
+            .is_ok());
+
+        model.apply(&UbtOperation::Delete { key });
+        tree.delete(&tree_key);
+
         assert_eq!(model.get(&key), None);
+        assert!(model.is_empty());
+        let root = tree.root_hash().expect("tree depth within bounds");
+        assert_eq!(root, B256::ZERO);
+        assert!(checker.verify_root(root, &model).is_ok());
     }
 
     #[test]

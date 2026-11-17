@@ -16,14 +16,22 @@ pub(crate) const MAX_DEPTH: usize = STEM_LEN * 8;
 pub(crate) const PARALLEL_STEM_THRESHOLD: usize = 100;
 
 /// Compute the hash of a stem node per the go-ethereum algorithm:
-/// 1. Hash each value individually
+/// 1. Hash each present value individually. A zero value is present and is hashed;
+///    an absent subindex contributes zero.
 /// 2. Build 8-level binary tree (256 leaves)
 /// 3. `hash(stem || 0x00 || subtree_root)`
+///
+/// A stem with no values hashes to `B256::ZERO`, so that it contributes nothing to
+/// the root, the same as an absent stem. go-ethereum cannot have such a stem node.
 pub(crate) fn hash_stem_values<H: Hasher>(
     hasher: &H,
     stem: &Stem,
     values: &HashMap<SubIndex, B256>,
 ) -> B256 {
+    if values.is_empty() {
+        return B256::ZERO;
+    }
+
     let mut data: [B256; 256] = [B256::ZERO; 256];
     for (&idx, value) in values {
         data[usize::from(idx)] = hasher.hash_32(value);

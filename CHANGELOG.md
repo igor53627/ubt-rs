@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+The next release must be 0.6.0: this section contains a breaking change of root hashes and of the `Hasher::hash_32` contract.
+
+### Added
+- `StemNode::remove_value(subindex) -> Option<B256>`, the explicit removal that `UnifiedBinaryTree::delete` uses.
+- Tests with go-ethereum roots for zero values (`zero_value_only`, `zero_value_beside_value`, `write_then_zero`, `TestMerkleizeMultipleEntries`) through the tree, the incremental mode, and `StreamingTreeBuilder`; codec round trip and stem proof for a zero value. Property tests now generate zero values.
+
+### Changed
+- **BREAKING: zero values are present leaves, as in go-ethereum `trie/bintrie` at commit `b0f9324c` (issue #7).** A leaf that holds 32 zero bytes is present and is hashed. A zero write does not remove the value and does not remove the stem. With `Sha256Hasher`, trees that contain zero values now have the go-ethereum roots; the root that go-ethereum pins in `TestMerkleizeMultipleEntries` is asserted.
+  - **Root hashes change** for every tree that has a zero-valued leaf (for example a storage slot set to zero, or the zero writes of go-ethereum `DeleteStorage` and `DeleteAccount`). Root hashes of trees without zero values do not change.
+  - `Hasher::hash_32` has no zero rule. `Sha256Hasher::hash_32` and `Blake3Hasher::hash_32` return the hash of the 32 zero bytes for `B256::ZERO`. **Custom `Hasher` implementations must drop the zero rule from `hash_32`.** `hash_64` still returns zero when both inputs are zero, and `hash_raw` still returns zero for an all-zero input.
+  - `UnifiedBinaryTree::insert`, `insert_b256`, `insert_batch`, and `insert_batch_with_progress` store `B256::ZERO` as a present leaf. `get` returns `Some(B256::ZERO)`, and `len`, `iter`, `contains_key`, `stem_count`, and `is_empty` count the leaf and its stem.
+  - `UnifiedBinaryTree::delete` is still a real removal: the leaf becomes absent, and a stem with no values left is removed. It restores the state "never written" and has no go-ethereum counterpart. The go-ethereum equivalent of a delete is `insert(key, B256::ZERO)`.
+  - `StemNode::set_value` with `B256::ZERO` no longer removes the entry; it stores the zero value.
+  - `StreamingTreeBuilder` no longer skips zero values. It gives the same root as `UnifiedBinaryTree::insert` for the same entries. To get the root of a tree without a key, leave the key out of the input.
+  - `codec::decode_stem_node` keeps a zero value under a set bitmap bit, so `encode_stem_node(decode_stem_node(bytes)) == bytes` holds for such a node.
+  - `Proof::compute_root` and `generate_stem_proof`: `Some(B256::ZERO)` contributes `hash_32(0^32)` and `None` contributes zero, so a proof that claims `None` for a present zero leaf does not verify.
+  - A `StemNode` with no values hashes to `B256::ZERO` for every stem. Before, such a node with a non-zero stem had a non-zero hash, so `get_or_create_stem` without a write changed the root.
+- `README.md`, crate docs, and `docs/`: zero-value statements updated; the Rocq simulation model (`sim_set`, `hash_zero_value`) is noted as a model of the behaviour before this change.
+
 ## [0.5.2] - 2026-11-17
 
 ### Added

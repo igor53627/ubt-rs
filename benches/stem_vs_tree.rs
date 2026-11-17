@@ -74,7 +74,13 @@ fn group_entries_by_stem(entries: &[(TreeKey, B256)]) -> Vec<(Stem, HashMap<u8, 
     stem_groups
 }
 
+/// Reference stem hash with the rules of the crate: every value in `values` is a
+/// present leaf and is hashed, also a zero value; a stem with no values hashes to zero.
 fn compute_stem_hash(hasher: &Blake3Hasher, stem: &Stem, values: &HashMap<u8, B256>) -> B256 {
+    if values.is_empty() {
+        return B256::ZERO;
+    }
+
     let mut data = [B256::ZERO; 256];
     for (&idx, &value) in values {
         data[idx as usize] = hasher.hash_32(&value);

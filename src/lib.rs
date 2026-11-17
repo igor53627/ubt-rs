@@ -26,6 +26,14 @@
 //! - [`LeafNode`]: Contains a 32-byte value
 //! - [`Node::Empty`]: Represents an empty node/subtree (hash = 0)
 //!
+//! ## Zero Values
+//!
+//! As in go-ethereum `trie/bintrie`, a leaf that holds 32 zero bytes is present and is
+//! hashed. [`UnifiedBinaryTree::insert`] with `B256::ZERO` does not remove the leaf or
+//! the stem; this is the equivalent of the zero writes of go-ethereum `DeleteStorage`
+//! and `DeleteAccount`. [`UnifiedBinaryTree::delete`] removes the leaf and restores the
+//! state "never written"; it has no go-ethereum counterpart.
+//!
 //! ## Quick Start
 //!
 //! ```rust

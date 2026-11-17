@@ -18,6 +18,8 @@
 //! Bitmap: 256 bits, bit `i` set = subindex `i` present.
 //! Bit ordering: `byte[i/8] & (1 << (i%8))`.
 //! Values in ascending subindex order, only for set bits.
+//! A value of 32 zero bytes under a set bit is a present leaf: [`encode_stem_node`]
+//! writes it and [`decode_stem_node`] keeps it, so `encode(decode(bytes)) == bytes`.
 
 use alloy_primitives::B256;
 
@@ -72,6 +74,8 @@ pub fn encode_stem_node(node: &StemNode) -> Vec<u8> {
 }
 
 /// Decode a [`StemNode`] from compact binary format.
+///
+/// Each set bitmap bit gives a present value, also when the value is 32 zero bytes.
 ///
 /// # Errors
 ///
@@ -293,6 +297,50 @@ mod tests {
         assert_eq!(decoded.get_value(255), Some(B256::repeat_byte(0x03)));
         assert_eq!(decoded.get_value(1), None);
         assert_eq!(decoded.values.len(), 3);
+    }
+
+    /// A zero value under a set bitmap bit is a present leaf. The round trip holds
+    /// in both directions, and the decoded node has the hash of the original node.
+    #[test]
+    fn test_roundtrip_zero_value() {
+        let mut node = StemNode::new(Stem::new([0x5C; 31]));
+        node.set_value(0, B256::ZERO);
+        node.set_value(9, B256::repeat_byte(0x09));
+        node.set_value(255, B256::ZERO);
+
+        let bytes = encode_stem_node(&node);
+        assert_eq!(bytes.len(), STEM_HEADER_SIZE + 3 * 32);
+        assert_eq!(encoded_stem_size(&node), bytes.len());
+        assert_eq!(bytes[32], 0x01);
+        assert_eq!(bytes[33], 0x02);
+        assert_eq!(bytes[63], 0x80);
+        assert_eq!(&bytes[64..96], B256::ZERO.as_slice());
+        assert_eq!(&bytes[128..160], B256::ZERO.as_slice());
+
+        let decoded = decode_stem_node(&bytes).unwrap();
+        assert_eq!(decoded, node);
+        assert_eq!(decoded.get_value(0), Some(B256::ZERO));
+        assert_eq!(decoded.get_value(255), Some(B256::ZERO));
+        assert_eq!(decoded.get_value(1), None);
+        assert_eq!(decoded.values.len(), 3);
+        assert_eq!(encode_stem_node(&decoded), bytes);
+        assert_eq!(
+            decoded.hash(&crate::Sha256Hasher),
+            node.hash(&crate::Sha256Hasher)
+        );
+
+        let mut hand_built: Vec<u8> = vec![STEM_NODE_TAG];
+        hand_built.extend_from_slice(&[0x5C; 31]);
+        let mut bitmap = [0u8; 32];
+        bitmap[0] = 0x80;
+        hand_built.extend_from_slice(&bitmap);
+        hand_built.extend_from_slice(&[0u8; 32]);
+
+        let only_zero = decode_stem_node(&hand_built).unwrap();
+        assert_eq!(only_zero.values.len(), 1);
+        assert_eq!(only_zero.get_value(7), Some(B256::ZERO));
+        assert_eq!(encode_stem_node(&only_zero), hand_built);
+        assert_eq!(encoded_stem_size(&only_zero), hand_built.len());
     }
 
     #[test]

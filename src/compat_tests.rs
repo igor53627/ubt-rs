@@ -1,8 +1,9 @@
 //! Compatibility tests with go-ethereum bintrie implementation.
 //!
 //! These tests reuse go-ethereum's trie/bintrie test vectors to ensure our
-//! stem layout and lookup behavior are compatible. Because we use BLAKE3
-//! instead of go-ethereum's hash, root hashes will differ.
+//! stem layout and lookup behavior are compatible. Most tests use BLAKE3
+//! instead of go-ethereum's hash, so their root hashes differ and are not asserted.
+//! `test_merkleize_multiple_entries` uses `Sha256Hasher` and asserts the go-ethereum root.
 
 #[cfg(test)]
 mod tests {
@@ -211,12 +212,13 @@ mod tests {
     /// `TestMerkleizeMultipleEntries`: Multiple entries with known root hash
     /// go-ethereum expected: 9317155862f7a3867660ddd0966ff799a3d16aa4df1e70a7516eaa4a675191b5
     ///
-    /// Note: go-ethereum uses value = i (little-endian u64), where i=0 gives zero value.
-    /// Our implementation treats zero values as "empty" (optimizes them away).
-    /// This test uses i+1 to avoid zero values while testing the same tree structure.
+    /// This test uses the go-ethereum inputs and `Sha256Hasher`, so the root is
+    /// asserted. go-ethereum uses value = i (little-endian u64), where i=0 gives a
+    /// zero value. The zero value is a present leaf: it is retrievable, it is counted,
+    /// and it is hashed.
     #[test]
     fn test_merkleize_multiple_entries() {
-        let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        let mut tree: UnifiedBinaryTree<crate::Sha256Hasher> = UnifiedBinaryTree::new();
 
         let keys = [
             ZERO_KEY,
@@ -225,22 +227,21 @@ mod tests {
             hex_to_b256("8100000000000000000000000000000000000000000000000000000000000000"),
         ];
 
-        // Use i+1 to avoid zero values (our impl treats zeros as empty)
         for (i, key) in keys.iter().enumerate() {
             let mut v = [0u8; 32];
-            v[..8].copy_from_slice(&((i + 1) as u64).to_le_bytes());
+            v[..8].copy_from_slice(&(i as u64).to_le_bytes());
             tree.insert_b256(*key, B256::from(v));
         }
 
         let root = tree.root_hash().unwrap();
-
-        println!("Multiple entries root (BLAKE3): {root}");
-        println!("Note: go-ethereum uses different hash function, roots will differ");
+        let expected =
+            hex_to_b256("9317155862f7a3867660ddd0966ff799a3d16aa4df1e70a7516eaa4a675191b5");
+        assert_eq!(root, expected, "merkleize root must match go-ethereum");
 
         // Verify all entries are retrievable
         for (i, key) in keys.iter().enumerate() {
             let mut expected_v = [0u8; 32];
-            expected_v[..8].copy_from_slice(&((i + 1) as u64).to_le_bytes());
+            expected_v[..8].copy_from_slice(&(i as u64).to_le_bytes());
             assert_eq!(
                 tree.get_by_b256(key),
                 Some(B256::from(expected_v)),
@@ -248,7 +249,9 @@ mod tests {
             );
         }
 
+        assert_eq!(tree.get_by_b256(&ZERO_KEY), Some(B256::ZERO));
         assert_eq!(tree.len(), 4);
+        assert_eq!(tree.stem_count(), 4);
     }
 
     /// Test that root hash is deterministic regardless of insertion order
