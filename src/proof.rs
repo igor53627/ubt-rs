@@ -88,11 +88,15 @@ pub enum ProofNode {
 ///   stem, `stem || 0x00` is also an empty left child, so only a node with two
 ///   empty children passes. The cost: no proof shows that the zero stem is
 ///   absent at an empty position of a tree that is not empty.
-/// - No left input starts with 12 zero bytes, unless it is zero. This is the form
-///   of `0^12 || address`, the start of the input of
-///   [`get_binary_tree_key`](crate::get_binary_tree_key). The hash of that input
-///   ends in `0x00` for 1 of 256 derived stems, and then `stem || 0x00` is the
-///   hash of a known input, which a path can read as a node.
+/// - No left input of a node, and no `stem || 0x00` of a stem node or extension
+///   node that has a leaf, starts with 12 zero bytes, unless it is zero. This is
+///   the form of `0^12 || address`, the start of the input of
+///   [`get_binary_tree_key`](crate::get_binary_tree_key). The key derivation
+///   always uses SHA-256. With [`Sha256Hasher`](crate::Sha256Hasher), the hash
+///   of that input ends in `0x00` for 1 of 256 derived stems, and then
+///   `stem || 0x00` is the hash of a known input. A path can read that input as
+///   an internal node or, for an address that ends in `0x00`, as the stem node
+///   of the stem `0^12 || address[..19]`. The rule applies with every hasher.
 ///
 /// # Limits
 ///
@@ -105,12 +109,19 @@ pub enum ProofNode {
 ///   present key is absent or that an absent key is present, also for keys of
 ///   other stems. A party that can insert arbitrary stems needs about 2^9 to
 ///   2^10 attempts of one stem node hash each.
-/// - For stems from the key derivation, the third rule rejects the paths that use
-///   the input of the derivation. It has no effect for the zero address, whose
-///   `0^12 || address` is zero.
-/// - A valid proof is rejected when the stem of its key is such a hash prefix, or
-///   when a left input on its path starts with 12 zero bytes (a probability of
-///   2^-96 for each hash).
+/// - For stems from the key derivation, the third rule rejects the paths that
+///   read the input of the derivation as a node. It has no effect for the zero
+///   address, whose `0^12 || address` is zero. A proof for a derived key stays
+///   unsound when a node of the tree has the form of a derivation input as its
+///   hash input, for example the stem node of a derived stem that starts with
+///   12 zero bytes. This needs about 2^96 hashes.
+/// - A valid proof is rejected when `stem || 0x00` of its key is the left input
+///   of a node on its path, or when a left input on its path starts with 12
+///   zero bytes and is not zero (a probability of 2^-96 for each hash).
+/// - A valid proof is rejected when the stem of its stem node or extension node
+///   starts with 12 zero bytes and is not zero, and the node has a leaf. This
+///   also rejects the proof that another key is absent at the position of such
+///   a stem node. A derived stem has this form with a probability of 2^-96.
 ///
 /// The rules and the limits come from tests and from a search over small trees.
 /// They are not proven.
@@ -137,11 +148,20 @@ fn invalid_proof(reason: impl Into<String>) -> UbtError {
 ///
 /// A zero subtree root means that no leaf is present. Such a stem node hashes to
 /// zero, as in [`StemNode::hash`].
-fn stem_node_hash<H: Hasher>(hasher: &H, stem: &Stem, subtree_root: &B256) -> B256 {
+///
+/// A stem that starts with 12 zero bytes and is not zero is invalid when the node
+/// has a leaf. Its `stem || 0x00` has the form `0^12 || address` of the input of
+/// the key derivation, and a path then reads that input as a stem node.
+fn stem_node_hash<H: Hasher>(hasher: &H, stem: &Stem, subtree_root: &B256) -> Result<B256> {
     if subtree_root.is_zero() {
-        return B256::ZERO;
+        return Ok(B256::ZERO);
     }
-    hasher.hash_stem_node(stem.as_bytes(), subtree_root)
+    if has_derivation_form(&stem_node_prefix(stem)) {
+        return Err(invalid_proof(
+            "stem of a stem node has the form of a key derivation input",
+        ));
+    }
+    Ok(hasher.hash_stem_node(stem.as_bytes(), subtree_root))
 }
 
 /// The first 32 bytes of the hash input of a stem node: `stem || 0x00`.
@@ -181,6 +201,16 @@ fn subtree_root<H: Hasher>(
 /// `0^12 || address || key` (see [`get_binary_tree_key`](crate::get_binary_tree_key)).
 const DERIVATION_PREFIX_ZEROS: usize = 12;
 
+/// True if the first 32 bytes of a hash input start with 12 zero bytes and are
+/// not all zero: the form `0^12 || address` of the input of the key derivation.
+fn has_derivation_form(first_input: &B256) -> bool {
+    !first_input.is_zero()
+        && first_input
+            .iter()
+            .take(DERIVATION_PREFIX_ZEROS)
+            .all(|&byte| byte == 0)
+}
+
 /// `hash_64(left, right)` for one node of a proof.
 ///
 /// A `left` that starts with 12 zero bytes and is not zero is invalid. It has the
@@ -188,12 +218,7 @@ const DERIVATION_PREFIX_ZEROS: usize = 12;
 /// form with a probability of 2^-96. With such a `left`, a path reads
 /// `stem || 0x00` of a derived stem as the hash of a node.
 fn node_hash<H: Hasher>(hasher: &H, left: &B256, right: &B256) -> Result<B256> {
-    let has_derivation_form = !left.is_zero()
-        && left
-            .iter()
-            .take(DERIVATION_PREFIX_ZEROS)
-            .all(|&byte| byte == 0);
-    if has_derivation_form {
+    if has_derivation_form(left) {
         return Err(invalid_proof(
             "left input of a node has the form of a key derivation input, not of a hash",
         ));
@@ -211,7 +236,7 @@ impl Proof {
     ///
     /// Returns `Ok(true)` if the computed root matches `expected_root`. The proof
     /// then shows that the tree with this root has `value` at `key`, or has no
-    /// leaf at `key` for `None`.
+    /// leaf at `key` for `None`, within the limits that [`Proof`] states.
     ///
     /// # Errors
     ///
@@ -243,7 +268,9 @@ impl Proof {
     ///   at the depth of that node;
     /// - the left input of an internal node is `stem || 0x00` of the key and the
     ///   node is not empty, or a left input starts with 12 zero bytes and is not
-    ///   zero (see "Stem nodes and internal nodes" in [`Proof`]).
+    ///   zero (see "Stem nodes and internal nodes" in [`Proof`]);
+    /// - a stem or extension node with a leaf has a stem that starts with 12 zero
+    ///   bytes and is not zero.
     pub fn compute_root<H: Hasher>(&self, hasher: &H) -> Result<B256> {
         let (position_hash, internal) = match self.path.split_first() {
             Some((
@@ -345,7 +372,7 @@ impl Proof {
             None => B256::ZERO,
         };
         let subtree_root = subtree_root(hasher, (self.key.subindex, leaf_hash), subtree_siblings)?;
-        Ok(stem_node_hash(hasher, stem, &subtree_root))
+        stem_node_hash(hasher, stem, &subtree_root)
     }
 
     /// Hash of another stem node that is at the position of the key, `depth` bits
@@ -365,7 +392,7 @@ impl Proof {
             Some(position) if position < depth => Err(invalid_proof(format!(
                 "extension stem leaves the key path at bit {position}, above depth {depth}"
             ))),
-            Some(_) => Ok(stem_node_hash(hasher, stem, subtree_root)),
+            Some(_) => stem_node_hash(hasher, stem, subtree_root),
         }
     }
 
@@ -1607,6 +1634,60 @@ mod tests {
             ProofNode::Internal {
                 sibling: prefix,
                 direction: Direction::Right,
+            },
+            ProofNode::Internal {
+                sibling: storage_subtree_root,
+                direction: Direction::Left,
+            },
+        ];
+        assert_invalid(&Proof::new(target, value, path), &fixture.root);
+    }
+
+    /// For an address that ends in `0x00`, the input `0^12 || address` of the key
+    /// derivation is also `stem || 0x00` of the stem `0^12 || address[..19]`. A
+    /// derived stem whose hash ends in `0x00` then has a stem node that reads as
+    /// an internal node over a stem node of that low stem, with the `key` part of
+    /// the derivation as its subtree root. A party that selects the `key` part (a
+    /// storage slot) must not prove a made-up leaf of the low stem.
+    /// (`get_storage_slot_key` also needs a `key` part that starts with `0x00`;
+    /// this test uses the stem without that condition.)
+    #[test]
+    fn test_derivation_input_read_as_stem_node_is_invalid() {
+        let hasher = Sha256Hasher;
+        let mut address = [0x11u8; 20];
+        address[19] = 0x00;
+        let prefix = derivation_prefix(&Address::from(address));
+        let target = TreeKey::new(Stem::from_slice(&prefix[..31]), 5);
+        assert_eq!(stem_node_prefix(&target.stem), prefix);
+
+        let (made_up, storage_stem) = (0u64..100_000)
+            .map(|counter| {
+                let mut value = [0xf4u8; 32];
+                value[..8].copy_from_slice(&counter.to_le_bytes());
+                let mut node = StemNode::new(target.stem);
+                node.set_value(target.subindex, B256::from(value));
+                let hash = node.hash(&hasher);
+                (node, hash)
+            })
+            .find(|(_, hash)| hash[31] == 0)
+            .map(|(node, hash)| (node, Stem::from_slice(&hash[..31])))
+            .unwrap();
+        let fixture = test_tree(&[(TreeKey::new(storage_stem, 0), B256::repeat_byte(0x01))]);
+        assert_eq!(fixture.tree.get(&target), None);
+
+        let (leaf, siblings) = generate_stem_proof(&fixture.nodes[0], 0, &hasher);
+        let leaf = (0, hasher.hash_32(&leaf.unwrap()));
+        let storage_subtree_root = subtree_root(&hasher, leaf, &siblings).unwrap();
+        // Without the rules of the verifier, this path gives the root of the tree.
+        assert_eq!(
+            hasher.hash_64(&made_up.hash(&hasher), &storage_subtree_root),
+            fixture.root
+        );
+        let (value, subtree_siblings) = generate_stem_proof(&made_up, target.subindex, &hasher);
+        let path = vec![
+            ProofNode::Stem {
+                stem: target.stem,
+                subtree_siblings,
             },
             ProofNode::Internal {
                 sibling: storage_subtree_root,
