@@ -23,7 +23,7 @@
 
 use alloy_primitives::B256;
 
-use crate::{error::Result, Stem, StemNode, UbtError, STEM_LEN};
+use crate::{error::Result, Stem, StemNode, SubIndex, UbtError, STEM_LEN};
 
 /// Type tag for empty nodes.
 pub const EMPTY_NODE_TAG: u8 = 0x00;
@@ -34,9 +34,21 @@ pub const STEM_NODE_TAG: u8 = 0x02;
 /// Type tag for leaf nodes (single value).
 pub const LEAF_NODE_TAG: u8 = 0x03;
 
-const STEM_HEADER_SIZE: usize = 1 + STEM_LEN + 32;
+const BITMAP_SIZE: usize = 32;
+const STEM_HEADER_SIZE: usize = 1 + STEM_LEN + BITMAP_SIZE;
 const INTERNAL_SIZE: usize = 1 + 32 + 32;
 const LEAF_SIZE: usize = 1 + 32;
+
+/// Byte index and bit mask of `subindex` in the presence bitmap: `byte[i/8] & (1 << (i%8))`.
+fn bitmap_position(subindex: SubIndex) -> (usize, u8) {
+    (usize::from(subindex / 8), 1 << (subindex % 8))
+}
+
+/// Whether the bit of `subindex` is set in the presence bitmap.
+fn bitmap_has(bitmap: &[u8], subindex: SubIndex) -> bool {
+    let (byte_index, bit_mask) = bitmap_position(subindex);
+    bitmap[byte_index] & bit_mask != 0
+}
 
 /// Encode a [`StemNode`] into compact binary format.
 ///
@@ -58,15 +70,16 @@ pub fn encode_stem_node(node: &StemNode) -> Vec<u8> {
     buf.push(STEM_NODE_TAG);
     buf.extend_from_slice(node.stem.as_bytes());
 
-    let mut bitmap = [0u8; 32];
+    let mut bitmap = [0u8; BITMAP_SIZE];
     for &subindex in node.values.keys() {
-        bitmap[subindex as usize / 8] |= 1 << (subindex % 8);
+        let (byte_index, bit_mask) = bitmap_position(subindex);
+        bitmap[byte_index] |= bit_mask;
     }
     buf.extend_from_slice(&bitmap);
 
-    for subindex in 0u8..=255 {
-        if bitmap[subindex as usize / 8] & (1 << (subindex % 8)) != 0 {
-            buf.extend_from_slice(node.values[&subindex].as_slice());
+    for subindex in SubIndex::MIN..=SubIndex::MAX {
+        if let Some(value) = node.values.get(&subindex) {
+            buf.extend_from_slice(value.as_slice());
         }
     }
 
@@ -101,7 +114,9 @@ pub fn decode_stem_node(bytes: &[u8]) -> Result<StemNode> {
     let stem = Stem::new(stem_bytes);
 
     let bitmap = &bytes[1 + STEM_LEN..STEM_HEADER_SIZE];
-    let value_count: usize = bitmap.iter().map(|b| b.count_ones() as usize).sum();
+    let value_count: usize = (SubIndex::MIN..=SubIndex::MAX)
+        .filter(|&subindex| bitmap_has(bitmap, subindex))
+        .count();
 
     let expected_size = STEM_HEADER_SIZE + value_count * 32;
     if bytes.len() != expected_size {
@@ -114,8 +129,8 @@ pub fn decode_stem_node(bytes: &[u8]) -> Result<StemNode> {
     let mut node = StemNode::new(stem);
     node.values.reserve(value_count);
     let mut offset = STEM_HEADER_SIZE;
-    for subindex in 0u8..=255 {
-        if bitmap[subindex as usize / 8] & (1 << (subindex % 8)) != 0 {
+    for subindex in SubIndex::MIN..=SubIndex::MAX {
+        if bitmap_has(bitmap, subindex) {
             let value = B256::from_slice(&bytes[offset..offset + 32]);
             node.set_value(subindex, value);
             offset += 32;

@@ -41,3 +41,10 @@ REMOTE_HOST=user@server REMOTE_PATH=~/mypath ./scripts/remote-build.sh build
   - `formal/linking/` - Rust-to-Rocq linking layer
   - `formal/proofs/` - Core proofs and QuickChick tests
   - `formal/specs/` - EIP-7864 specification
+
+## Code Style: TigerStyle Profile
+
+- This repository follows [TigerStyle](https://github.com/kvrail/tigerstyle/blob/main/TIGER_STYLE.md) as set out in `docs/TIGER_STYLE_PROFILE.md`. Read the profile before you change code: it says which rules are in force, the limits, and the exceptions.
+- Library code (`src/`, without `src/bin/` and test modules): no `debug_assert!`, no `as` casts, no `unwrap`/`expect`/`panic!`, no `unsafe`. Input from outside gives a `Result`; `assert!` is for internal invariants only.
+- All targets: a function has at most 70 lines; `cargo clippy --all-targets --all-features -- -D warnings` must pass.
+- A problem outside the current change gets a GitHub issue, not a fix in passing.

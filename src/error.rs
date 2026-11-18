@@ -3,7 +3,7 @@
 use alloy_primitives::B256;
 use thiserror::Error;
 
-use crate::Stem;
+use crate::{Stem, TreeKey};
 
 /// Errors that can occur during UBT operations.
 #[derive(Debug, Error)]
@@ -59,6 +59,17 @@ pub enum UbtError {
     /// Invalid binary encoding
     #[error("invalid encoding: {0}")]
     InvalidEncoding(String),
+
+    /// Entries of a streaming build are not in strictly ascending `(stem, subindex)` order.
+    #[error(
+        "entries are not in strictly ascending key order: {previous:?} is followed by {current:?}"
+    )]
+    EntriesNotSorted {
+        /// Key of the entry that came first.
+        previous: TreeKey,
+        /// Key of the next entry. It is equal to `previous` or sorts before it.
+        current: TreeKey,
+    },
 }
 
 /// Result type alias for UBT operations.

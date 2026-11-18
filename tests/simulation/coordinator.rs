@@ -2,12 +2,16 @@
 #![allow(dead_code)] // Test infrastructure with room for future expansion
 
 use crate::simulation::context::WorkloadContext;
+use crate::simulation::metrics::server::MetricsServer;
 use crate::simulation::metrics::{counter_as_f64, SharedMetrics};
 use crate::simulation::workload::{WorkloadConfig, WorkloadResult};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
-use std::thread;
+use std::sync::{Arc, Mutex};
+use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
+
+/// The seeds that no worker has taken yet.
+type SeedQueue = Mutex<std::vec::IntoIter<u64>>;
 
 /// Statistics collected during simulation.
 #[derive(Debug, Default)]
@@ -125,17 +129,13 @@ impl Coordinator {
 
     /// Run simulation with UBT adapter.
     pub fn run_with_ubt_adapter(&self) -> SimulationResult {
-        use crate::simulation::metrics::server::MetricsServer;
-        use std::sync::Mutex;
-
         let start = Instant::now();
-        let failed_seeds = Arc::new(Mutex::new(Vec::new()));
+        let failed_seeds: Arc<Mutex<Vec<u64>>> = Arc::new(Mutex::new(Vec::new()));
 
         let seeds: Vec<u64> = (self.config.seed_start..self.config.seed_end).collect();
         let total_seeds = seeds.len() as u64;
-        let seed_queue = Arc::new(Mutex::new(seeds.into_iter()));
+        let seed_queue: Arc<SeedQueue> = Arc::new(Mutex::new(seeds.into_iter()));
 
-        // Initialize metrics
         let metrics = self
             .metrics
             .clone()
@@ -144,28 +144,60 @@ impl Coordinator {
         metrics.set_seeds_remaining(total_seeds);
         metrics.set_active_workers(self.config.num_workers as u64);
 
-        // Start metrics server if port configured
-        let mut metrics_server = if let Some(port) = self.config.metrics_port {
-            match MetricsServer::start(port, Arc::clone(&metrics)) {
-                Ok(server) => Some(server),
-                Err(e) => {
-                    eprintln!("[WARN] Failed to start metrics server on port {port}: {e}");
-                    None
-                }
-            }
-        } else {
-            None
-        };
+        let mut metrics_server = self.start_metrics_server(&metrics);
+        let handles = self.spawn_workers(&seed_queue, &failed_seeds, &metrics);
+        let progress_handle = self.spawn_progress_reporter(&metrics, total_seeds);
 
-        let mut handles = Vec::new();
+        for handle in handles {
+            let _ = handle.join();
+        }
+
+        self.shutdown();
+        let _ = progress_handle.join();
+
+        if let Some(ref mut server) = metrics_server {
+            server.shutdown();
+        }
+
+        let final_stats = self.stats.snapshot();
+        let failed = failed_seeds.lock().unwrap().clone();
+
+        SimulationResult {
+            stats: final_stats,
+            failed_seeds: failed,
+            duration: start.elapsed(),
+        }
+    }
+
+    /// Start the metrics server if a port is configured. A start failure is reported
+    /// and the simulation runs without the server.
+    fn start_metrics_server(&self, metrics: &SharedMetrics) -> Option<MetricsServer> {
+        let port = self.config.metrics_port?;
+        match MetricsServer::start(port, Arc::clone(metrics)) {
+            Ok(server) => Some(server),
+            Err(e) => {
+                eprintln!("[WARN] Failed to start metrics server on port {port}: {e}");
+                None
+            }
+        }
+    }
+
+    /// Spawn one worker thread per configured worker. The workers share the seed queue.
+    fn spawn_workers(
+        &self,
+        seed_queue: &Arc<SeedQueue>,
+        failed_seeds: &Arc<Mutex<Vec<u64>>>,
+        metrics: &SharedMetrics,
+    ) -> Vec<JoinHandle<()>> {
+        let mut handles = Vec::with_capacity(self.config.num_workers);
 
         for worker_id in 0..self.config.num_workers {
-            let queue = Arc::clone(&seed_queue);
+            let queue = Arc::clone(seed_queue);
             let stats = Arc::clone(&self.stats);
             let shutdown = Arc::clone(&self.shutdown);
-            let failed = Arc::clone(&failed_seeds);
+            let failed = Arc::clone(failed_seeds);
             let config = self.config.workload.clone();
-            let worker_metrics = Arc::clone(&metrics);
+            let worker_metrics = Arc::clone(metrics);
 
             let handle = thread::spawn(move || {
                 worker_loop(
@@ -181,12 +213,18 @@ impl Coordinator {
             handles.push(handle);
         }
 
+        handles
+    }
+
+    /// Spawn the thread that prints a progress line at each progress interval, until
+    /// shutdown or until all seeds are complete.
+    fn spawn_progress_reporter(&self, metrics: &SharedMetrics, total_seeds: u64) -> JoinHandle<()> {
         let stats_for_progress = Arc::clone(&self.stats);
-        let metrics_for_progress = Arc::clone(&metrics);
+        let metrics_for_progress = Arc::clone(metrics);
         let shutdown_for_progress = Arc::clone(&self.shutdown);
         let interval = self.config.progress_interval;
 
-        let progress_handle = thread::spawn(move || {
+        thread::spawn(move || {
             while !shutdown_for_progress.load(Ordering::Acquire) {
                 thread::sleep(interval);
                 let snap = stats_for_progress.snapshot();
@@ -208,37 +246,16 @@ impl Coordinator {
                     break;
                 }
             }
-        });
-
-        for handle in handles {
-            let _ = handle.join();
-        }
-
-        self.shutdown();
-        let _ = progress_handle.join();
-
-        // Shutdown metrics server
-        if let Some(ref mut server) = metrics_server {
-            server.shutdown();
-        }
-
-        let final_stats = self.stats.snapshot();
-        let failed = failed_seeds.lock().unwrap().clone();
-
-        SimulationResult {
-            stats: final_stats,
-            failed_seeds: failed,
-            duration: start.elapsed(),
-        }
+        })
     }
 }
 
 fn worker_loop(
     _worker_id: usize,
-    queue: &std::sync::Mutex<std::vec::IntoIter<u64>>,
+    queue: &SeedQueue,
     stats: &SimulationStats,
     shutdown: &AtomicBool,
-    failed_seeds: &std::sync::Mutex<Vec<u64>>,
+    failed_seeds: &Mutex<Vec<u64>>,
     config: &WorkloadConfig,
     metrics: &SharedMetrics,
 ) {

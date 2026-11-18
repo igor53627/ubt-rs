@@ -99,7 +99,7 @@ impl WorkloadContext {
 
     /// Return true with given probability (0.0 to 1.0).
     pub fn chance(&mut self, probability: f64) -> bool {
-        debug_assert!(
+        assert!(
             (0.0..=1.0).contains(&probability),
             "probability must be between 0.0 and 1.0, got {probability}"
         );

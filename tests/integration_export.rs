@@ -168,44 +168,48 @@ fn multi_key_test_cases() -> Vec<TestCase> {
                 expected: None,
             }],
         },
-        TestCase {
-            name: "insert_preserves_others".to_string(),
-            operations: vec![
-                Operation::Insert {
-                    stem: vec![10, 20, 30],
-                    subindex: 1,
-                    value: vec![111],
-                },
-                Operation::Insert {
-                    stem: vec![40, 50, 60],
-                    subindex: 2,
-                    value: vec![222],
-                },
-                Operation::Insert {
-                    stem: vec![70, 80, 90],
-                    subindex: 3,
-                    value: vec![255, 254, 253],
-                },
-            ],
-            queries: vec![
-                Query {
-                    stem: vec![10, 20, 30],
-                    subindex: 1,
-                    expected: Some(pad32(vec![111])),
-                },
-                Query {
-                    stem: vec![40, 50, 60],
-                    subindex: 2,
-                    expected: Some(pad32(vec![222])),
-                },
-                Query {
-                    stem: vec![70, 80, 90],
-                    subindex: 3,
-                    expected: Some(pad32(vec![255, 254, 253])),
-                },
-            ],
-        },
+        insert_preserves_others_test_case(),
     ]
+}
+
+fn insert_preserves_others_test_case() -> TestCase {
+    TestCase {
+        name: "insert_preserves_others".to_string(),
+        operations: vec![
+            Operation::Insert {
+                stem: vec![10, 20, 30],
+                subindex: 1,
+                value: vec![111],
+            },
+            Operation::Insert {
+                stem: vec![40, 50, 60],
+                subindex: 2,
+                value: vec![222],
+            },
+            Operation::Insert {
+                stem: vec![70, 80, 90],
+                subindex: 3,
+                value: vec![255, 254, 253],
+            },
+        ],
+        queries: vec![
+            Query {
+                stem: vec![10, 20, 30],
+                subindex: 1,
+                expected: Some(pad32(vec![111])),
+            },
+            Query {
+                stem: vec![40, 50, 60],
+                subindex: 2,
+                expected: Some(pad32(vec![222])),
+            },
+            Query {
+                stem: vec![70, 80, 90],
+                subindex: 3,
+                expected: Some(pad32(vec![255, 254, 253])),
+            },
+        ],
+    }
 }
 
 fn edge_test_cases() -> Vec<TestCase> {

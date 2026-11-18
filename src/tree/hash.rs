@@ -16,7 +16,7 @@ use super::{UnifiedBinaryTree, MAX_DEPTH};
 /// Set bit at the given position in a B256 (MSB-first ordering).
 /// Position 0 is the MSB of the first byte.
 fn set_bit_at(mut value: B256, pos: usize) -> B256 {
-    debug_assert!(pos < 256);
+    assert!(pos < 256, "bit position {pos} is not in a 256-bit value");
     let byte_idx = pos / 8;
     let bit_idx = 7 - (pos % 8);
     value.0[byte_idx] |= 1 << bit_idx;
@@ -27,13 +27,11 @@ fn set_bit_at(mut value: B256, pos: usize) -> B256 {
 ///
 /// Bits are interpreted MSB-first within each byte.
 ///
-/// `depth` must be in `0..=256`. In debug builds, `depth > 256` triggers a `debug_assert!`.
-/// In release builds, `depth > 256` returns `false`.
+/// # Panics
+///
+/// Panics if `depth` is more than 256.
 fn b256_matches_prefix(value: &B256, prefix: &B256, depth: usize) -> bool {
-    debug_assert!(depth <= 256, "depth must be <= 256, got {depth}");
-    if depth > 256 {
-        return false;
-    }
+    assert!(depth <= 256, "prefix length {depth} is more than 256 bits");
     let full_bytes = depth / 8;
     if value.0[..full_bytes] != prefix.0[..full_bytes] {
         return false;
@@ -46,6 +44,22 @@ fn b256_matches_prefix(value: &B256, prefix: &B256, depth: usize) -> bool {
 
     let mask = 0xFFu8 << (8 - rem_bits);
     (value.0[full_bytes] & mask) == (prefix.0[full_bytes] & mask)
+}
+
+/// Asserts that every stem with bit 0 at `depth` comes before every stem with bit 1.
+///
+/// # Panics
+///
+/// Panics if a stem with bit 0 at `depth` follows a stem with bit 1.
+fn assert_partitioned_at(stems: &[Stem], depth: usize) {
+    let mut seen_one: bool = false;
+    for stem in stems {
+        if stem.bit_at(depth) {
+            seen_one = true;
+        } else {
+            assert!(!seen_one, "stems are not partitioned at depth {depth}");
+        }
+    }
 }
 
 impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
@@ -231,20 +245,7 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
 
         // `dirty_stems` is sorted and already restricted to this subtree's prefix.
         // That makes `bit_at(depth)` monotone on this slice, so `partition_point` is valid.
-        #[cfg(debug_assertions)]
-        {
-            let mut seen_one = false;
-            for s in dirty_stems {
-                if s.bit_at(depth) {
-                    seen_one = true;
-                } else {
-                    debug_assert!(
-                        !seen_one,
-                        "dirty_stems must be partitioned at depth {depth}",
-                    );
-                }
-            }
-        }
+        assert_partitioned_at(dirty_stems, depth);
         let dirty_split = dirty_stems.partition_point(|s| !s.bit_at(depth));
         let (left_dirty, right_dirty) = dirty_stems.split_at(dirty_split);
 

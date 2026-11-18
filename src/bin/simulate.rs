@@ -5,6 +5,7 @@
 //!   cargo run --bin simulate -- --seed 12345 --ops 10000
 //!   cargo run --bin simulate -- --seeds 0..10000 --metrics-port 9090
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -176,77 +177,27 @@ fn run_multi_seed(
 }
 
 fn print_chaos_breakdown(metrics: &Metrics, chaos_ops_total: u64) {
+    let counters = &metrics.op_counters;
+    let breakdown: [(&str, &AtomicU64); 10] = [
+        ("Toggle incremental", &counters.chaos_toggle_incremental),
+        (
+            "Verify incr vs full",
+            &counters.chaos_verify_incremental_vs_full,
+        ),
+        ("Clear caches", &counters.chaos_clear_caches),
+        ("Burst stem write", &counters.chaos_burst_stem_write),
+        ("Insert/delete storm", &counters.chaos_insert_delete_storm),
+        ("Root stability", &counters.chaos_root_stability),
+        ("Delete stem", &counters.chaos_delete_stem),
+        ("Get/scan consistency", &counters.chaos_get_scan_consistency),
+        ("Mode switch storm", &counters.chaos_mode_switch_storm),
+        ("Verify last root", &counters.chaos_verify_last_root),
+    ];
+
     println!("Chaos operations: {chaos_ops_total}");
-    println!(
-        "  Toggle incremental: {}",
-        metrics
-            .op_counters
-            .chaos_toggle_incremental
-            .load(std::sync::atomic::Ordering::Relaxed)
-    );
-    println!(
-        "  Verify incr vs full: {}",
-        metrics
-            .op_counters
-            .chaos_verify_incremental_vs_full
-            .load(std::sync::atomic::Ordering::Relaxed)
-    );
-    println!(
-        "  Clear caches: {}",
-        metrics
-            .op_counters
-            .chaos_clear_caches
-            .load(std::sync::atomic::Ordering::Relaxed)
-    );
-    println!(
-        "  Burst stem write: {}",
-        metrics
-            .op_counters
-            .chaos_burst_stem_write
-            .load(std::sync::atomic::Ordering::Relaxed)
-    );
-    println!(
-        "  Insert/delete storm: {}",
-        metrics
-            .op_counters
-            .chaos_insert_delete_storm
-            .load(std::sync::atomic::Ordering::Relaxed)
-    );
-    println!(
-        "  Root stability: {}",
-        metrics
-            .op_counters
-            .chaos_root_stability
-            .load(std::sync::atomic::Ordering::Relaxed)
-    );
-    println!(
-        "  Delete stem: {}",
-        metrics
-            .op_counters
-            .chaos_delete_stem
-            .load(std::sync::atomic::Ordering::Relaxed)
-    );
-    println!(
-        "  Get/scan consistency: {}",
-        metrics
-            .op_counters
-            .chaos_get_scan_consistency
-            .load(std::sync::atomic::Ordering::Relaxed)
-    );
-    println!(
-        "  Mode switch storm: {}",
-        metrics
-            .op_counters
-            .chaos_mode_switch_storm
-            .load(std::sync::atomic::Ordering::Relaxed)
-    );
-    println!(
-        "  Verify last root: {}",
-        metrics
-            .op_counters
-            .chaos_verify_last_root
-            .load(std::sync::atomic::Ordering::Relaxed)
-    );
+    for (label, counter) in breakdown {
+        println!("  {label}: {}", counter.load(Ordering::Relaxed));
+    }
 }
 
 fn parse_arg<'a>(args: &'a [String], name: &str) -> Option<&'a str> {
