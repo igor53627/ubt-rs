@@ -228,7 +228,7 @@ To disable default features:
 
 ```toml
 [dependencies]
-ubt = { version = "0.5", default-features = false }
+ubt = { version = "0.6", default-features = false }
 ```
 
 To run the simulation stress-test binary:
