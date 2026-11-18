@@ -122,6 +122,9 @@ pub enum ProofNode {
 ///   starts with 12 zero bytes and is not zero, and the node has a leaf. This
 ///   also rejects the proof that another key is absent at the position of such
 ///   a stem node. A derived stem has this form with a probability of 2^-96.
+///   For a stem that a caller selects, the rejection is certain:
+///   [`UnifiedBinaryTree::insert`](crate::UnifiedBinaryTree::insert) accepts
+///   such a stem.
 ///
 /// The rules and the limits come from tests and from a search over small trees.
 /// They are not proven.
