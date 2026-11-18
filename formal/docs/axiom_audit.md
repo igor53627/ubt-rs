@@ -5,6 +5,16 @@
 **Status:** **VERIFICATION COMPLETE** - All admits closed
 **Rocq Version:** 9.x
 
+> **Note (November 2026, zero values):** This audit is a record of December 2025. Its counts and line numbers are not updated. Since then the model follows the go-ethereum rule: a leaf that holds 32 zero bytes is a present leaf and is hashed, and delete is a real removal.
+>
+> - Removed axioms: `hash_zero_value` (crypto.v and tree.v), `hash_single_zero` (tree_spec.v), `no_zero_tail` (streaming.v). They state the old rule and are false for the Rust code.
+> - Removed lemmas: `hash_value_nonzero`, `hash_nonzero_of_value_nonzero` (crypto.v), `nonzero_never_hashes_to_zero` (security.v). Their proofs used `hash_zero_value`. The lemma `hash_value_zero_distinct` (`hash_value v <> hash_value zero32` for a non-zero `v`) replaces them and follows from `hash_value_collision_resistant`.
+> - `subindex_map_to_array_aux_nth` (streaming.v) is a proven lemma now.
+> - `DeleteLink.delete_executes` is an axiom for the `delete` method. The former proof is `InsertLink.zero_write_executes`.
+> - `hash_zero_pair` and `hash_zero` (the rule for a pair of zero hashes) are not changed.
+>
+> The sections below that name the removed items are marked.
+
 ---
 
 ## Executive Summary
@@ -171,11 +181,11 @@ Note: `hash_stem_respects_stem_eq` remains an axiom (design choice for stem equa
 
 | Location | Axiom | Statement |
 |----------|-------|-----------|
-| `simulations/crypto.v:99` | `hash_zero_value` | `hash_value zero32 = zero32` |
+| `simulations/crypto.v:99` | `hash_zero_value` | `hash_value zero32 = zero32` (removed in November 2026; see the note at the top) |
 | `simulations/crypto.v:101` | `hash_zero_pair` | `hash_pair zero32 zero32 = zero32` |
 
 **Mathematical Definition:**  
-The zero hash property: H(0^32) = 0^32
+The zero hash property: H(0^32) = 0^32 for a leaf value (removed in November 2026), and H(0^32, 0^32) = 0^32 for a pair (current)
 
 **Standard Reference:** EIP-7864 §4.2 "Sparse Tree Optimization"
 
@@ -207,7 +217,9 @@ Non-zero inputs produce non-zero outputs: ∀v ≠ 0^n. H(v) ≠ 0^n
 
 **Standard Reference:** Domain separation is a standard technique; see Bellare & Rogaway, "Collision-Resistant Hashing" (2006)
 
-**Status:** [DONE] Converted to lemma in crypto.v (December 2025):
+**Status (November 2026):** removed. The proof below used `hash_zero_value`, which is false for the current rule, and no remaining axiom gives the statement. `hash_value_zero_distinct` replaces it.
+
+**Status (December 2025):** [DONE] Converted to lemma in crypto.v:
 ```coq
 Lemma hash_value_nonzero : forall v,
   (forallb (fun b => Z.eqb b 0) v = false) -> 
@@ -294,7 +306,7 @@ High-level correctness properties that define expected behavior.
 | Location | Axiom | Statement | Status |
 |----------|-------|-----------|--------|
 | `specs/tree_spec.v:69` | `hash_zero` | `Hash zero32 zero32 = zero32` | Design choice |
-| `specs/tree_spec.v:70` | `hash_single_zero` | `HashSingle zero32 = zero32` | Design choice |
+| `specs/tree_spec.v:70` | `hash_single_zero` | `HashSingle zero32 = zero32` | Removed in November 2026 (was: design choice) |
 | `specs/tree_spec.v:73` | `hash_deterministic` | `Hash a b = Hash a b` | Lemma (reflexivity) |
 | `specs/tree_spec.v:76-78` | `hash_collision_resistant` | Collision -> (equal inputs or True) | Lemma (trivial: right; trivial) |
 | `specs/tree_spec.v:150-155` | `hash_injective` | WellFormed trees with same hash -> True | Lemma (trivial) |
@@ -495,11 +507,11 @@ All previously admitted proofs have been completed. Below is the record of what 
 
 | Theorem | Depends On Axioms |
 |---------|-------------------|
-| `empty_tree_zero_hash` | `hash_zero_value` |
+| `empty_tree_zero_hash` | (none - `empty_tree_hash_zero` is proven by `reflexivity`; `hash_zero_value` is removed) |
 | `get_insert_same` | (none - pure computation) |
 | `get_insert_other_stem` | (none - pure computation) |
 | `get_insert_other_subindex` | `stem_eq_refl`, `stem_eq_sym` |
-| `get_delete` | `is_zero_value` properties |
+| `get_delete` | (none - pure computation on `sim_remove` and `stems_remove`) |
 | `witness_collision_resistant_same_path` | `hash_pair_collision_resistant` |
 | `verkle_proof_binding` | `verkle_binding` |
 | `verkle_aggregation_sound` | `verkle_multi_binding` |
@@ -665,19 +677,19 @@ Axiom get_insert_same : forall t k v d, v <> zero32 -> tree_get (tree_insert t k
 5. `hash_deterministic_pair` (Lemma - via reflexivity)
 6. `hash_deterministic_stem` (Lemma - via hash_stem_respects_stem_eq)
 7. `hash_stem_respects_stem_eq` (Axiom - design choice for stem equality)
-8. `hash_zero_value` (Axiom)
+8. `hash_zero_value` (Axiom; removed in November 2026)
 9. `hash_zero_pair` (Axiom)
 10. `hash_value_collision_resistant` (Axiom)
 11. `hash_pair_collision_resistant` (Axiom)
 12. `hash_stem_collision_resistant` (Axiom)
 13. `hash_value_second_preimage` (Lemma - from collision resistance)
-14. `hash_value_nonzero` (Lemma - from collision resistance + zero hash)
+14. `hash_value_nonzero` (Lemma - from collision resistance + zero hash; removed in November 2026, replaced by `hash_value_zero_distinct`)
 
 ### simulations/tree.v
 1. `hash_value : Value -> Bytes32` (Parameter)
 2. `hash_pair : Bytes32 -> Bytes32 -> Bytes32` (Parameter)
 3. `hash_stem : Stem -> Bytes32 -> Bytes32` (Parameter)
-4. `hash_zero_value` (Axiom)
+4. `hash_zero_value` (Axiom; removed in November 2026)
 5. `hash_zero_pair` (Axiom)
 6. `hash_deterministic_value` (Axiom)
 7. `hash_deterministic_pair` (Axiom)
@@ -717,7 +729,7 @@ Axiom get_insert_same : forall t k v d, v <> zero32 -> tree_get (tree_insert t k
 2. `HashSingle : bytes32 -> bytes32` (Parameter)
 3. `tree_insert` (Parameter)
 4. `hash_zero` (Axiom)
-5. `hash_single_zero` (Axiom)
+5. `hash_single_zero` (Axiom; removed in November 2026)
 6. `hash_deterministic` (Lemma)
 7. `hash_collision_resistant` (Lemma - was trivial: `\/ True`)
 8. `hash_injective` (Lemma - was trivial: conclusion `True`)

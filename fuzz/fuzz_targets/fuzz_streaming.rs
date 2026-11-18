@@ -20,10 +20,8 @@ fuzz_target!(|data: &[u8]| {
         let key = TreeKey::from_bytes(B256::from(key_bytes));
         let value = B256::from(value_bytes);
 
-        // Skip zero values (they're treated as deletions)
-        if value != B256::ZERO {
-            entries.push((key, value));
-        }
+        // Zero values are present leaves and are kept
+        entries.push((key, value));
 
         i += 64;
     }

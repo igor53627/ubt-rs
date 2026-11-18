@@ -6,6 +6,13 @@ categorizes them by reducibility, and provides a prioritized plan for conversion
 **Note**: The original codebase had 67 axioms. With the addition of new modules
 (serialization.v, interpreter.v), the total grew to 122 axioms as shown below.
 
+**Note (November 2026, zero values)**: This plan is a record of December 2025.
+Since then the axioms `hash_zero_value` (tree.v, crypto.v), `hash_single_zero`
+(tree_spec.v) and `no_zero_tail` (streaming.v) are removed, because a leaf that
+holds 32 zero bytes is a present leaf and is hashed. `subindex_map_to_array_aux_nth`
+(streaming.v) is a proven lemma. `delete_executes` is an axiom for the `delete`
+method, which is a real removal.
+
 ## Summary
 
 | Category    | Count | Description                                    |

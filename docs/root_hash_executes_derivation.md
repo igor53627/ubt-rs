@@ -5,7 +5,7 @@
 ## 1. Current State of root_hash_executes
 
 ### Location
-[operations.v:779-785](../formal/linking/operations.v#L779-L785)
+[operations.v:845-851](../formal/linking/operations.v#L845-L851)
 
 ```coq
 Axiom root_hash_executes :
@@ -57,7 +57,7 @@ fn rebuild_root(&mut self) -> Result<()> {
 ## 3. RootHashLink Infrastructure
 
 ### Location
-[interpreter.v:1798-1998](../formal/linking/interpreter.v#L1798-L1998)
+[interpreter.v:1838-2038](../formal/linking/interpreter.v#L1838-L2038)
 
 ### Existing Stepping Lemmas
 
@@ -100,7 +100,7 @@ root_hash_executes
 
 ### Depth Bound
 
-The depth bound axiom [tree.v:1975-1978](../formal/simulations/tree.v#L1975-L1978) states:
+The depth bound axiom [tree.v:2333-2336](../formal/simulations/tree.v#L2333-L2336) states:
 
 ```coq
 Axiom tree_depth_bounded_by_stem_bits :
@@ -109,7 +109,7 @@ Axiom tree_depth_bounded_by_stem_bits :
 
 Where `stem_bit_count = 248` (31 bytes × 8 bits).
 
-The axiom bounds the bit length of every stem in a well-formed `SimTree` (`depth_bounded`, [tree.v:1954-1957](../formal/simulations/tree.v#L1954-L1957)). It is a statement about the simulation model. It does not state that the Rust `rebuild_root` terminates. A termination proof for `rebuild_root` also needs a link from the Rust traversal to this bound and a progress argument, and this document does not give them. The intended (unproven) argument is:
+The axiom bounds the bit length of every stem in a well-formed `SimTree` (`depth_bounded`, [tree.v:2312-2315](../formal/simulations/tree.v#L2312-L2315)). It is a statement about the simulation model. It does not state that the Rust `rebuild_root` terminates. A termination proof for `rebuild_root` also needs a link from the Rust traversal to this bound and a progress argument, and this document does not give them. The intended (unproven) argument is:
 1. Tree traversal is bounded by 248 levels
 2. Each level processes finite stem partitions
 3. Hash computations are O(1) (axiomatized)

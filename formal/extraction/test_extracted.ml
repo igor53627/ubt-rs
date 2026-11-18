@@ -115,6 +115,33 @@ let test_delete () =
   print_result "Delete removes value" passed;
   passed
 
+(** Test 6a: A zero insert stores a present zero leaf *)
+let test_zero_insert_is_present () =
+  let tree = empty_tree in
+  let key = make_key [1; 2; 3] 10 in
+  let tree' = sim_tree_insert tree key zero32 in
+  let result = sim_tree_get tree' key in
+  let passed = result = Some zero32 in
+  print_result "Zero insert is present" passed;
+  passed
+
+(** Test 6b: Delete is a removal, not a zero insert *)
+let test_delete_is_not_zero_insert () =
+  let tree = empty_tree in
+  let key = make_key [1; 2; 3] 10 in
+  let other = make_key [1; 2; 3] 11 in
+  let value = make_bytes32 [42; 43; 44] in
+  let tree' = sim_tree_insert (sim_tree_insert tree key zero32) other value in
+  let after_delete = sim_tree_delete tree' key in
+  let last_deleted = sim_tree_delete after_delete other in
+  let passed =
+    sim_tree_get after_delete key = None
+    && sim_tree_get after_delete other = Some value
+    && sim_tree_get (sim_tree_insert tree' key zero32) key = Some zero32
+    && stems_get last_deleted key.tk_stem = None in
+  print_result "Delete removes the leaf and the empty stem" passed;
+  passed
+
 (** Test 7: Stem equality works correctly *)
 let test_stem_equality () =
   let stem1 = make_stem [1; 2; 3] in
@@ -174,6 +201,8 @@ let () =
     test_same_stem_different_subindex;
     test_multiple_inserts_same_stem;
     test_delete;
+    test_zero_insert_is_present;
+    test_delete_is_not_zero_insert;
     test_stem_equality;
     test_is_zero_value;
     test_merkle_witness;

@@ -14,9 +14,13 @@
     
     Remaining axioms (require additional linking):
     - [hash_zero] - design axiom for sparse tree optimization
-    - [hash_single_zero] - design axiom for sparse tree optimization
     
-    These are design axioms per EIP-7864 and are not expected to be proven.
+    This is a design axiom per EIP-7864 and is not expected to be proven.
+    
+    There is no zero rule for [HashSingle]. A leaf that holds [zero32] is a
+    present leaf and is hashed as [HashSingle zero32], as in go-ethereum
+    [trie/bintrie]. An absent leaf is [Empty] and hashes to [zero32]. The
+    former axiom [hash_single_zero] (HashSingle zero32 = zero32) is removed.
 *)
 
 From Stdlib Require Import List.
@@ -83,13 +87,12 @@ Parameter HashSingle : bytes32 -> bytes32.
 (** Zero bytes *)
 Definition zero32 : bytes32 := repeat 0%Z 32.
 
-(** [AXIOM:DESIGN] Hash of zeros is zero (special case per EIP-7864).
-    This is a design axiom for sparse tree optimization, not expected to be proven. *)
+(** [AXIOM:DESIGN] Hash of a pair of zeros is zero (special case per EIP-7864).
+    This is a design axiom for sparse tree optimization, not expected to be proven.
+    It is the only zero rule: [HashSingle] has no zero rule, so [Leaf zero32]
+    (a present zero leaf) and [Empty] (an absent leaf) have different hashes
+    unless [HashSingle zero32] is [zero32], which no axiom states. *)
 Axiom hash_zero : Hash zero32 zero32 = zero32.
-
-(** [AXIOM:DESIGN] Single hash of zeros is zero (special case per EIP-7864).
-    This is a design axiom for sparse tree optimization, not expected to be proven. *)
-Axiom hash_single_zero : HashSingle zero32 = zero32.
 
 (** Hash is deterministic - provable from reflexivity *)
 Lemma hash_deterministic : forall a b, Hash a b = Hash a b.
@@ -205,10 +208,12 @@ Parameter tree_insert : Node -> TreeKey -> bytes32 -> Node.
     
     Note: The simulation uses SimTree and the spec uses Node.
     Full linking requires a refinement relation between spec and simulation types.
-    For now, we document the correspondence. *)
+    For now, we document the correspondence.
+    
+    The statement holds for every value. A zero value is stored as a
+    present leaf. *)
 Theorem get_insert_same_thm :
   forall (t : tree.SimTree) (k : tree.TreeKey) (v : tree.Value),
-    tree.value_nonzero v ->
     tree.sim_tree_get (tree.sim_tree_insert t k v) k = Some v.
 Proof.
   exact tree.get_insert_same.
@@ -237,6 +242,31 @@ Theorem get_insert_other_subindex_thm :
     tree.sim_tree_get (tree.sim_tree_insert t k1 v) k2 = tree.sim_tree_get t k2.
 Proof.
   exact tree.get_insert_other_subindex.
+Qed.
+
+(** [THEOREM] Get after delete returns None.
+    
+    Delete is a real removal of the leaf. It is not an insert of [zero32].
+    Uses: tree.get_delete from simulations/tree.v *)
+Theorem get_delete_thm :
+  forall (t : tree.SimTree) (k : tree.TreeKey),
+    tree.sim_tree_get (tree.sim_tree_delete t k) k = None.
+Proof.
+  exact tree.get_delete.
+Qed.
+
+(** [THEOREM] An insert of [zero32] and a delete are different on the same key.
+    
+    The insert leaves a present zero leaf, the delete leaves no leaf.
+    Uses: tree.insert_zero_not_delete from simulations/tree.v *)
+Theorem insert_zero_not_delete_thm :
+  forall (t : tree.SimTree) (k : tree.TreeKey),
+    tree.sim_tree_get (tree.sim_tree_insert t k tree.zero32) k = Some tree.zero32 /\
+    tree.sim_tree_get (tree.sim_tree_delete t k) k = None /\
+    tree.sim_tree_get (tree.sim_tree_insert t k tree.zero32) k <>
+    tree.sim_tree_get (tree.sim_tree_delete t k) k.
+Proof.
+  exact tree.insert_zero_not_delete.
 Qed.
 
 (** ** Well-Formedness Preservation - PROVEN VIA SIMULATION *)
@@ -308,10 +338,12 @@ Module Deprecated.
   (** [DEPRECATED][AXIOM:LEGACY] Use get_insert_same_thm instead.
       
       WARNING: Do not use in new proofs. This axiom is unverified.
-      The simulation layer provides a proven version: get_insert_same_thm *)
+      The simulation layer provides a proven version: get_insert_same_thm
+      
+      The former premise [v <> zero32] is removed, as in
+      get_insert_same_thm: a zero value is stored as a present leaf. *)
   Axiom get_insert_same :
     forall t k v d,
-      v <> zero32 ->
       tree_get (tree_insert t k v) k d = Some v.
 
   (** [DEPRECATED][AXIOM:LEGACY] Use get_insert_other_stem_thm or get_insert_other_subindex_thm.

@@ -86,15 +86,19 @@ Establishes that running translated Rust code produces results equivalent to sim
 |--------|-------|-----------|
 | `GetLink` | `get_executes` | `rust_get ≈ sim_tree_get` |
 | `InsertLink` | `insert_executes` | `rust_insert ≈ sim_tree_insert` |
-| `DeleteLink` | `delete_executes` (proven theorem, not an axiom) | `rust_delete ≈ sim_tree_delete` |
+| `DeleteLink` | `delete_executes` (axiom for the translated `delete` method; delete is a real removal and is not an instance of insert) | `rust_delete ≈ sim_tree_delete` |
 | `NewLink` | `new_executes` | `rust_new ≈ empty_tree` |
 | `HashLink` | `root_hash_executes` | `rust_root_hash ≈ sim_root_hash` |
+
+**Zero values and the age of the translation:** the simulation follows the current Rust source. A write of `zero32` stores a present zero leaf, and delete is a separate removal. The translated code in `formal/src/` is older: its `set_value` removes the entry on a zero value, and its `hash_32` has a zero rule. So `insert_executes` (for a zero value) and `root_hash_executes` (for a tree with a zero leaf) describe the current Rust source, and not the terms in `formal/src/`, until the translation is generated again. The translated `delete` calls `set_value` with zero, which is a removal in that old code, so `delete_executes` agrees with the translated term and with the current `delete`.
 
 ### Composition Theorems
 
 | Theorem | Statement |
 |---------|-----------|
-| `get_after_insert_same` | `get (insert t k v) k = Some v` (when v != 0) |
+| `get_after_insert_same` | `get (insert t k v) k = Some v` (for every v, including zero) |
+| `InsertLink.zero_write_executes` | A write of `zero32` runs as `rust_insert` and refines `sim_tree_insert t k zero32` (proven from `insert_executes`; it was named `DeleteLink.delete_executes` before) |
+| `DeleteLink.delete_is_not_insert_zero` | `get (delete t k) k <> get (insert t k zero32) k` |
 | `get_after_delete_same` | `get (delete t k) k = None` |
 | `insert_insert_comm` | Inserts at different stems commute |
 | `batch_preserves_refinement` | Batch operations preserve linking |

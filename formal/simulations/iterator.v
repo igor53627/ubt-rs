@@ -83,7 +83,8 @@ Definition sim_tree_fold_stems {A : Type} (f : A -> Stem -> SubIndexMap -> A) (i
 
 (** ** Helper Lemmas *)
 
-(** Entries contain only non-zero values by SubIndexMap invariant *)
+(** Predicate: the value of an entry is non-zero. It is not an invariant of
+    SubIndexMap: an entry with a zero value is a present entry. *)
 Definition entry_nonzero (e : Entry) : Prop :=
   value_nonzero (snd e).
 

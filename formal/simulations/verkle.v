@@ -142,7 +142,14 @@ Qed.
 
 (** ** Integration with SimTree *)
 
-(** Compute subindex map as vector for commitment *)
+(** Compute subindex map as vector for commitment.
+    
+    The vector holds [zero32] at an absent subindex. So this Verkle model
+    commits the same vector for an absent leaf and for a present zero leaf,
+    and its proofs do not tell the two apart. The tree model ([sim_tree_get])
+    does tell them apart. This is why the Verkle statements below keep a
+    [value_nonzero] premise or the result "None or Some zero32". The Verkle
+    model is not a model of the Rust crate, which has no Verkle code. *)
 Definition subindex_map_to_vector (m : SubIndexMap) : list Value :=
   map (fun idx =>
     match sim_get m idx with
@@ -636,8 +643,9 @@ Qed.
 (** ** Verkle Exclusion Proof Soundness and Completeness *)
 
 (** [AXIOM:VERKLE:EXCLUSION] Exclusion soundness - verified exclusion proof implies
-    key absence. If we can prove a position holds zero32, then the key-value
-    mapping does not exist in the tree.
+    that the key is absent or holds a present zero leaf. If we can prove a
+    position holds zero32, then the tree has no entry at the key, or it has
+    the entry zero32. The commitment vector does not tell the two apart.
     
     Security assumption: Same binding property as inclusion. The polynomial
     commitment cannot simultaneously open to zero32 and to a non-zero value
@@ -664,12 +672,14 @@ Proof.
 Qed.
 
 (** [AXIOM:VERKLE:EXCLUSION] Exclusion completeness - absent key has valid proof.
-    If a key is not in the tree (or maps to zero), we can construct a valid
-    exclusion proof for it.
+    If a key is not in the tree, we can construct a valid exclusion proof
+    for it.
     
     This is the constructive property: the polynomial commitment scheme allows
-    opening proofs at positions that were committed as zero. Since the tree
-    treats zero32 as "absent", we can produce zero-opening proofs.
+    opening proofs at positions that were committed as zero. The commitment
+    vector holds zero32 at an absent position, so we can produce zero-opening
+    proofs. The tree itself does not treat zero32 as "absent": a present zero
+    leaf is [Some zero32] in [sim_tree_get].
     
     Implementation note: In Verkle trees, absence is represented by committing
     to zero at the subindex position within the stem commitment. *)

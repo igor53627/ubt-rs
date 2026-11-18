@@ -77,6 +77,27 @@ let root = tree.root_hash().unwrap();
 let value = tree.get(&key);
 ```
 
+### Zero Values and Deletion
+
+A value of 32 zero bytes is a present leaf, as in go-ethereum. `insert(key, B256::ZERO)` keeps the leaf and the stem, `get` returns `Some(B256::ZERO)`, and the leaf is hashed. This is the equivalent of the zero writes of go-ethereum `DeleteStorage` and `DeleteAccount`.
+
+`delete(&key)` removes the leaf, and removes the stem when it has no values left. The tree is then in the state "never written" for that key. go-ethereum has no such operation.
+
+```rust
+use ubt::{UnifiedBinaryTree, TreeKey, Sha256Hasher, B256};
+
+let mut tree: UnifiedBinaryTree<Sha256Hasher> = UnifiedBinaryTree::new();
+let key = TreeKey::from_bytes(B256::repeat_byte(0x01));
+
+tree.insert(key, B256::ZERO);
+assert_eq!(tree.get(&key), Some(B256::ZERO));
+assert_ne!(tree.root_hash().unwrap(), B256::ZERO);
+
+tree.delete(&key);
+assert_eq!(tree.get(&key), None);
+assert_eq!(tree.root_hash().unwrap(), B256::ZERO);
+```
+
 ### Batch Operations
 
 For inserting many values efficiently, use batch operations:
@@ -232,23 +253,25 @@ impl Hasher for MyHasher {
 }
 ```
 
+A custom implementation must follow the contract in the `Hasher` docs: `hash_32` has no zero rule (the hash of 32 zero bytes is not zero), and `hash_64` returns zero when both inputs are zero.
+
 ## go-ethereum Compatibility
 
 The crate was compared with go-ethereum `trie/bintrie` at commit `b0f9324c` (2026-11-09). That is the last commit that contains the package: commit `ddaa6957` (2026-11-10) removed the EIP-7864 binary trie in favour of the EIP-8297 partitioned binary tree (`trie/pbt`).
 
-With `Sha256Hasher` and non-zero values, the crate gives the same tree keys, leaf contents, and root hashes as go-ethereum at that commit. The comparison ran the go-ethereum hashing and key derivation code against the crate, and it includes the root that go-ethereum pins in `TestBinaryGenesisCommit`.
+With `Sha256Hasher`, the crate gives the same tree keys, leaf contents, and root hashes as go-ethereum at that commit, also for trees that contain zero values. The comparison ran the go-ethereum hashing and key derivation code against the crate, and it includes the roots that go-ethereum pins in `TestBinaryGenesisCommit` and `TestMerkleizeMultipleEntries`.
 
 Known differences:
 
 | Area | go-ethereum `trie/bintrie` | This crate |
 |------|----------------------------|------------|
 | Hash function | SHA-256 | BLAKE3 by default; use `Sha256Hasher` for go-ethereum roots |
-| Zero values | A leaf that holds 32 zero bytes is present and hashes to `sha256(0^32)`. Deletion writes zero; stems are never removed. | A zero value is absent. `delete` removes the value and an empty stem. |
+| Zero values | A leaf that holds 32 zero bytes is present and hashes to `sha256(0^32)`. Deletion writes zero; stems are never removed. | The same in versions after 0.5.2: `insert(key, B256::ZERO)` stores a present leaf that is hashed, and the stem stays. The crate also has `delete`, which go-ethereum does not have: it removes the value and a stem with no values left. |
 | Node encoding | Stem tag `1`, internal tag `2`, bitmap MSB-first, internal nodes stored in groups of up to 8 levels | `ubt::codec`: stem tag `2`, internal tag `1`, bitmap LSB-first, one internal node per record. Not wire-compatible. |
 | Account API, node database, iterator, witness | Present | Not implemented |
 | Proof verification, streaming builder, incremental mode | Not implemented (`Prove` panics) | Present |
 
-A tree that contains a zero-valued leaf, for example a storage slot set to zero or a deleted account, has a different root in go-ethereum.
+A tree that contains a zero-valued leaf, for example a storage slot set to zero or a deleted account, has the same root as in go-ethereum. To follow go-ethereum `DeleteStorage` and `DeleteAccount`, write zero values with `insert(key, B256::ZERO)`. `delete(&key)` restores the state "never written" for the key and gives a root that go-ethereum cannot reach from the same sequence of writes. Versions up to 0.5.2 treated a zero value as absent and gave different roots for these trees.
 
 ### Scope and Direction
 
@@ -264,7 +287,7 @@ Decision (2026-11-17): `ubt` stays an implementation of the unified binary tree.
 
 [![Proof Verification](https://github.com/igor53627/ubt-rs/actions/workflows/proofs.yml/badge.svg)](https://github.com/igor53627/ubt-rs/actions/workflows/proofs.yml)
 [![Verification Summary](https://img.shields.io/badge/verification-95%25%20confidence-brightgreen)](formal/docs/VERIFICATION_SUMMARY.md)
-[![Qed Count](https://img.shields.io/badge/Qed-641%20proofs-blue)](formal/docs/VERIFICATION_SUMMARY.md)
+[![Qed Count](https://img.shields.io/badge/Qed-653%20proofs-blue)](formal/docs/VERIFICATION_SUMMARY.md)
 
 This crate includes formal verification using [rocq-of-rust](https://github.com/formal-land/rocq-of-rust) and the Rocq proof assistant.
 
@@ -272,9 +295,9 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 
 | Metric | Initial | Final | Change |
 |--------|---------|-------|--------|
-| **Theorems (Qed)** | ~20 | **641** | +3105% |
-| **Total Axioms** | 50+ | **186** | All documented |
-| **Linking Axioms** | N/A | **46** | Minimal trust base |
+| **Theorems (Qed)** | ~20 | **653** | +3165% |
+| **Total Axioms** | 50+ | **183** | All documented |
+| **Linking Axioms** | N/A | **47** | Minimal trust base |
 | **Admitted** | 10+ | **79** | 0 `admit.` tactics in linking/simulations/proofs; 79 `Admitted.` theorems in generated code (`formal/src/`) ([details](formal/docs/ADMITS_TRACKING.md)) |
 | **QuickChick Properties** | 5 | **22 CI / 50 total** | 11k/500k tests |
 | **Verification Confidence** | - | **95%** | Complete |
@@ -284,7 +307,7 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 | Component | Status | Confidence |
 |-----------|--------|------------|
 | new_executes | AXIOM (`linking/operations.v`) | 100% |
-| delete_executes | **PROVEN** | 100% |
+| delete_executes | AXIOM (`linking/operations.v`) for the `delete` method, which is a real removal. The zero write is proven: `zero_write_executes` is an instance of `insert_executes` | not assessed |
 | get_executes | AXIOM; `get_executes_derived` is proven from lower-level axioms | 90% |
 | insert_executes | AXIOM; `insert_executes_derived` is proven from lower-level axioms | 95% |
 | root_hash_executes | DERIVED | 75% |
@@ -298,7 +321,10 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 | Get from empty returns None | Proven | Rust API |
 | Get after insert returns value | Proven | Rust API |
 | Insert doesn't affect other keys | Proven | Rust API |
+| Get after insert of zero returns the present zero value | Proven | Rust API |
 | Delete removes value | Proven | Rust API |
+| Insert of zero is not a delete (`Some(0)` versus `None`) | Proven | Rust API |
+| Delete preserves well-formedness | Proven | Rust API |
 | Keys with same stem share subtree | Proven | Rust API |
 | Insert preserves well-formedness | Proven | Rust API |
 | Order independence (all cases) | Proven | Rust API |
@@ -312,12 +338,14 @@ This crate includes formal verification using [rocq-of-rust](https://github.com/
 
 **Note:** The translated Rust code in `formal/src/` and the linking layer model the crate source before 0.5.0. They do not cover `NodeStore`, the binary codec, or the V3 key derivation.
 
+**Note (zero values):** The specification (`spec/EIP-7864-spec.md`) and the Rocq simulation model follow the go-ethereum rule. `sim_set` in `formal/simulations/tree.v` stores a zero value as a present entry, `sim_tree_delete` is a real removal (it removes the subindex, and the stem when it has no entries left), and no axiom states that the hash of a zero value is zero. The translated code in `formal/src/` is older than this rule: its `set_value` removes the entry on a zero value, and its `hash_32` has a zero rule. So the execution axioms `insert_executes` (for a zero value) and `root_hash_executes` (for a tree with a zero leaf) describe the current Rust source and not the translated terms. `delete_executes` is an axiom about the `delete` method. The translation must be generated again to close this gap.
+
 ### Axiom Classification
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| **Total Axioms** | 186 | All Axiom declarations in linking+simulations (209 with specs and proofs) |
-| **Linking Axioms** | 46 | Axioms in formal/linking/ layer |
+| **Total Axioms** | 183 | All Axiom declarations in linking+simulations (205 with specs and proofs) |
+| **Linking Axioms** | 47 | Axioms in formal/linking/ layer |
 | **IRREDUCIBLE** | 25 | Minimal trust base (monad laws, crypto, stdlib) |
 | **Parameters (non-axioms)** | 77 | Type/function abstractions, tracked separately |
 

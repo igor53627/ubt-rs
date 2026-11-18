@@ -149,24 +149,21 @@ Definition entries_sorted (entries : SortedEntries) : Prop :=
 
 (** ** Value Array for Stem *)
 
-(** Array of 256 values indexed by SubIndex *)
-Definition ValueArray := list Value.
+(** Array of 256 leaves indexed by SubIndex. [Some v] is a present leaf,
+    also when [v] is [zero32]. [None] is an absent leaf. *)
+Definition ValueArray := list (option Value).
 
-(** Get value at subindex, defaulting to zero32 *)
-Definition value_array_get (arr : ValueArray) (idx : SubIndex) : Value :=
-  nth (Z.to_nat idx) arr zero32.
+(** Get leaf at subindex. A subindex outside the array is absent. *)
+Definition value_array_get (arr : ValueArray) (idx : SubIndex) : option Value :=
+  nth (Z.to_nat idx) arr None.
 
-(** Create value array from SubIndexMap (fills gaps with zero32) *)
+(** Create value array from SubIndexMap (a gap is an absent leaf) *)
 Fixpoint subindex_map_to_array_aux (m : SubIndexMap) (idx : nat) (acc : ValueArray) : ValueArray :=
   match idx with
   | O => acc
   | S n =>
       let z_idx := Z.of_nat n in
-      let v := match sim_get m z_idx with
-               | Some val => val
-               | None => zero32
-               end in
-      subindex_map_to_array_aux m n (v :: acc)
+      subindex_map_to_array_aux m n (sim_get m z_idx :: acc)
   end.
 
 Definition subindex_map_to_array (m : SubIndexMap) : ValueArray :=
@@ -177,9 +174,18 @@ Definition subindex_map_to_array (m : SubIndexMap) : ValueArray :=
 (** Build 8-level binary tree from 256 hashed values.
     Mirrors compute_stem_hash in streaming.rs *)
 
-(** Hash all values in array *)
+(** Hash of one leaf. A present leaf hashes as [hash_value v] for every
+    [v], including [zero32]. An absent leaf contributes [zero32].
+    Mirrors hash_stem_values in src/node.rs. *)
+Definition leaf_hash (leaf : option Value) : Bytes32 :=
+  match leaf with
+  | Some v => hash_value v
+  | None => zero32
+  end.
+
+(** Hash all leaves in array *)
 Definition hash_value_array (arr : ValueArray) : list Bytes32 :=
-  map hash_value arr.
+  map leaf_hash arr.
 
 (** One level of binary tree reduction: combine pairs *)
 Fixpoint reduce_level (hashes : list Bytes32) : list Bytes32 :=
@@ -564,24 +570,17 @@ Axiom sort_entries_permutation : forall entries,
 
 (** ** Equivalence Theorem *)
 
-(** ** Zero Value Handling Equivalence *)
+(** ** Zero Value Handling *)
 
-(** Key insight: Rust filters zeros, Coq processes all entries.
-    We need to show that explicit zero values vs absent subindices 
-    yield the same stem hash under the crypto axioms.
+(** The streaming builder does not skip zero values. Every entry is a
+    present leaf, also when its value is [zero32], as in
+    [for_each_stem_group] in src/streaming.rs. So the streaming model
+    agrees with the tree model: [collect_same_stem] builds its maps with
+    [sim_set], and [sim_set] stores every value.
     
-    Zero values in the array hash to zero32 (by hash_zero_value),
-    and missing entries default to zero32, so both representations
-    produce identical value arrays. *)
-
-(** ** Zero Value Array Equivalence *)
-
-(** The key insight for zero-filtering: what matters for streaming is that
-    subindex_map_to_array produces the same array whether we:
-    1. Have explicit zero entries that sim_get returns as None
-    2. Have no entry at all (sim_get returns None)
-    
-    Both produce zero32 at that index in the array, so the final hash is the same. *)
+    A present zero leaf and an absent leaf are different in the value
+    array: the first is [Some zero32] and hashes as [hash_value zero32],
+    the second is [None] and contributes [zero32]. *)
 
 (** Maps with same sim_get produce same value arrays *)
 Lemma value_array_from_sim_get : forall m1 m2,
@@ -600,347 +599,24 @@ Proof.
   apply Haux. lia.
 Qed.
 
-(** sim_set with zero value is equivalent to removing the entry *)
-Lemma sim_get_zero_vs_none : forall m idx,
-  sim_get (sim_set m idx zero32) idx = None.
+(** sim_set with a zero value gives a present zero entry *)
+Lemma sim_get_zero_is_present : forall m idx,
+  sim_get (sim_set m idx zero32) idx = Some zero32.
 Proof.
   intros m idx.
   apply sim_get_set_zero.
 Qed.
 
-(** Filtering zeros from a map doesn't change the sim_get behavior
-    for the canonical "None for zeros" semantics *)
-Lemma filter_zero_sim_get_equiv : forall m idx,
-  (0 <= idx < 256) ->
-  match sim_get m idx with
-  | Some v => if is_zero_value v then None else Some v
-  | None => None
-  end = 
-  sim_get (filter (fun p => negb (is_zero_value (snd p))) m) idx.
+(** collect_same_stem keeps a zero value of the first entry as a present
+    entry of the collected map *)
+Lemma collect_same_stem_keeps_zero : forall stem idx rest,
+  sim_get (fst (collect_same_stem stem ((mkTreeKey stem idx, zero32) :: rest))) idx =
+  Some zero32.
 Proof.
-  intros m idx _.
-  unfold sim_get.
-  induction m as [|[i v] rest IH].
-  - simpl. reflexivity.
-  - simpl.
-    destruct (negb (is_zero_value v)) eqn:Hnonzero.
-    + (* v is non-zero, kept in filter *)
-      simpl.
-      destruct (Z.eqb i idx) eqn:Eidx.
-      * (* Found at this position *)
-        apply negb_true_iff in Hnonzero.
-        rewrite Hnonzero. reflexivity.
-      * (* Not at this position, continue *)
-        exact IH.
-    + (* v is zero, filtered out - skip this entry *)
-      apply negb_false_iff in Hnonzero.
-      destruct (Z.eqb i idx) eqn:Eidx.
-      * (* Found zero at this position - LHS becomes None *)
-        rewrite Hnonzero.
-        (* Now we need: None = sim_get (filter f rest) idx 
-           But IH gives us: match sim_get rest idx ... = sim_get (filter f rest) idx
-           We need to show that the LHS of IH simplifies to None in this case.
-           
-           Key insight: if there's another entry for idx in rest, we'd get that value.
-           If not, we get None. In either case, we don't want the zero value.
-           
-           The filtered list has no zeros by construction, so we can use IH. *)
-        (* Rewrite goal using IH *)
-        rewrite <- IH.
-        (* Now goal is: None = match sim_get rest idx with Some v => ... | None => None end *)
-        (* This is not necessarily true! The map could have multiple entries for same idx.
-           Let's reconsider... Actually in a well-formed map, first match wins.
-           Since we already matched at (i, v) where i = idx, the find in rest
-           would be for a different first occurrence. But find returns the FIRST match.
-           
-           Wait - the issue is that there could be duplicate keys in the list.
-           Let's assume the list has no duplicate keys (which is the invariant). *)
-        (* For now, we need to assume that if we found idx -> v, then rest has no idx entry *)
-        (* This is actually guaranteed by sim_set's filtering behavior. *)
-        (* But we can't prove it without that assumption here. Let's use a weaker statement. *)
-Abort.
-
-(** ** Key Insight: Maps from sim_set have no explicit zeros *)
-
-(** Maps built using sim_set never have explicit zero entries because
-    sim_set removes/doesn't add zero values. Therefore, for any map
-    constructed properly through sim_set, filtering zeros is a no-op.
-    
-    The streaming code builds its SubIndexMaps using collect_same_stem,
-    which calls sim_set. And sim_set always filters zeros (line 166-169 in tree.v):
-    
-    Definition sim_set (m : SubIndexMap) (idx : SubIndex) (v : Value) : SubIndexMap :=
-      if is_zero_value v then
-        filter (fun p => negb (Z.eqb (fst p) idx)) m
-      else
-        (idx, v) :: filter (fun p => negb (Z.eqb (fst p) idx)) m.
-    
-    So for maps built via sim_set, we have the invariant that no entry
-    has a zero value. *)
-
-(** Predicate: map has no zero values *)
-Definition no_zero_values (m : SubIndexMap) : Prop :=
-  forall idx v, sim_get m idx = Some v -> is_zero_value v = false.
-
-(** Helper: filtering preserves no_zero_values
-    
-    Proof: sim_get on a filtered list returns Some v only when that (idx, v)
-    pair was in the original list and passed the filter. Since the original
-    list has no_zero_values, any value returned is non-zero. *)
-(** Helper: find in filter implies element is in original list *)
-Lemma find_filter_in : forall {A} (f : A -> bool) (g : A -> bool) l x,
-  find f (filter g l) = Some x ->
-  In x l /\ g x = true /\ f x = true.
-Proof.
-  intros A f g l x.
-  induction l as [|h t IH].
-  - simpl. intros H. discriminate.
-  - simpl. intros Hfind.
-    destruct (g h) eqn:Hgh.
-    + simpl in Hfind.
-      destruct (f h) eqn:Hfh.
-      * injection Hfind as Hx. subst x.
-        split; [left; reflexivity | split; assumption].
-      * destruct (IH Hfind) as [Hin [Hgx Hfx]].
-        split; [right; exact Hin | split; assumption].
-    + destruct (IH Hfind) as [Hin [Hgx Hfx]].
-      split; [right; exact Hin | split; assumption].
-Qed.
-
-(** Helper: head of no_zero_values list is non-zero *)
-Lemma no_zero_head : forall j w rest,
-  no_zero_values ((j, w) :: rest) -> is_zero_value w = false.
-Proof.
-  intros j w rest Hm.
-  apply Hm with (idx := j).
-  unfold sim_get. simpl. rewrite Z.eqb_refl. reflexivity.
-Qed.
-
-(** [AXIOM:STRUCTURAL] Tail of no_zero_values list preserves property.
-    
-    This holds for maps without duplicate keys (which sim_set maintains).
-    The proof requires unique keys assumption: if (j,w)::rest has no zeros
-    and sim_get rest idx' = Some v', then either:
-    - j <> idx': sim_get ((j,w)::rest) idx' = sim_get rest idx' = Some v'
-    - j = idx': This means rest has duplicate key, violating uniqueness
-    
-    Maps built via sim_set have unique keys by construction (sim_set filters
-    existing entries for the key before adding new one). *)
-Axiom no_zero_tail : forall j w rest,
-  no_zero_values ((j, w) :: rest) -> no_zero_values rest.
-
-(** Helper: If (i,v) is In m and m has no_zero_values, then is_zero_value v = false *)
-Lemma in_no_zero_implies_nonzero : forall m i v,
-  no_zero_values m -> In (i, v) m -> is_zero_value v = false.
-Proof.
-  induction m as [|[j w] rest IH]; intros i v Hm Hin.
-  - contradiction.
-  - simpl in Hin. destruct Hin as [Heq | Hin_rest].
-    + injection Heq as Hi Hv. subst j w.
-      exact (no_zero_head i v rest Hm).
-    + apply IH with (i := i); [| exact Hin_rest].
-      exact (no_zero_tail j w rest Hm).
-Qed.
-
-Lemma filter_preserves_no_zero : forall m f,
-  no_zero_values m -> no_zero_values (filter f m).
-Proof.
-  intros m f Hm.
-  unfold no_zero_values in *.
-  intros idx v Hget.
-  unfold sim_get in Hget.
-  destruct (find (fun p : Z * Value => (fst p =? idx)%Z) (filter f m)) eqn:Hfind.
-  - destruct p as [i val].
-    injection Hget as Hv. subst val.
-    apply find_filter_in in Hfind.
-    destruct Hfind as [Hin [Hf Hi_eq]].
-    eapply in_no_zero_implies_nonzero.
-    + unfold no_zero_values. exact Hm.
-    + exact Hin.
-  - discriminate.
-Qed.
-
-(** sim_set preserves no_zero_values *)
-Lemma sim_set_no_zero : forall m idx v,
-  no_zero_values m -> no_zero_values (sim_set m idx v).
-Proof.
-  intros m idx v Hm.
-  unfold sim_set.
-  destruct (is_zero_value v) eqn:Hzero.
-  - (* v is zero: result is filter, which preserves no_zero_values *)
-    apply filter_preserves_no_zero. exact Hm.
-  - (* v is non-zero: (idx, v) :: filter ... *)
-    unfold no_zero_values. intros idx' v' Hget.
-    unfold sim_get in Hget. simpl in Hget.
-    destruct (Z.eqb idx idx') eqn:Eidx.
-    + (* Looking up the same index: returns v which is non-zero *)
-      injection Hget as Hv. subst v'. exact Hzero.
-    + (* Looking up different index: falls through to filtered map *)
-      assert (Hfilter: no_zero_values (filter (fun p => negb (Z.eqb (fst p) idx)) m)).
-      { apply filter_preserves_no_zero. exact Hm. }
-      unfold no_zero_values, sim_get in Hfilter.
-      apply Hfilter with (idx := idx'). exact Hget.
-Qed.
-
-(** Empty map has no zeros *)
-Lemma empty_no_zero : no_zero_values [].
-Proof.
-  unfold no_zero_values, sim_get. simpl.
-  intros idx v H. discriminate.
-Qed.
-
-(** For maps with no_zero_values, filtering zeros is identity.
-    
-    Proof: By induction on m. Each element (idx, v) passes the filter
-    because v is non-zero (by no_zero_values hypothesis applied via
-    sim_get at position idx). *)
-Lemma no_zero_filter_identity : forall m,
-  no_zero_values m ->
-  filter (fun p => negb (is_zero_value (snd p))) m = m.
-Proof.
-  intros m Hm.
-  induction m as [|[i val] rest IH].
-  - reflexivity.
-  - simpl.
-    assert (Hval_nonzero: is_zero_value val = false).
-    { apply Hm with (idx := i).
-      unfold sim_get. simpl. rewrite Z.eqb_refl. reflexivity. }
-    rewrite Hval_nonzero. simpl.
-    f_equal.
-    apply IH.
-    apply no_zero_tail with (j := i) (w := val).
-    exact Hm.
-Qed.
-
-(** For maps built via sim_set (which have no zeros), filtering is identity on sim_get *)
-Corollary sim_set_filter_identity : forall m,
-  no_zero_values m ->
-  sim_get (filter (fun p => negb (is_zero_value (snd p))) m) = sim_get m.
-Proof.
-  intros m Hno.
-  rewrite no_zero_filter_identity; [reflexivity | exact Hno].
-Qed.
-
-(** collect_same_stem builds maps with no zeros *)
-Lemma collect_same_stem_no_zero : forall stem entries,
-  no_zero_values (fst (collect_same_stem stem entries)).
-Proof.
-  intros stem entries.
-  induction entries as [|[k v] rest IH].
-  - simpl. apply empty_no_zero.
-  - simpl.
-    destruct (stem_eq (tk_stem k) stem) eqn:Es.
-    + destruct (collect_same_stem stem rest) as [acc_map remaining] eqn:Hrec.
-      simpl in *. apply sim_set_no_zero. exact IH.
-    + apply empty_no_zero.
-Qed.
-
-(** Helper: all values in a list are non-zero (stronger than no_zero_values) *)
-Definition all_values_nonzero (m : SubIndexMap) : Prop :=
-  forall p, In p m -> is_zero_value (snd p) = false.
-
-(** all_values_nonzero implies no_zero_values *)
-Lemma all_values_nonzero_implies_no_zero : forall m,
-  all_values_nonzero m -> no_zero_values m.
-Proof.
-  intros m Hall idx v Hget.
-  unfold sim_get in Hget.
-  destruct (find (fun p => Z.eqb (fst p) idx) m) as [[i v']|] eqn:Hf; [|discriminate].
-  injection Hget as Hv. subst v'.
-  assert (Hin: In (i, v) m).
-  { clear -Hf.
-    induction m as [|[j w] rest IH]; [discriminate|].
-    simpl in Hf. destruct (Z.eqb j idx) eqn:Ej.
-    - injection Hf as H1 H2. subst. left. reflexivity.
-    - right. apply IH. exact Hf. }
-  apply (Hall (i, v) Hin).
-Qed.
-
-(** all_values_nonzero for tail of list *)
-Lemma all_values_nonzero_tail : forall p rest,
-  all_values_nonzero (p :: rest) ->
-  all_values_nonzero rest.
-Proof.
-  intros p rest Hall q Hin.
-  apply Hall. right. exact Hin.
-Qed.
-
-(** For maps with all nonzero values, filtering zeros is identity on sim_get *)
-Lemma all_nonzero_filter_identity : forall m,
-  all_values_nonzero m ->
-  forall idx, sim_get m idx = sim_get (filter (fun p => negb (is_zero_value (snd p))) m) idx.
-Proof.
-  induction m as [|[i v] rest IH]; intros Hall idx.
-  - reflexivity.
-  - unfold sim_get at 1. simpl.
-    assert (Hv: is_zero_value v = false).
-    { unfold all_values_nonzero in Hall. apply (Hall (i, v)). left. reflexivity. }
-    rewrite Hv. simpl.
-    destruct (Z.eqb i idx) eqn:Ei.
-    + unfold sim_get. simpl. rewrite Ei. reflexivity.
-    + unfold sim_get. simpl. rewrite Ei.
-      unfold sim_get in IH. apply IH.
-      eapply all_values_nonzero_tail. exact Hall.
-Qed.
-
-(** Helper: filter preserves all_values_nonzero *)
-Lemma filter_preserves_all_nonzero : forall m f,
-  all_values_nonzero m -> all_values_nonzero (filter f m).
-Proof.
-  intros m f Hall.
-  unfold all_values_nonzero in *.
-  intros p Hin.
-  apply filter_In in Hin.
-  destruct Hin as [Hin_orig _].
-  exact (Hall p Hin_orig).
-Qed.
-
-(** Helper: sim_set preserves all_values_nonzero *)
-Lemma sim_set_preserves_all_nonzero : forall m idx v,
-  all_values_nonzero m ->
-  all_values_nonzero (sim_set m idx v).
-Proof.
-  intros m idx v Hall.
-  unfold sim_set.
-  destruct (is_zero_value v) eqn:Hzero.
-  - apply filter_preserves_all_nonzero. exact Hall.
-  - unfold all_values_nonzero.
-    intros [i w] Hin. simpl.
-    destruct Hin as [Heq | Hin_filter].
-    + injection Heq as Hi Hw. subst. exact Hzero.
-    + apply filter_In in Hin_filter.
-      destruct Hin_filter as [Hin_orig _].
-      exact (Hall (i, w) Hin_orig).
-Qed.
-
-(** collect_same_stem produces all_values_nonzero maps.
-    Proof: By induction. collect_same_stem starts with [] and builds
-    using sim_set, which preserves all_values_nonzero. *)
-Lemma collect_produces_all_nonzero : forall stem entries submap remaining,
-  collect_same_stem stem entries = (submap, remaining) ->
-  all_values_nonzero submap.
-Proof.
-  intros stem entries. 
-  generalize dependent stem.
-  induction entries as [|[k v] rest IH]; intros stem submap remaining Hcoll.
-  - simpl in Hcoll. injection Hcoll as Hsub _. subst.
-    unfold all_values_nonzero. intros p Hin. inversion Hin.
-  - simpl in Hcoll.
-    destruct (stem_eq (tk_stem k) stem) eqn:Heq.
-    + destruct (collect_same_stem stem rest) as [acc_map rem] eqn:Hrec.
-      injection Hcoll as Hsub Hrem. subst.
-      apply sim_set_preserves_all_nonzero.
-      eapply IH. exact Hrec.
-    + injection Hcoll as Hsub _. subst.
-      unfold all_values_nonzero. intros p Hin. inversion Hin.
-Qed.
-
-(** For maps built via sim_set (hence no zeros), filtering zeros doesn't change sim_get *)
-Lemma all_nonzero_filter_sim_get_identity : forall m,
-  all_values_nonzero m ->
-  forall idx, sim_get m idx = sim_get (filter (fun p => negb (is_zero_value (snd p))) m) idx.
-Proof.
-  exact all_nonzero_filter_identity.
+  intros stem idx rest.
+  simpl. rewrite stem_eq_refl.
+  destruct (collect_same_stem stem rest) as [acc_map remaining].
+  simpl. apply sim_get_set_zero.
 Qed.
 
 (** Two maps with same lookup behavior produce same value arrays *)
@@ -972,21 +648,20 @@ Proof.
   intros hashes1 hashes2 levels H. subst. reflexivity.
 Qed.
 
-(** Main theorem: For maps with all nonzero values,
-    filtering zeros doesn't change the stem hash *)
-Theorem zero_filter_stem_hash_equiv : forall stem m,
-  all_values_nonzero m ->
-  sim_compute_stem_hash stem m = 
-  sim_compute_stem_hash stem (filter (fun p => negb (is_zero_value (snd p))) m).
+(** Maps with the same lookup behavior have the same stem hash. A map with
+    a present zero entry and a map without that entry do not have the same
+    lookup behavior, so this lemma does not make them equal. *)
+Theorem stem_hash_ext : forall stem m1 m2,
+  (forall idx, sim_get m1 idx = sim_get m2 idx) ->
+  sim_compute_stem_hash stem m1 = sim_compute_stem_hash stem m2.
 Proof.
-  intros stem m Hall.
+  intros stem m1 m2 Hext.
   unfold sim_compute_stem_hash.
   f_equal.
   apply build_binary_tree_ext.
   apply hash_value_array_ext.
   apply subindex_map_to_array_ext.
-  intro idx.
-  apply all_nonzero_filter_identity. exact Hall.
+  exact Hext.
 Qed.
 
 (** Helper: length of subindex_map_to_array_aux output *)
@@ -1008,23 +683,40 @@ Proof.
   simpl. reflexivity.
 Qed.
 
-(** [AXIOM:ARRAY] nth element in subindex_map_to_array_aux.
-    The value at index k in the built array equals sim_get m k or zero32.
+(** Helper: subindex_map_to_array_aux prepends the leaves 0..n-1 to acc *)
+Lemma subindex_map_to_array_aux_spec : forall m n acc,
+  subindex_map_to_array_aux m n acc =
+  map (fun i => sim_get m (Z.of_nat i)) (seq 0 n) ++ acc.
+Proof.
+  intros m n.
+  induction n as [|n' IH]; intros acc.
+  - reflexivity.
+  - simpl subindex_map_to_array_aux. rewrite IH.
+    rewrite seq_S, map_app. simpl.
+    rewrite <- app_assoc. reflexivity.
+Qed.
+
+(** nth element in subindex_map_to_array_aux.
+    The leaf at index k in the built array equals sim_get m k: a present
+    entry (also a zero value) is [Some v], a gap is [None].
     
-    Justification: subindex_map_to_array_aux builds an array by iterating
-    from n-1 down to 0, prepending each value. The final array has the 
-    value at each index determined by sim_get. This is the core indexing
-    property needed for value_array_get_some and value_array_get_none.
-    
-    Full proof requires careful tracking of list indices during construction.
-    Low risk - direct consequence of the aux function's structure. *)
-Axiom subindex_map_to_array_aux_nth : forall m n acc k,
+    This was the axiom [subindex_map_to_array_aux_nth] with a zero32
+    default. The array now holds [option Value], so the statement changed,
+    and it is proven from [subindex_map_to_array_aux_spec]. *)
+Lemma subindex_map_to_array_aux_nth : forall m n acc k,
   (k < n)%nat ->
-  nth k (subindex_map_to_array_aux m n acc) zero32 =
-    match sim_get m (Z.of_nat k) with
-    | Some val => val
-    | None => zero32
-    end.
+  nth k (subindex_map_to_array_aux m n acc) None =
+    sim_get m (Z.of_nat k).
+Proof.
+  intros m n acc k Hlt.
+  rewrite subindex_map_to_array_aux_spec.
+  rewrite app_nth1 by (rewrite length_map, length_seq; exact Hlt).
+  rewrite nth_indep with (d' := sim_get m (Z.of_nat 0))
+    by (rewrite length_map, length_seq; exact Hlt).
+  rewrite map_nth with (f := fun i => sim_get m (Z.of_nat i)) (d := 0%nat).
+  rewrite seq_nth by exact Hlt.
+  reflexivity.
+Qed.
 
 (** Helper for converting Z range to nat *)
 Lemma Z_to_nat_lt_256 : forall idx,
@@ -1037,30 +729,51 @@ Proof.
   - reflexivity.
 Qed.
 
-(** Value array from map: missing entries default to zero32 *)
-Lemma value_array_get_none : forall m idx,
-  sim_get m idx = None ->
+(** Value array from map: the leaf at idx is sim_get m idx *)
+Lemma value_array_get_sim_get : forall m idx,
   (0 <= idx < 256) ->
-  value_array_get (subindex_map_to_array m) idx = zero32.
+  value_array_get (subindex_map_to_array m) idx = sim_get m idx.
 Proof.
-  intros m idx Hnone Hrange.
+  intros m idx Hrange.
   unfold value_array_get, subindex_map_to_array.
   rewrite subindex_map_to_array_aux_nth.
-  - rewrite Z2Nat.id by lia. rewrite Hnone. reflexivity.
+  - rewrite Z2Nat.id by lia. reflexivity.
   - apply Z_to_nat_lt_256. exact Hrange.
 Qed.
 
-(** Value array from map: present entries are preserved *)
+(** Value array from map: missing entries are absent leaves *)
+Lemma value_array_get_none : forall m idx,
+  sim_get m idx = None ->
+  (0 <= idx < 256) ->
+  value_array_get (subindex_map_to_array m) idx = None.
+Proof.
+  intros m idx Hnone Hrange.
+  rewrite value_array_get_sim_get by exact Hrange.
+  exact Hnone.
+Qed.
+
+(** Value array from map: present entries are preserved, also zero values *)
 Lemma value_array_get_some : forall m idx v,
   sim_get m idx = Some v ->
   (0 <= idx < 256) ->
-  value_array_get (subindex_map_to_array m) idx = v.
+  value_array_get (subindex_map_to_array m) idx = Some v.
 Proof.
   intros m idx v Hsome Hrange.
-  unfold value_array_get, subindex_map_to_array.
-  rewrite subindex_map_to_array_aux_nth.
-  - rewrite Z2Nat.id by lia. rewrite Hsome. reflexivity.
-  - apply Z_to_nat_lt_256. exact Hrange.
+  rewrite value_array_get_sim_get by exact Hrange.
+  exact Hsome.
+Qed.
+
+(** A present zero leaf and an absent leaf have different entries in the
+    value array, so the builder does not treat a zero value as absent. *)
+Lemma value_array_zero_not_absent : forall m idx,
+  (0 <= idx < 256) ->
+  value_array_get (subindex_map_to_array (sim_set m idx zero32)) idx = Some zero32 /\
+  value_array_get (subindex_map_to_array (sim_remove m idx)) idx = None.
+Proof.
+  intros m idx Hrange.
+  split.
+  - apply value_array_get_some; [apply sim_get_set_zero | exact Hrange].
+  - apply value_array_get_none; [apply sim_get_remove_same | exact Hrange].
 Qed.
 
 (** ** Hash Computation Axioms *)
@@ -1077,11 +790,16 @@ Qed.
     
     Full proof requires structural induction on the tree levels showing
     that reduce_level followed by build_binary_tree equals direct combination.
-    Medium complexity - could be fully proven with more infrastructure. *)
+    Medium complexity - could be fully proven with more infrastructure.
+    
+    The array holds [option Value] and the fold uses [leaf_hash], so an
+    absent leaf contributes zero32 and a present zero leaf contributes
+    [hash_value zero32]. Before, the fold used [hash_value] on a zero32
+    default, which was the same only under the removed zero rule. *)
 Axiom binary_tree_equals_fold : forall arr,
   length arr = 256%nat ->
   build_binary_tree (hash_value_array arr) 8 = 
-  fold_left (fun acc v => hash_pair acc (hash_value v)) arr zero32.
+  fold_left (fun acc leaf => hash_pair acc (leaf_hash leaf)) arr zero32.
 
 (** [AXIOM:HASHING] Hash equivalence for SubIndexMaps with same lookup behavior.
     Maps with identical lookup behavior produce identical hashes because
@@ -1106,13 +824,14 @@ Axiom hash_subindex_map_equiv : forall (m1 m2 : SubIndexMap),
     produces the same result as hashing the map entries directly.
     
     This connects two representations:
-    1. Array: value_array indexed 0..255, gaps filled with zero32
+    1. Array: value_array indexed 0..255, a gap is an absent leaf (None)
     2. Map: sparse list of (idx, value) pairs
     
-    Zero values hash to zero32 by hash_zero_value, so both representations
-    yield the same hash when reduced. *)
+    An absent leaf contributes zero32 in the array fold and nothing in the
+    map fold. A present zero value contributes [hash_value zero32] in both
+    folds. There is no zero rule for [hash_value]. *)
 Axiom array_hash_equals_map_hash : forall m,
-  fold_left (fun acc v => hash_pair acc (hash_value v)) 
+  fold_left (fun acc leaf => hash_pair acc (leaf_hash leaf)) 
             (subindex_map_to_array m) zero32 = 
   subindex_map_hash m.
 
@@ -1183,7 +902,9 @@ Axiom tree_structure_hash_equiv : forall stem_hashes depth fuel,
     Justification: collect_same_stem iterates through sorted entries,
     grouping consecutive entries with the same stem. For each group,
     it builds a SubIndexMap using sim_set. The resulting map's sim_get
-    behavior matches finding entries by stem and subindex.
+    behavior matches finding entries by stem and subindex. A zero value
+    is a present entry (the statement had "zero value gives None" before
+    the zero-value change).
     
     Full proof requires induction on entries with careful tracking of
     the collect_same_stem recursion and sim_set accumulation.
@@ -1195,7 +916,7 @@ Axiom collect_stem_hashes_matches_stems : forall entries,
     (forall idx, sim_get submap idx = 
       match find (fun e => andb (stem_eq (tk_stem (fst e)) (fst sh))
                                 (Z.eqb (tk_subindex (fst e)) idx)) entries with
-      | Some (_, v) => if is_zero_value v then None else Some v
+      | Some (_, v) => Some v
       | None => None
       end).
 
@@ -1278,33 +999,36 @@ Axiom streaming_tree_equivalence : forall (t : SimTree),
 (** [AXIOM:STRUCTURAL] Entries with same get behavior produce same root hash.
     If two entry lists have the same lookup behavior, their streaming root 
     hashes are equal. This follows from the hash only depending on values
-    retrievable via entry lookups. *)
+    retrievable via entry lookups. A zero value is a present entry: two
+    entry lists that differ only in a zero-valued entry do not have the
+    same lookup behavior. *)
 Axiom entries_same_get_same_hash : forall entries1 entries2,
   entries_sorted entries1 ->
   entries_sorted entries2 ->
   (forall k, 
     match find (fun e => andb (stem_eq (tk_stem (fst e)) (tk_stem k))
                               (Z.eqb (tk_subindex (fst e)) (tk_subindex k))) entries1 with
-    | Some (_, v) => if is_zero_value v then None else Some v
+    | Some (_, v) => Some v
     | None => None
     end =
     match find (fun e => andb (stem_eq (tk_stem (fst e)) (tk_stem k))
                               (Z.eqb (tk_subindex (fst e)) (tk_subindex k))) entries2 with
-    | Some (_, v) => if is_zero_value v then None else Some v
+    | Some (_, v) => Some v
     | None => None
     end) ->
   sim_streaming_root_hash entries1 = sim_streaming_root_hash entries2.
 
 (** [AXIOM:STRUCTURAL] tree_to_entries produces entries matching sim_tree_get.
     For a well-formed tree, the sorted entries have the same lookup behavior
-    as the tree's get operation. *)
+    as the tree's get operation. A zero value is a present entry in the
+    tree and in the entries. *)
 Axiom tree_to_entries_get_equiv : forall t,
   wf_tree t ->
   forall k, sim_tree_get t k = 
     match find (fun e => andb (stem_eq (tk_stem (fst e)) (tk_stem k))
                               (Z.eqb (tk_subindex (fst e)) (tk_subindex k))) 
                (sort_entries (tree_to_entries t)) with
-    | Some (_, v) => if is_zero_value v then None else Some v
+    | Some (_, v) => Some v
     | None => None
     end.
 
@@ -1317,7 +1041,7 @@ Corollary streaming_presorted_equiv : forall (t : SimTree) (entries : SortedEntr
              match find (fun e => andb (stem_eq (tk_stem (fst e)) (tk_stem k))
                                        (Z.eqb (tk_subindex (fst e)) (tk_subindex k))) 
                         entries with
-             | Some (_, v) => if is_zero_value v then None else Some v
+             | Some (_, v) => Some v
              | None => None
              end) ->
   sim_streaming_root_hash entries = sim_root_hash t.

@@ -24,10 +24,12 @@ The following properties are proven in Rocq with machine-checked proofs. These t
 | Theorem | Location | Statement |
 |---------|----------|-----------|
 | `get_empty` | [simulations/tree.v](../simulations/tree.v) | `sim_tree_get empty_tree k = None` |
-| `get_insert_same` | [simulations/tree.v](../simulations/tree.v) | `sim_tree_get (sim_tree_insert t k v) k = Some v` (when v ≠ 0) |
+| `get_insert_same` | [simulations/tree.v](../simulations/tree.v) | `sim_tree_get (sim_tree_insert t k v) k = Some v` (for every v, including zero) |
 | `get_insert_other_stem` | [simulations/tree.v](../simulations/tree.v) | Insert at k₁ doesn't affect get at k₂ when stems differ |
 | `get_insert_other_subindex` | [simulations/tree.v](../simulations/tree.v) | Insert at k₁ doesn't affect get at k₂ when same stem, different subindex |
 | `get_delete` | [simulations/tree.v](../simulations/tree.v) | `sim_tree_get (sim_tree_delete t k) k = None` |
+| `insert_zero_not_delete` | [simulations/tree.v](../simulations/tree.v) | An insert of `zero32` gives `Some zero32`; a delete gives `None` |
+| `delete_preserves_wf` | [simulations/tree.v](../simulations/tree.v) | `wf_tree t -> wf_tree (sim_tree_delete t k)` |
 | `insert_preserves_wf` | [simulations/tree.v](../simulations/tree.v) | Well-formedness is preserved by insert |
 
 ### Hash Properties
@@ -122,7 +124,7 @@ These axioms encode standard cryptographic hardness assumptions. They are **inte
 | Axiom | Location | Dependents |
 |-------|----------|------------|
 | `hash_value_second_preimage` | [simulations/crypto.v](../simulations/crypto.v) | Cannot find different value with same hash |
-| `hash_value_nonzero` | [simulations/tree.v](../simulations/tree.v) | Non-zero values have non-zero hashes |
+| `hash_value_zero_distinct` | [simulations/crypto.v](../simulations/crypto.v) | Lemma: the hash of a non-zero value is not the hash of the zero value (replaces `hash_value_nonzero`) |
 
 **What breaks if violated:**
 - Attacker could substitute values in proofs
@@ -132,8 +134,7 @@ These axioms encode standard cryptographic hardness assumptions. They are **inte
 
 | Axiom | Location | Dependents |
 |-------|----------|------------|
-| `hash_zero_value` | [simulations/tree.v](../simulations/tree.v) | `hash(0) = 0` for sparse optimization |
-| `hash_zero_pair` | [simulations/tree.v](../simulations/tree.v) | `hash(0,0) = 0` for empty subtrees |
+| `hash_zero_pair` | [simulations/tree.v](../simulations/tree.v) | `hash(0,0) = 0` for empty subtrees. There is no rule `hash(0) = 0` for a leaf value |
 
 **What breaks if violated:**
 - Empty subtrees would have non-zero hashes

@@ -116,7 +116,7 @@ Module TreeBuildStepping.
       
       After updating stem_hash_cache, we build the tree structure.
       The key insight is that the final hash depends only on:
-      - The set of stems with non-zero values
+      - The set of stems with present values (a zero value is present)
       - The computed stem hashes
       
       Order doesn't matter due to the canonical tree structure.

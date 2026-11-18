@@ -321,16 +321,16 @@ Lemma stemnode_set_value_refines :
 
 ### 5.3 `delete_executes`
 
-**Goal:** `rust_delete` ≡ `rust_insert` with `zero32`
+**Goal:** `rust_delete` (the translated `delete` method) refines `sim_tree_delete`
 
 **Strategy:**
-Delete is defined as insert with zero value:
+Delete is a real removal (`sim_remove`, and `stems_remove` when the stem has no entries left). It is not an insert of the zero value, so the proof does not reduce to `insert_executes`. It needs the HashMap stepping of insert and the removal of an empty stem. `DeleteLink.delete_executes` is an axiom until that stepping exists:
 ```coq
 Definition rust_delete (H : Ty.t) (tree : Value.t) (key : Value.t) : M :=
-  InsertLink.rust_insert H [] [] [tree; key; φ zero32].
+  src.tree.tree.Impl_ubt_tree_UnifiedBinaryTree_H.delete H [] [] [tree; key].
 ```
 
-Proof reduces directly to `insert_executes` with `v = zero32`.
+Until November 2026, `rust_delete` was defined as `rust_insert` with `zero32`, and the proof reduced to `insert_executes` with `v = zero32`. That proof is kept as `InsertLink.zero_write_executes`. It is a statement about a zero write, which stores a present zero leaf.
 
 ### 5.4 `root_hash_executes`
 
@@ -385,7 +385,7 @@ Proof reduces directly to `insert_executes` with `v = zero32`.
 **Deliverables:**
 - [ ] Convert `get_executes` axiom to theorem
 - [ ] Convert `insert_executes` axiom to theorem
-- [ ] Convert `delete_executes` axiom to theorem (via insert)
+- [ ] Convert `delete_executes` axiom to theorem (needs HashMap removal stepping; it is not an instance of insert)
 - [ ] Convert `root_hash_executes` axiom to theorem
 
 **Success Criteria:** Operation axioms eliminated.
@@ -507,7 +507,7 @@ Extract interpreter to OCaml and use QuickCheck-style testing:
 4. `Run.run_eval_sound` - Needs `Fuel.sufficient_implies_eval`
 5. `GetLink.get_executes` - Needs HashMap linking
 6. `InsertLink.insert_executes` - Needs HashMap linking
-7. `DeleteLink.delete_executes` - Reduces to insert
+7. `DeleteLink.delete_executes` - Needs HashMap removal stepping (the zero write, `InsertLink.zero_write_executes`, reduces to insert)
 8. `NewLink.new_executes` - Needs constructor stepping
 9. `HashLink.root_hash_executes` - Needs trait resolution
 10. `PanicFreedom.get_no_panic` - Follows from get_executes

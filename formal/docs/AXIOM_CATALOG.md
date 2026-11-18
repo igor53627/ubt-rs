@@ -9,6 +9,8 @@ See also: [VERIFICATION_SUMMARY.md](VERIFICATION_SUMMARY.md) for executive summa
 
 > **Note on Axiom Counts:** The linking layer contains **83 total Axiom declarations** and **31 Parameters**. Of these, **25 are classified as irreducible** - the minimal trust base that cannot be proven within the current framework. The remaining 58 axioms are derivable with additional stepping infrastructure. This catalog focuses on the irreducible core axioms.
 
+> **Note (November 2026, zero values):** `DeleteLink.delete_executes` (operations.v) is an axiom again. Delete is a real removal, and it is not an instance of `insert_executes`. The former proof is kept as `InsertLink.zero_write_executes`. The counts in this catalog (83, 25, 58, 31, 583) are from December 2025. They are not recounted and do not include this axiom. The current count is 47 `Axiom` declarations in `formal/linking/` (see VERIFICATION_SUMMARY.md).
+
 ---
 
 ## Executive Summary
@@ -36,7 +38,7 @@ See also: [VERIFICATION_SUMMARY.md](VERIFICATION_SUMMARY.md) for executive summa
 | Monad laws | 95% | run_bind, run_eval_sound axiomatized |
 | Operation get | 85% | Depends on get_executes |
 | Operation insert | 85% | Depends on insert_executes |
-| Operation delete | 95% | PROVEN via insert |
+| Operation delete | not assessed | Depends on delete_executes (axiom since November 2026) |
 | Root hash | 88% | Depends on root_hash_executes |
 | Batch verification | 80% | 4 axioms remaining |
 
@@ -78,6 +80,8 @@ All 25 remaining axioms are **IRREDUCIBLE** in the current framework. They repre
 | `insert_executes` | operations.v | Insert produces simulation result |
 | `new_steps_to_empty_tree` | operations.v | Constructor produces empty tree |
 | `root_hash_executes` | operations.v | Root hash produces simulation result |
+
+Added in November 2026, outside the December 2025 classification: `delete_executes` (operations.v), "Delete produces simulation result". It is an axiom in the style of the axioms above.
 
 ### Trait/Method Resolution (3)
 
@@ -148,10 +152,10 @@ The `prim_string_compare_*` axioms relate to RocqOfRust's encoding of Rust primi
 |--------------|------------|--------|------|
 | `get_terminates` | THEOREM | Via get_executes + fuel bounds | interpreter.v |
 | `insert_terminates` | THEOREM | Via insert_executes + fuel bounds | interpreter.v |
-| `delete_terminates` | THEOREM | Via insert_terminates | interpreter.v |
+| `delete_terminates` | THEOREM | Via delete_executes + fuel bounds (via insert_terminates until November 2026) | interpreter.v |
 | `get_correct` | THEOREM | Via get_executes + refinement | interpreter.v |
 | `insert_correct` | THEOREM | Via insert_executes + refinement | interpreter.v |
-| `delete_correct` | THEOREM | Via insert_correct | interpreter.v |
+| `delete_correct` | THEOREM | Via delete_executes + determinism (via insert_correct until November 2026) | interpreter.v |
 | `get_no_panic` | THEOREM | Via get_executes | interpreter.v |
 | `insert_no_panic` | THEOREM | Via insert_executes | interpreter.v |
 | `decode_stem_correct` | LEMMA | Structural induction on Stem | interpreter.v |

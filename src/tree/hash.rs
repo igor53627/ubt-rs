@@ -68,6 +68,9 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
     }
 
     /// Compute the hash for a stem node.
+    ///
+    /// Returns `B256::ZERO` for a stem that is not in the store and for a stem node
+    /// with no values. A stem node with a value, also a zero value, has a non-zero hash.
     fn compute_stem_hash(&self, stem: &Stem) -> B256 {
         if let Some(stem_node) = self.store.get(stem) {
             stem_node.hash(&self.hasher)
@@ -96,6 +99,11 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
     }
 
     /// Rebuild the root from all stem nodes.
+    ///
+    /// A dirty stem with a zero hash is removed from `stem_hash_cache`. This is the
+    /// case only for a stem that [`delete`](Self::delete) removed from the store and
+    /// for a stem node with no values. Both contribute nothing to the root, and the
+    /// incremental path sees them as dirty stems without a stem hash.
     fn rebuild_root(&mut self) -> Result<()> {
         // Don't clear `dirty_stem_hashes` until we've successfully rebuilt the root.
         // Otherwise, a failure would lose information needed for a retry.
@@ -346,6 +354,9 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
     /// Unlike [`insert`](Self::insert), which defers the work to the next
     /// [`root_hash`](Self::root_hash) call, this method recomputes the root hash
     /// before it returns, if `entries` is not empty.
+    ///
+    /// As with [`insert`](Self::insert), a zero value is stored as a present leaf.
+    /// If a key occurs more than once, the last value wins.
     ///
     /// # Errors
     ///

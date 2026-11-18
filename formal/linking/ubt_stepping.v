@@ -12,7 +12,7 @@
     
     - rust_get: Tree::get operation
     - rust_insert: Tree::insert operation
-    - rust_delete: Tree::delete operation (via insert zero)
+    - rust_delete: Tree::delete operation (a real removal, not an insert of zero)
     - rust_root_hash: Root hash computation
     - or_insert_with: HashMap entry default factory
     

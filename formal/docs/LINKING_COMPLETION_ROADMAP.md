@@ -7,6 +7,8 @@
 
 See also: [VERIFICATION_SUMMARY.md](VERIFICATION_SUMMARY.md) for executive summary.
 
+> **Note (November 2026, zero values):** A zero value is a present leaf, and delete is a real removal. `DeleteLink.delete_executes` is an axiom for the `delete` method. The former proof (a zero write as an instance of `insert_executes`) is kept as `InsertLink.zero_write_executes`. The phase history and the axiom counts in this document are from December 2025 and are not changed.
+
 ---
 
 ## Executive Summary
@@ -19,7 +21,7 @@ The linking layer (`formal/linking/`) bridges translated Rust code to simulation
 |----------|--------|-------|
 | Type Links | **Complete** | 13 types linked |
 | Refinement Lemmas | **Proven** | 15 lemmas |
-| Execution Theorems | **2 proven** | new_executes, delete_executes |
+| Execution Theorems | **2 proven** | new_executes, zero_write_executes (delete_executes is an axiom since November 2026) |
 | Execution Derived | **3 remaining** | get, insert, root_hash |
 | Panic Freedom | **DERIVABLE** | 4 axioms derivable from execution |
 | Composition Theorems | **Proven** | 18 theorems |
@@ -33,7 +35,8 @@ The linking layer (`formal/linking/`) bridges translated Rust code to simulation
 | Component | Status | Confidence |
 |-----------|--------|------------|
 | new_executes | **PROVEN** | 100% |
-| delete_executes | **PROVEN** | 100% |
+| delete_executes | AXIOM (real removal, since November 2026) | not assessed |
+| zero_write_executes | DERIVED from insert_executes; conditional: the translated `set_value` in `formal/src/` removes a zero value, so the axiom does not describe the translated term for `zero32` (issue #22) | 95% (the value of insert_executes) |
 | get_executes | DERIVED | 90% |
 | insert_executes | **PROVEN** | 95% |
 | insert_executes_derived | **PROVEN** | 95% |
@@ -129,7 +132,6 @@ The remaining gaps are in iterator stepping and hasher trait dispatch, which req
 
 **Fully Proven (100% confidence):**
 - `new_executes` - Constructor semantics
-- `delete_executes` - Via insert + zero32 reduction
 - All type linking (13 types with injectivity)
 - All composition theorems (18 lemmas)
 - All monad laws (5 core + let_sequence)
@@ -137,6 +139,7 @@ The remaining gaps are in iterator stepping and hasher trait dispatch, which req
 **Derived from Stepping (90% confidence):**
 - `get_executes` - HashMap stepping + field access
 - `insert_executes` - Entry pattern + subindex stepping
+- `zero_write_executes` - A zero write, an instance of `insert_executes` with `zero32`, so it has the confidence of `insert_executes` (this was `delete_executes` until November 2026; `delete_executes` is an axiom now)
 
 **Remaining Gaps (75% confidence):**
 - `root_hash_executes` - Iterator + hasher trait dispatch
@@ -159,7 +162,7 @@ The remaining gaps are in iterator stepping and hasher trait dispatch, which req
 
 | Theorem | Significance |
 |---------|--------------|
-| `delete_executes` | Reduced from axiom to theorem |
+| `zero_write_executes` (named `delete_executes` until November 2026) | A zero write is an instance of `insert_executes` |
 | `let_sequence` | Fundamental monad bind law |
 | `struct_field_access` | Field extraction stepping |
 | `insert_steps_compose` | Insert composition |
@@ -285,7 +288,7 @@ root_hash_executes
                     │     OPERATION EXECUTION PROOFS      │
                     │  get_executes  (AXIOM)              │
                     │  insert_executes (AXIOM)            │
-                    │  delete_executes (PROVEN)           │
+                    │  delete_executes (AXIOM)            │
                     │  new_executes (PROVEN)              │
                     │  root_hash_executes (AXIOM)         │
                     └─────────────────┬───────────────────┘
@@ -321,13 +324,13 @@ The Rust `UnifiedBinaryTree` has a `root: Node` field that caches the Merkle roo
 - `sim_root_hash` computes root on-demand from stems
 - `HashLink.root_hash_executes` connects Rust cached root to simulation
 
-### 8.2 delete as insert(zero)
+### 8.2 delete is a removal, not insert(zero)
 
-Delete is implemented as `insert(key, zero32)`:
+Until November 2026 the model defined delete as `insert(key, zero32)`, and `DeleteLink.delete_executes` was proven from `insert_executes`. The crate follows go-ethereum now: a zero write stores a present zero leaf, and `delete` removes the leaf, and the stem when it has no leaves left.
 
-- Reduces axiom count by 1
-- Leverages existing insert infrastructure
-- Proven in `DeleteLink.delete_executes`
+- `sim_tree_delete` is a real removal (`sim_remove`, `stems_remove`)
+- `InsertLink.zero_write_executes` keeps the former proof for the zero write
+- `DeleteLink.delete_executes` is an axiom for the translated `delete` method (one more axiom)
 
 ### 8.3 Iterator Stepping Axioms
 

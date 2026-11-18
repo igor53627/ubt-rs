@@ -44,7 +44,7 @@ The verification follows a **refinement approach**:
 
 ### Type Structure
 
-**Coq SimTree** (simulations/tree.v:532-534):
+**Coq SimTree** (simulations/tree.v:575-577):
 ```coq
 Record SimTree := mkSimTree {
   st_stems : StemMap
@@ -81,7 +81,7 @@ End SimTreeLink.
 
 **Note:** This encoding models the translated structure in `formal/src/`, which predates crate version 0.5.0. That structure has one type parameter and the fields `root`, `hasher` and `stems`. The encoding does not cover the current `UnifiedBinaryTree<H, S>` shown above, which has a `store: S` field and no `root` field.
 
-### Refinement Relation (linking/operations.v:171-172)
+### Refinement Relation (linking/operations.v:188, defined in linking/types.v:821-822)
 
 ```coq
 Definition tree_refines (H : Ty.t) (rust_tree : Value.t) (sim_tree : SimTree) : Prop :=
@@ -98,8 +98,8 @@ This states that a Rust tree value `rust_tree` **refines** a simulation tree `si
 
 | Aspect | Coq | Rust |
 |--------|-----|------|
-| Definition | `simulations/tree.v:539-543` | `src/tree/mod.rs::get()` |
-| Linking | `linking/operations.v:372` | — |
+| Definition | `simulations/tree.v:582-586` | `src/tree/mod.rs::get()` |
+| Linking | `linking/operations.v:386` | — |
 | Verification | Axiom `get_executes` | — |
 
 **Coq Definition:**
@@ -116,7 +116,7 @@ Definition sim_tree_get (t : SimTree) (k : TreeKey) : option Value :=
 Definition rust_get (H : Ty.t) := src.tree.tree.Impl_ubt_tree_UnifiedBinaryTree_H.get H.
 ```
 
-**Linking Axiom** (operations.v:339-347):
+**Linking Axiom** (operations.v:386-394):
 ```coq
 Axiom get_executes :
   forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey),
@@ -135,8 +135,8 @@ Axiom get_executes :
 
 | Aspect | Coq | Rust |
 |--------|-----|------|
-| Definition | `simulations/tree.v:546-555` | `src/tree/mod.rs::insert()` |
-| Linking | `linking/operations.v:488` | — |
+| Definition | `simulations/tree.v:589-598` | `src/tree/mod.rs::insert()` |
+| Linking | `linking/operations.v:508` | — |
 | Verification | Axiom `insert_executes` | — |
 
 **Coq Definition:**
@@ -153,7 +153,7 @@ Definition sim_tree_insert (t : SimTree) (k : TreeKey) (v : Value) : SimTree :=
   mkSimTree (stems_set (st_stems t) stem new_submap).
 ```
 
-**Linking Axiom** (operations.v:404-414):
+**Linking Axiom** (operations.v:508-517):
 ```coq
 Axiom insert_executes :
   forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey) (v : Value),
@@ -174,23 +174,42 @@ Axiom insert_executes :
 
 | Aspect | Coq | Rust |
 |--------|-----|------|
-| Definition | `simulations/tree.v:558-559` | `src/tree/mod.rs::delete()` |
-| Linking | `linking/operations.v:635-650` | — |
-| Verification | Theorem `delete_executes`, proven for the model term `rust_delete` by applying the axiom `insert_executes` | — |
+| Definition | `simulations/tree.v:607-616` | `src/tree/mod.rs::delete()` |
+| Linking | `linking/operations.v:694-702` | - |
+| Verification | Axiom `delete_executes` for the translated `delete` method | - |
 
 **Coq Definition:**
 ```coq
 Definition sim_tree_delete (t : SimTree) (k : TreeKey) : SimTree :=
-  sim_tree_insert t k zero32.
+  let stem := tk_stem k in
+  match stems_get (st_stems t) stem with
+  | None => t
+  | Some old_submap =>
+      match sim_remove old_submap (tk_subindex k) with
+      | [] => mkSimTree (stems_remove (st_stems t) stem)
+      | new_submap => mkSimTree (stems_set (st_stems t) stem new_submap)
+      end
+  end.
 ```
 
-In the Coq model, delete is defined as insert with the zero value. The linking layer also defines `rust_delete` as `rust_insert` with `zero32` (`linking/operations.v:573-574`); it does not use a translation of the Rust `delete()` method. The Rust `delete()` is a separate method: it removes the value (`set_value` with `B256::ZERO`) only when the stem exists, and it removes the stem node when no values are left.
+In the Coq model, delete is a real removal, as the Rust `delete()` method: it removes the value (`remove_value`) only when the stem exists, and it removes the stem node when no values are left. It is not an insert of the zero value. An insert of `zero32` stores a present zero leaf.
 
-**Linking Theorem** (operations.v:611-618):
+The linking layer defines `rust_delete` as the translated `delete` method (`linking/operations.v:638-639`). The translation in `formal/src/` is older than the current Rust source: its `delete` calls `set_value` with `B256::ZERO`, and its `set_value` removes the entry on a zero value. The translated `delete` is therefore also a removal.
+
+`delete_executes` is an axiom. Before the zero-value change it was a theorem, proven from `insert_executes` for a `rust_delete` that was defined as `rust_insert` with `zero32`. That statement is kept as `InsertLink.zero_write_executes` (`linking/operations.v:582-593`).
+
+**Linking Theorems** (operations.v:708-716, tree.v:815-825):
 ```coq
-Theorem delete_is_insert_zero :
+Theorem delete_is_not_insert_zero :
   forall (t : SimTree) (k : TreeKey),
-    sim_tree_delete t k = sim_tree_insert t k zero32.
+    sim_tree_get (sim_tree_delete t k) k <>
+    sim_tree_get (sim_tree_insert t k zero32) k.
+
+Theorem insert_zero_not_delete : forall t k,
+  sim_tree_get (sim_tree_insert t k zero32) k = Some zero32 /\
+  sim_tree_get (sim_tree_delete t k) k = None /\
+  sim_tree_get (sim_tree_insert t k zero32) k <>
+  sim_tree_get (sim_tree_delete t k) k.
 ```
 
 ---
@@ -199,11 +218,11 @@ Theorem delete_is_insert_zero :
 
 | Aspect | Coq | Rust |
 |--------|-----|------|
-| Definition | `simulations/tree.v:1001-1003` (folds `stem_entry_hash` over `st_stems`; `stem_entry_hash` uses `subindex_map_hash`) | `src/tree/hash.rs::root_hash()` |
-| Linking | `linking/operations.v:779-785` | — |
+| Definition | `simulations/tree.v:1094-1096` (folds `stem_entry_hash` over `st_stems`; `stem_entry_hash` uses `subindex_map_hash`) | `src/tree/hash.rs::root_hash()` |
+| Linking | `linking/operations.v:845-851` | — |
 | Verification | Axiom `root_hash_executes` | — |
 
-The root hash computation uses the abstract hash functions defined in `simulations/crypto.v` (`simulations/tree.v:993-1003`):
+The root hash computation uses the abstract hash functions defined in `simulations/crypto.v` (`simulations/tree.v:1086-1096`):
 
 ```coq
 Definition subindex_map_hash (m : SubIndexMap) : Bytes32 :=
@@ -217,7 +236,7 @@ Definition sim_root_hash (t : SimTree) : Bytes32 :=
             (st_stems t) zero32.
 ```
 
-`sim_root_hash` does not call `sim_node_hash` (`simulations/tree.v:372-379`), whose `SimStem` branch ignores the stored values.
+`sim_root_hash` does not call `sim_node_hash` (`simulations/tree.v:376-383`), whose `SimStem` branch ignores the stored values.
 
 ---
 
@@ -228,11 +247,13 @@ Definition sim_root_hash (t : SimTree) : Bytes32 :=
 | `empty_tree` | `UnifiedBinaryTree::new()` | **Proven** | `NewLink.new_refines` | Empty tree creation |
 | `sim_tree_get` | `tree.get()` | **Axiom** | `GetLink.get_executes` | Requires monadic semantics |
 | `sim_tree_insert` | `tree.insert()` | **Axiom** | `InsertLink.insert_executes` | Requires HashMap linking |
-| `sim_tree_delete` | `tree.delete()` | **Conditional** | `DeleteLink.delete_executes` (theorem; applies axiom `InsertLink.insert_executes`) | Proven for `rust_delete`, defined as `rust_insert` with `zero32`; no link to the Rust `delete()` method |
+| `sim_tree_delete` | `tree.delete()` | **Axiom** | `DeleteLink.delete_executes` | Axiom for the translated `delete` method; delete is a real removal |
+| `sim_tree_insert` with `zero32` | `tree.insert(key, B256::ZERO)` | **Conditional** | `InsertLink.zero_write_executes` (theorem; applies axiom `InsertLink.insert_executes`) | A zero write stores a present zero leaf. The translated `set_value` in `formal/src/` removes the entry on a zero value, so `insert_executes` does not describe the translated term for `zero32` (see the delete paragraph above and issue #22) |
 | `sim_root_hash` | `tree.root_hash().unwrap()` | **Axiom** | `HashLink.root_hash_executes` | Requires hash linking |
-| `wf_tree` | — | **Proven** | `insert_preserves_wf` | Well-formedness invariant |
+| `wf_tree` | — | **Proven** | `insert_preserves_wf`, `delete_preserves_wf` | Well-formedness invariant |
 | `get_empty` | — | **Proven** | Direct | Empty returns None |
-| `get_insert_same` | — | **Proven** | Direct | Insert-get correctness |
+| `get_insert_same` | — | **Proven** | Direct | Insert-get correctness, for every value |
+| `insert_zero_not_delete` | - | **Proven** | Direct | A zero insert is present; a delete is absent |
 | `get_insert_other_stem` | — | **Proven** | Direct | Non-interference |
 | `get_insert_other_subindex` | — | **Proven** | Direct | Non-interference |
 | `get_delete` | — | **Proven** | Direct | Delete correctness |

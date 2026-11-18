@@ -1312,8 +1312,41 @@ Module OpExec.
     exact (insert_execution_compose H sim_t k v rust_tree s Href Hwf Hstem Hval).
   Qed.
 
-  (** delete_executes: proven via insert with zero32 *)
-  Theorem delete_executes_from_insert :
+  (** zero_write_executes: a write of zero32, proven from the Layer 4
+      composition axiom. The result holds a present zero leaf
+      (sim_tree_insert with zero32). It is not a delete.
+      
+      Condition: this is the composition axiom at v = zero32. The
+      translated set_value in formal/src/ removes the entry on a zero
+      value, so for zero32 that axiom does not describe the translated
+      term (issue #22). The axiom states the behaviour of the current
+      Rust source.
+      
+      Before the zero-value change this proof was named
+      delete_executes_from_insert, with rust_delete defined as this zero
+      write and sim_tree_delete defined as sim_tree_insert with zero32. *)
+  Theorem zero_write_executes_from_compose :
+    forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey),
+    forall (rust_tree : Value.t) (s : State.t),
+      tree_refines H rust_tree sim_t ->
+      wf_tree sim_t ->
+      wf_stem (tk_stem k) ->
+      exists fuel (rust_tree' : Value.t) (s' : State.t),
+        Fuel.run fuel (Config.mk (InsertLink.rust_insert H [] [] [rust_tree; φ k; φ zero32]) s) =
+        (Fuel.Success rust_tree', s') /\
+        tree_refines H rust_tree' (sim_tree_insert sim_t k zero32).
+  Proof.
+    intros H sim_t k rust_tree s Href Hwf Hstem.
+    assert (Hwf_zero : wf_value zero32).
+    { unfold wf_value, zero32. simpl. reflexivity. }
+    exact (insert_execution_compose H sim_t k zero32 rust_tree s Href Hwf Hstem Hwf_zero).
+  Qed.
+
+  (** delete_executes in fuel form: derived from the axiom
+      DeleteLink.delete_executes (operations.v) and the fuel/run axioms of
+      RunFuelLink. Delete is a real removal, so this is not derived from
+      insert any more. *)
+  Theorem delete_executes_from_link :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey),
     forall (rust_tree : Value.t) (s : State.t),
       tree_refines H rust_tree sim_t ->
@@ -1325,11 +1358,19 @@ Module OpExec.
         tree_refines H rust_tree' (sim_tree_delete sim_t k).
   Proof.
     intros H sim_t k rust_tree s Href Hwf Hstem.
-    unfold DeleteLink.rust_delete.
-    unfold sim_tree_delete.
-    assert (Hwf_zero : wf_value zero32).
-    { unfold wf_value, zero32. simpl. reflexivity. }
-    exact (insert_execution_compose H sim_t k zero32 rust_tree s Href Hwf Hstem Hwf_zero).
+    destruct (DeleteLink.delete_executes H sim_t k rust_tree (RunFuelLink.state_to_exec s)
+                Href Hwf Hstem) as [rust_tree_exec [s'_exec [Hrun_del Hrefines]]].
+    destruct (RunFuelLink.sufficient_fuel_exists
+                (DeleteLink.rust_delete H rust_tree (φ k)) s
+                (ex_intro _ rust_tree_exec (ex_intro _ s'_exec Hrun_del)))
+      as [fuel [rust_tree' [s' Hfuel]]].
+    exists fuel, rust_tree', s'.
+    split; [exact Hfuel |].
+    pose proof (RunFuelLink.fuel_success_implies_run _ _ _ _ _ Hfuel) as Hrun.
+    destruct (Run.run_deterministic _ _ _ _ rust_tree' (RunFuelLink.state_to_exec s')
+                Hrun_del Hrun) as [Hv _].
+    rewrite <- Hv.
+    exact Hrefines.
   Qed.
 
   (** ******************************************************************)
@@ -1378,7 +1419,7 @@ Module OpExec.
         (Fuel.Success rust_tree', s') /\
         tree_refines H rust_tree' (sim_tree_delete sim_t k).
   Proof.
-    exact delete_executes_from_insert.
+    exact delete_executes_from_link.
   Qed.
 
 End OpExec.
@@ -1555,20 +1596,19 @@ Module InsertExec.
 
   (** [THEOREM:SIM] sim_set produces a valid SubIndexMap.
       
-      Status: PROVEN - follows from sim_get_set_same and sim_get_set_zero_value.
+      Status: PROVEN - follows from sim_get_set_same.
       
-      When v is nonzero: sim_get (sim_set m idx v) idx = Some v
-      When v is zero: sim_get (sim_set m idx v) idx = None
+      For every v, also zero32: sim_get (sim_set m idx v) idx = Some v.
+      A zero value is stored as a present entry. The former second case
+      of this theorem (zero value gives None) is false for the current
+      rule and is removed.
   *)
   Theorem sim_set_valid :
     forall (m : SubIndexMap) (idx : SubIndex) (v : Value),
-      sim_get (sim_set m idx v) idx = Some v \/
-      (is_zero_value v = true /\ sim_get (sim_set m idx v) idx = None).
+      sim_get (sim_set m idx v) idx = Some v.
   Proof.
     intros m idx v.
-    destruct (is_zero_value v) eqn:Hzero.
-    - right. split; [reflexivity | apply sim_get_set_zero_value; exact Hzero].
-    - left. apply sim_get_set_same. unfold value_nonzero. exact Hzero.
+    apply sim_get_set_same.
   Qed.
 
   (** SubIndexMap insert stepping: set_value updates the map.
@@ -2333,11 +2373,13 @@ Module AxiomSummary.
       [ ] SEMANTIC AXIOM (requires closure/trait stepping):
       - RootHashLink.root_hash_executes_sketch (Issue #53)
       
-      [x] PROVEN (Issue #43):
-      - DeleteLink.delete_executes - proven via insert_executes (in operations.v)
+      [x] PROVEN (Issue #43, restated for the zero-value change):
+      - InsertLink.zero_write_executes - proven via insert_executes (in operations.v).
+        It was named DeleteLink.delete_executes when delete was defined as a zero write.
       
       REMAINING AXIOMS (in operations.v, require full interpreter):
       - GetLink.get_executes, InsertLink.insert_executes
+      - DeleteLink.delete_executes (axiom again: delete is a real removal)
       - NewLink.new_executes, HashLink.root_hash_executes
       - BatchVerifyLink.* axioms
       
@@ -2411,8 +2453,10 @@ Module KeyLemmas.
     exact Hrun.
   Qed.
   
-  (** [PROVEN] Delete terminates (derived from insert_terminates).
-      Since rust_delete = rust_insert with zero32, this follows directly. *)
+  (** [PROVEN] Delete terminates - derived from the axiom
+      DeleteLink.delete_executes and RunFuelLink.sufficient_fuel_exists.
+      Delete is a real removal, so this is not derived from
+      insert_terminates any more. *)
   Theorem delete_terminates :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey) 
            (rust_tree : Value.t) (s : State.t),
@@ -2422,9 +2466,12 @@ Module KeyLemmas.
       Fuel.has_sufficient_fuel (Config.mk (DeleteLink.rust_delete H rust_tree (φ k)) s).
   Proof.
     intros H sim_t k rust_tree s Href Hwf Hstem.
-    unfold DeleteLink.rust_delete.
-    apply (insert_terminates H sim_t k zero32); auto.
-    exact DeleteLink.zero32_wf.
+    unfold Fuel.has_sufficient_fuel.
+    destruct (DeleteLink.delete_executes H sim_t k rust_tree (RunFuelLink.state_to_exec s)
+                Href Hwf Hstem) as [rust_tree' [s'_exec [Hrun Hrefines]]].
+    apply RunFuelLink.sufficient_fuel_exists.
+    exists rust_tree', s'_exec.
+    exact Hrun.
   Qed.
   
   (** *** Correctness Lemmas
@@ -2485,9 +2532,9 @@ Module KeyLemmas.
     exact Hrefines.
   Qed.
   
-  (** [PROVEN] Delete produces correct result (derived from insert_correct).
-      Since rust_delete = rust_insert with zero32 and 
-      sim_tree_delete = sim_tree_insert with zero32, this follows. *)
+  (** [PROVEN] Delete produces correct result - derived from the axiom
+      DeleteLink.delete_executes and Run.run_deterministic. Delete is a real
+      removal, so this is not derived from insert_correct any more. *)
   Theorem delete_correct :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey)
            (rust_tree : Value.t) (s : State.t),
@@ -2499,11 +2546,14 @@ Module KeyLemmas.
           (Fuel.Success rust_tree', s') ->
         tree_refines H rust_tree' (sim_tree_delete sim_t k).
   Proof.
-    intros H sim_t k rust_tree s Href Hwf Hstem fuel rust_tree' s' Hrun.
-    unfold DeleteLink.rust_delete in Hrun.
-    rewrite DeleteLink.delete_is_insert_zero.
-    eapply insert_correct; eauto.
-    exact DeleteLink.zero32_wf.
+    intros H sim_t k rust_tree s Href Hwf Hstem fuel rust_tree' s' Hfuel.
+    pose proof (RunFuelLink.fuel_success_implies_run _ _ _ _ _ Hfuel) as Hrun.
+    destruct (DeleteLink.delete_executes H sim_t k rust_tree (RunFuelLink.state_to_exec s)
+                Href Hwf Hstem) as [rust_tree_exec [s'_exec [Hrun_del Hrefines]]].
+    destruct (Run.run_deterministic _ _ _ _ rust_tree' (RunFuelLink.state_to_exec s')
+                Hrun_del Hrun) as [Hv _].
+    rewrite <- Hv.
+    exact Hrefines.
   Qed.
   
   (** *** Panic Freedom Lemmas
@@ -2688,7 +2738,7 @@ Module Roadmap.
     mkStatus "stemnode_new_is_empty" Proven [] "Issue #42: InsertExec.stemnode_new_is_empty";
     mkStatus "or_insert_with_steps" Axiomatic [] "Issue #42: InsertExec.or_insert_with_steps";
     mkStatus "entry_or_insert_combined" Proven [] "Issue #42: InsertExec.entry_or_insert_combined";
-    mkStatus "sim_set_valid" Partial ["value_eqb_spec"] "Issue #42: InsertExec.sim_set_valid";
+    mkStatus "sim_set_valid" Proven ["sim_get_set_same"] "Issue #42: InsertExec.sim_set_valid (holds for every value)";
     mkStatus "subindexmap_insert_steps" Axiomatic [] "Issue #42: InsertExec.subindexmap_insert_steps";
     mkStatus "sim_tree_insert_unfold" Proven [] "Issue #42: InsertExec.sim_tree_insert_unfold";
     mkStatus "insert_stem_present" Proven ["stems_get_set_same"] "Issue #42: InsertExec.insert_stem_present";
@@ -2700,15 +2750,18 @@ Module Roadmap.
     (* Issue #41: OpExec Layer 5 - Operation theorems (PROVEN from Layer 4) *)
     mkStatus "get_executes_from_compose" Proven ["get_execution_compose"] "Issue #41: OpExec.get_executes_from_compose";
     mkStatus "insert_executes_from_compose" Proven ["insert_execution_compose"] "Issue #41: OpExec.insert_executes_from_compose";
-    mkStatus "delete_executes_from_insert" Proven ["insert_execution_compose"] "Issue #41: OpExec.delete_executes_from_insert";
+    mkStatus "zero_write_executes_from_compose" Proven ["insert_execution_compose"] "Issue #41: OpExec.zero_write_executes_from_compose (was delete_executes_from_insert)";
+    mkStatus "delete_executes_from_link" Proven ["DeleteLink.delete_executes"; "RunFuelLink.sufficient_fuel_exists"; "RunFuelLink.fuel_success_implies_run"] "OpExec.delete_executes_from_link";
     
-    (* Issue #43: DeleteLink.delete_executes - CONVERTED FROM AXIOM TO THEOREM *)
-    mkStatus "DeleteLink.delete_executes" Proven ["InsertLink.insert_executes"; "delete_is_insert_zero"; "zero32_wf"] "Issue #43: Proven in operations.v via insert_executes";
+    (* Issue #43 proved a zero write. It is InsertLink.zero_write_executes now. *)
+    mkStatus "InsertLink.zero_write_executes" Proven ["InsertLink.insert_executes"; "zero32_wf"] "Issue #43: Proven in operations.v via insert_executes";
+    (* DeleteLink.delete_executes is an axiom: delete is a real removal *)
+    mkStatus "DeleteLink.delete_executes" Axiomatic [] "Axiom in operations.v for the Rust delete method";
     
     (* Legacy names (alias to Layer 5) *)
     mkStatus "get_executes_sketch" Proven ["get_executes_from_compose"] "Issue #41: Alias to get_executes_from_compose";
     mkStatus "insert_executes_sketch" Proven ["insert_executes_from_compose"] "Issue #41: Alias to insert_executes_from_compose";
-    mkStatus "delete_executes_sketch" Proven ["delete_executes_from_insert"] "Issue #41: Alias to delete_executes_from_insert";
+    mkStatus "delete_executes_sketch" Proven ["delete_executes_from_link"] "Issue #41: Alias to delete_executes_from_link";
     
     (* Other operations *)
     mkStatus "new_executes" Axiomatic ["step_primitive"] "Constructor stepping";
@@ -2768,7 +2821,8 @@ Module Roadmap.
       
       Layer 5 - Operation Theorems (PROVEN from Layer 4):
         - get_executes_from_compose, insert_executes_from_compose
-        - delete_executes_from_insert
+        - zero_write_executes_from_compose
+        - delete_executes_from_link (from the axiom DeleteLink.delete_executes)
       
       ** Issue #42: InsertExec Module - Insert Stepping Infrastructure
       
@@ -2784,7 +2838,7 @@ Module Roadmap.
         - entry_or_insert_combined (PROVEN)
       
       SubIndexMap Insert:
-        - sim_set_valid (PARTIAL)
+        - sim_set_valid (PROVEN)
         - subindexmap_insert_steps (AXIOM)
       
       Tree Reconstruction:
@@ -2803,7 +2857,8 @@ Module Roadmap.
         - Monad: run_pure, run_panic, fuel_terminates_implies_run
         - OpExec L1: pure_steps_one, pure_preserves_state, stems_get_result_steps, sim_get_result_steps
         - OpExec L2: sim_tree_get_unfold, get_stem_none, get_stem_some, get_case_analysis
-        - OpExec L5: get_executes_from_compose, insert_executes_from_compose, delete_executes_from_insert
+        - OpExec L5: get_executes_from_compose, insert_executes_from_compose,
+                     zero_write_executes_from_compose, delete_executes_from_link
         - OpExec Legacy: get_executes_sketch, insert_executes_sketch, delete_executes_sketch
         - RootHash: empty_node_hash_steps, leaf_node_hash_steps, internal_node_hash_steps, stem_node_hash_steps
         - Batch: batch_fold_nil, batch_verify_compose, batch_verify_split
