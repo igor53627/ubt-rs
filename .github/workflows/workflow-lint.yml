@@ -1,0 +1,50 @@
+name: Workflow Lint
+
+# The other workflows run only for the files that they build (`src/**`, `formal/**`, ...),
+# so a change to a workflow file alone had no check. This workflow lints the workflow files.
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - '.github/workflows/**'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - '.github/workflows/**'
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      # The archive is pinned by version and by SHA-256. The checksum is the value for
+      # `actionlint_1.7.12_linux_amd64.tar.gz` in `actionlint_1.7.12_checksums.txt` of the
+      # upstream release. Update the two values together.
+      - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: '1.7.12'
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          url="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          cd "$RUNNER_TEMP"
+          curl --fail --silent --show-error --location --output "$archive" "$url"
+          echo "${ACTIONLINT_SHA256}  ${archive}" | sha256sum --check
+          tar -xzf "$archive" actionlint
+          ./actionlint -version
+
+      # actionlint also runs shellcheck on each `run:` script. Severity `error` keeps the
+      # existing info, style and warning findings out of the result (issue #20).
+      - name: Lint workflows
+        env:
+          SHELLCHECK_OPTS: --severity=error
+        run: |
+          "$RUNNER_TEMP/actionlint" -color
