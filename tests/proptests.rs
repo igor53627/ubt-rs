@@ -977,14 +977,16 @@ proptest! {
     #[test]
     fn prop_extension_matching_stem_invalid(key in arb_tree_key()) {
         let hasher = Blake3Hasher;
-        let bogus_hash = B256::repeat_byte(0xAA);
+        let bogus_value = B256::repeat_byte(0xAA);
 
         let proof = Proof::new(
             key,
             None,
             vec![ProofNode::Extension {
                 stem: key.stem,
-                stem_hash: bogus_hash,
+                subindex: 0,
+                value: bogus_value,
+                subtree_siblings: vec![B256::ZERO; 8],
             }],
         );
 
