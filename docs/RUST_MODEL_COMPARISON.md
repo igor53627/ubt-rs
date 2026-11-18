@@ -4,6 +4,8 @@ This document compares the Rust UBT implementation (`src/`) with the formal Rocq
 
 > See also: [formal/docs/RUST_MODEL_COMPARISON.md](../formal/docs/RUST_MODEL_COMPARISON.md) for detailed linking strategy.
 
+> **Zero values:** the Rust crate now follows go-ethereum: a leaf that holds 32 zero bytes is present and is hashed, `Hasher::hash_32` has no zero rule, and `StemNode::set_value` stores a zero value. The Rocq model follows the same rule: `sim_set` stores a zero value as a present entry, `sim_remove` and `stems_remove` are the removals, `sim_tree_delete` is a real removal, and the axiom `hash_zero_value` (`hash_value zero32 = zero32`) is removed. The translated code in `formal/src/` is older than this rule (its `set_value` removes the entry on a zero value, and its `hash_32` has a zero rule), so the linking axioms `insert_executes` and `root_hash_executes` describe the current Rust source and not the translated terms for zero values.
+
 ## Verification Architecture
 
 | Step | Layer         | Transformation       |
@@ -29,28 +31,30 @@ This document compares the Rust UBT implementation (`src/`) with the formal Rocq
 | `Stem` (`[u8; 31]`) | `Stem := mkStem { stem_data : Bytes31 }` | tree.v:41-43 |
 | `SubIndex` (`u8`) | `SubIndex := Byte` (Z) | tree.v:46 |
 | `TreeKey { stem, subindex }` | `TreeKey := mkTreeKey { tk_stem : Stem; tk_subindex : SubIndex }` | tree.v:49-52 |
-| `Node` enum | `SimNode` inductive | tree.v:344-348 |
-| `Node::Empty` | `SimEmpty` | tree.v:345 |
-| `Node::Internal(InternalNode)` | `SimInternal : SimNode -> SimNode -> SimNode` | tree.v:346 |
-| `Node::Stem(StemNode)` | `SimStem : Stem -> SubIndexMap -> SimNode` | tree.v:347 |
-| `Node::Leaf(LeafNode)` | `SimLeaf : Value -> SimNode` | tree.v:348 |
-| `HashMap<SubIndex, B256>` (StemNode.values) | `SubIndexMap := list (SubIndex * Value)` | tree.v:247 |
-| `HashMap<Stem, StemNode>` (tree.stems) | `StemMap := list (Stem * SubIndexMap)` | tree.v:384 |
-| `UnifiedBinaryTree<H, S>` | `SimTree := mkSimTree { st_stems : StemMap }` | tree.v:532-534 |
+| `Node` enum | `SimNode` inductive | tree.v:347-351 |
+| `Node::Empty` | `SimEmpty` | tree.v:348 |
+| `Node::Internal(InternalNode)` | `SimInternal : SimNode -> SimNode -> SimNode` | tree.v:349 |
+| `Node::Stem(StemNode)` | `SimStem : Stem -> SubIndexMap -> SimNode` | tree.v:350 |
+| `Node::Leaf(LeafNode)` | `SimLeaf : Value -> SimNode` | tree.v:351 |
+| `HashMap<SubIndex, B256>` (StemNode.values) | `SubIndexMap := list (SubIndex * Value)` | tree.v:250 |
+| `HashMap<Stem, StemNode>` (tree.stems) | `StemMap := list (Stem * SubIndexMap)` | tree.v:388 |
+| `UnifiedBinaryTree<H, S>` | `SimTree := mkSimTree { st_stems : StemMap }` | tree.v:575-577 |
 
 ## Operation Correspondences
 
 | Rust Operation | Rocq Operation | Correspondence |
 |----------------|----------------|----------------|
-| `UnifiedBinaryTree::new()` | `empty_tree` | tree.v:536 |
-| `tree.get(&key)` | `sim_tree_get t k` | tree.v:539-543 |
-| `tree.insert(key, value)` | `sim_tree_insert t k v` | tree.v:546-555 |
-| `tree.delete(&key)` | `sim_tree_delete t k` (= insert zero32) | tree.v:558-559 |
-| `tree.root_hash().unwrap()` | `sim_root_hash t` | tree.v:1001-1003 |
+| `UnifiedBinaryTree::new()` | `empty_tree` | tree.v:579 |
+| `tree.get(&key)` | `sim_tree_get t k` | tree.v:582-586 |
+| `tree.insert(key, value)` | `sim_tree_insert t k v` | tree.v:589-598 |
+| `tree.delete(&key)` | `sim_tree_delete t k` (removes the subindex with `sim_remove`, and the stem with `stems_remove` when no entry is left) | tree.v:607-616 |
+| `stem_node.set_value(idx, v)` | `sim_set m idx v` (stores every value, also zero) | tree.v:266-267 |
+| `stem_node.remove_value(idx)` | `sim_remove m idx` | tree.v:260-261 |
+| `tree.root_hash().unwrap()` | `sim_root_hash t` | tree.v:1094-1096 |
 | `tree.enable_incremental_mode()` | (not modeled) | src/tree/hash.rs |
 | `tree.disable_incremental_mode()` | (not modeled) | src/tree/hash.rs |
-| `stem.bit_at(pos)` | `stem_bit_at s i` | tree.v:78-84 |
-| `Stem::first_differing_bit` | `first_diff_bit s1 s2` | tree.v:100-101 |
+| `stem.bit_at(pos)` | `stem_bit_at s i` | tree.v:81-87 |
+| `Stem::first_differing_bit` | `first_diff_bit s1 s2` | tree.v:103-104 |
 
 ### Hasher Correspondences
 
@@ -59,7 +63,7 @@ This document compares the Rust UBT implementation (`src/`) with the formal Rocq
 | `Hasher::hash_32(&value)` | `hash_value : Bytes32 -> Bytes32` | crypto.v:62 |
 | `Hasher::hash_64(&left, &right)` | `hash_pair : Bytes32 -> Bytes32 -> Bytes32` | crypto.v:63 |
 | `Hasher::hash_stem_node(stem, root)` | `hash_stem : Stem -> Bytes32 -> Bytes32` | crypto.v:64 |
-| Zero-input special case | `hash_zero_value`, `hash_zero_pair` | crypto.v:184-186 |
+| Zero-input special case | `hash_zero_pair` | crypto.v:187. The rule holds for `hash_64` only. `hash_32` has no zero rule, and the model has no axiom for `hash_value zero32`. |
 
 ## Verified Properties
 
@@ -86,7 +90,7 @@ This document compares the Rust UBT implementation (`src/`) with the formal Rocq
 | Pair collision resistance | `hash_pair_collision_resistant` | Equal outputs → both inputs equal |
 | Stem collision resistance | `hash_stem_collision_resistant` | Equal outputs → stem_eq and hash equal |
 | Second preimage resistance | `hash_value_second_preimage` | Derived: distinct inputs → distinct outputs |
-| Domain separation | `hash_value_nonzero` | Derived: non-zero value → non-zero hash |
+| Zero and non-zero values | `hash_value_zero_distinct` | Derived: non-zero value -> hash differs from the hash of the zero value |
 
 ### Merkle Proof Properties (tree.v, crypto.v)
 
@@ -117,7 +121,7 @@ This document compares the Rust UBT implementation (`src/`) with the formal Rocq
 | Aspect | Rust Implementation | Rocq Model | Gap |
 |--------|---------------------|------------|-----|
 | Tree structure | Full binary tree with `rebuild_root()` | Flat `StemMap` without internal nodes | Model doesn't capture tree shape |
-| StemNode internals | 8-level subtree hash computation | `hash_stem s zero32` (simplified) | Subtree hashing not fully modeled |
+| StemNode internals | 8-level subtree hash computation | `sim_node_hash`, `SimStem` arm: `hash_stem s zero32` (ignores the values). `sim_root_hash` path: `hash_stem s (subindex_map_hash m)`, a sequential fold over all present entries, also zero values | Subtree hashing not fully modeled: the model has no 8-level tree |
 | HashMap implementation | std::collections::HashMap | Association list | Performance model differs |
 
 ### 2. Missing from Model
@@ -141,14 +145,14 @@ These statements are axioms (trusted) in `linking/operations.v`, not proven theo
 - `StateThreading.get_state_pure`, `root_hash_state_pure`, `insert_result_pure`
 - `BatchVerifyLink.rust_verify_batch_inclusion_executes`, `rust_verify_multiproof_executes`, `rust_verify_shared_executes`
 
-`DeleteLink.delete_executes`, the `PanicFreedom.*` theorems, `run_pure`, and `run_panic` are proven (`Qed`).
+`DeleteLink.delete_executes` is also an axiom: delete is a real removal, and it is not an instance of `insert_executes`. `InsertLink.zero_write_executes` (a write of `zero32`, proven from `insert_executes`), the `PanicFreedom.*` theorems, `run_pure`, and `run_panic` are proven (`Qed`).
 
 ### 4. Design Axioms
 
 | Axiom | Location | Justification |
 |-------|----------|---------------|
-| `stem_eq_true` | tree.v:226 | All well-formed stems are 31 bytes |
-| `stem_eq_via_third` | tree.v:492-495 | Transitivity of stem equality |
+| `stem_eq_true` | tree.v:229 | All well-formed stems are 31 bytes |
+| `stem_eq_via_third` | tree.v:501-504 | Transitivity of stem equality |
 
 ## Trust Assumptions
 
@@ -168,8 +172,8 @@ These statements are axioms (trusted) in `linking/operations.v`, not proven theo
 
 **Then:**
 - `get(key)` returns the last inserted value for that key, or None
-- `insert(k, v)` followed by `get(k)` returns `Some(v)` (for non-zero v)
-- `delete(k)` removes the value at k
+- `insert(k, v)` followed by `get(k)` returns `Some(v)` for every v, including `B256::ZERO`
+- `delete(k)` removes the value at k, and the stem when it has no values left. It is not an insert of zero: after `insert(k, B256::ZERO)`, `get(k)` returns `Some(B256::ZERO)`
 - Operations on different stems don't interfere
 - Operations on different subindices (same stem) don't interfere
 - Tree well-formedness is preserved across operations

@@ -75,8 +75,9 @@ The extracted code includes:
 
 ### Core Operations
 - `sim_tree_get` - Get value for key
-- `sim_tree_insert` - Insert key-value pair
-- `sim_tree_delete` - Delete key
+- `sim_tree_insert` - Insert key-value pair (a zero value is stored as a present leaf)
+- `sim_tree_delete` - Delete key (removes the leaf, and the stem when it has no leaves left)
+- `sim_remove`, `stems_remove` - Removal helpers that `sim_tree_delete` uses
 
 ### Predicates
 - `is_zero_value` - Check if value is all zeros

@@ -8,10 +8,10 @@
     The axioms are organized into categories:
     - Hash function signatures (Parameters)
     - Determinism: same inputs produce same outputs
-    - Zero behavior: how hash functions handle zero values
+    - Zero behavior: the zero rule for a pair of zero hashes only
     - Collision resistance: distinct inputs produce distinct outputs
     - Second preimage resistance: hard to find collisions
-    - Domain separation: non-zero values hash to non-zero outputs
+    - Zero and non-zero values: their leaf hashes are different
     
     References:
     - Collision resistance: Rogaway & Shrimpton, "Cryptographic Hash-Function Basics" (2004)
@@ -170,19 +170,20 @@ Defined.
 
 (** ** Zero Value Behavior *)
 (**
-    These axioms specify how hash functions behave on zero inputs.
+    This axiom specifies how the pair hash behaves on zero inputs.
     
-    In the UBT, zero values represent "empty" or "absent" entries.
-    The zero32 constant (32 zero bytes) is used as a sentinel value.
-    
-    These properties ensure that:
-    - Empty leaves hash to the zero hash (sparse tree optimization)
+    In the UBT, an absent leaf and an empty subtree contribute the
+    zero32 constant (32 zero bytes). The zero rule holds for a pair of
+    zero hashes only:
     - Empty subtrees combine to empty parent hashes
+    
+    There is no zero rule for [hash_value]. A leaf that holds zero32 is a
+    present leaf, and its hash is the real digest of 32 zero bytes, as in
+    go-ethereum [trie/bintrie] and in [Hasher::hash_32] (src/hash.rs).
+    No axiom fixes the value of [hash_value zero32].
 *)
 
-(** [AXIOM:DESIGN] Zero-hash property per EIP-7864 sparse tree optimization *)
-Axiom hash_zero_value : hash_value zero32 = zero32.
-
+(** [AXIOM:DESIGN] Zero-pair property per EIP-7864 sparse tree optimization *)
 Axiom hash_zero_pair : hash_pair zero32 zero32 = zero32.
 
 (** ** Collision Resistance *)
@@ -238,37 +239,9 @@ Proof.
   contradiction.
 Qed.
 
-(** ** Domain Separation / Non-Zero Preservation *)
-(**
-    Domain separation ensures that meaningful (non-zero) values
-    cannot collide with the zero sentinel value.
-    
-    This property is essential for the UBT because:
-    - Zero values represent "absent" entries
-    - Non-zero values represent actual stored data
-    - We need to distinguish between "key not present" and "key maps to zero"
-    
-    In practice, this is achieved by the hash function having a
-    sufficiently large output space that collisions with zero are
-    negligible, or by explicit domain separation tags in the hash input.
-*)
-
-(** Non-zero values hash to non-zero outputs - derived from collision resistance + zero hash *)
-Lemma hash_value_nonzero : forall v,
-  (forallb (fun b => Z.eqb b 0) v = false) -> 
-  hash_value v <> zero32.
-Proof.
-  intros v Hnonzero Heq.
-  (* If hash_value v = zero32, then by hash_zero_value, hash_value v = hash_value zero32 *)
-  rewrite <- hash_zero_value in Heq.
-  (* By collision resistance, v = zero32 *)
-  apply hash_value_collision_resistant in Heq.
-  (* But zero32 has all zero bytes, contradicting Hnonzero *)
-  subst v. unfold zero32 in Hnonzero. simpl in Hnonzero. discriminate.
-Qed.
-
 (** ** Value Predicates *)
-(** Predicates for checking if values are zero/non-zero *)
+(** Predicates for checking if values are zero/non-zero. They only classify
+    a value. They do not say whether a leaf is present. *)
 
 Definition is_zero_value (v : Bytes32) : bool :=
   forallb (fun b => Z.eqb b 0) v.
@@ -276,13 +249,29 @@ Definition is_zero_value (v : Bytes32) : bool :=
 Definition value_nonzero (v : Bytes32) : Prop :=
   is_zero_value v = false.
 
-(** Convenience lemma: value_nonzero implies hash is non-zero *)
-Lemma hash_nonzero_of_value_nonzero : forall v,
-  value_nonzero v -> hash_value v <> zero32.
+(** ** Zero and Non-Zero Leaf Values *)
+(**
+    A leaf that holds zero32 is a present leaf. Its hash is different from
+    the hash of every non-zero value. This follows from collision
+    resistance and needs no zero rule.
+    
+    The statement "a non-zero value does not hash to zero32" is not derived
+    here. It needed the removed axiom [hash_value zero32 = zero32]. Without
+    that axiom it is a preimage statement about the hash function, and no
+    remaining axiom gives it.
+*)
+
+(** The hash of a non-zero value is not the hash of the zero value -
+    derived from collision resistance *)
+Lemma hash_value_zero_distinct : forall v,
+  value_nonzero v -> hash_value v <> hash_value zero32.
 Proof.
-  intros v Hnonzero.
-  apply hash_value_nonzero.
-  exact Hnonzero.
+  intros v Hnonzero Heq.
+  (* By collision resistance, v = zero32 *)
+  apply hash_value_collision_resistant in Heq.
+  (* But zero32 has all zero bytes, contradicting Hnonzero *)
+  subst v. unfold value_nonzero, is_zero_value, zero32 in Hnonzero.
+  simpl in Hnonzero. discriminate.
 Qed.
 
 (** ** Merkle Witness Computation *)

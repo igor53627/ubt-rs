@@ -71,19 +71,37 @@ Where:
 - $\text{Stem}(s, L, R)$: Stem node with stem $s \in \mathbb{B}^{31}$ and children for 256-value subtree
 - $\text{Leaf}(v)$: Leaf node containing value $v \in \mathbb{B}^{32}$
 
+A leaf is **present** when the subtree of its stem node holds $\text{Leaf}(v)$ at its subindex, for every $v \in \mathbb{B}^{32}$, including $v = \mathbf{0}^{32}$. A leaf is **absent** when that position is $\text{Empty}$. A present leaf with the value $\mathbf{0}^{32}$ and an absent leaf are different.
+
 ### 2.3 Hash Function
 
-**Definition (Hash with Zero Special Case):**
+**Definition (Pair Hash with Zero Special Case):**
+
+For a 64-byte input $x \in \mathbb{B}^{64}$:
 
 $$
 \mathcal{H}(x) = 
 \begin{cases}
-\mathbf{0}^{32} & \text{if } x = \mathbf{0}^{|x|} \\
+\mathbf{0}^{32} & \text{if } x = \mathbf{0}^{64} \\
 H(x) & \text{otherwise}
 \end{cases}
 $$
 
 Where $H$ is the underlying hash function (BLAKE3 in reference implementation, final TBD).
+
+The zero rule holds for the 64-byte input only. This input is the pair of child hashes of an internal node or of a node in the 256-value subtree, or the input $s \cdot \mathbf{0}^1 \cdot r$ of a stem node.
+
+**Definition (Leaf Hash):**
+
+For a present leaf with the value $v \in \mathbb{B}^{32}$:
+
+$$
+\mathcal{H}_{\text{leaf}}(v) = H(v) \quad \text{for every } v \text{, including } v = \mathbf{0}^{32}
+$$
+
+There is no zero rule for the 32-byte input of a leaf. A present leaf with the value $\mathbf{0}^{32}$ hashes to $H(\mathbf{0}^{32})$, which is not $\mathbf{0}^{32}$ (for SHA-256 it is `66687aad...0d5f2925`). An absent leaf is an empty subtree and contributes $\mathbf{0}^{32}$ without a call of $H$.
+
+This is the rule of go-ethereum `trie/bintrie`. Versions of this specification before the zero-value change applied the zero rule to every all-zero input, so that a leaf with the value $\mathbf{0}^{32}$ had the hash of an absent leaf.
 
 ### 2.4 Node Hashing (Merkleization)
 
@@ -95,13 +113,17 @@ $$
 \mathbf{0}^{32} & \text{if } n = \text{Empty} \\
 \mathcal{H}(\text{hash}(L) \cdot \text{hash}(R)) & \text{if } n = \text{Internal}(L, R) \\
 \mathcal{H}(s \cdot \mathbf{0}^1 \cdot \mathcal{H}(\text{hash}(L) \cdot \text{hash}(R))) & \text{if } n = \text{Stem}(s, L, R) \\
-\mathcal{H}(v) & \text{if } n = \text{Leaf}(v)
+\mathcal{H}_{\text{leaf}}(v) = H(v) & \text{if } n = \text{Leaf}(v)
 \end{cases}
 $$
 
 **Lemma 2.1 (Empty Subtree Hash):** For any empty subtree, $\text{hash}(\text{Empty}) = \mathbf{0}^{32}$.
 
 **Lemma 2.2 (Hash Determinism):** The hash of a tree is uniquely determined by its contents.
+
+**Lemma 2.3 (Zero Leaf Is Not Empty):** $\text{hash}(\text{Leaf}(\mathbf{0}^{32})) = H(\mathbf{0}^{32})$ and $\text{hash}(\text{Empty}) = \mathbf{0}^{32}$. The two are different unless $H(\mathbf{0}^{32}) = \mathbf{0}^{32}$, which does not hold for SHA-256 or BLAKE3.
+
+A stem node holds one present leaf or more (Invariant 6.1). Insertion creates a stem node with one leaf, and deletion removes a stem node with its last leaf (Section 3.4).
 
 ---
 
@@ -135,6 +157,8 @@ $$
 
 Where $d$ is the current depth and $\text{values}$ is the sparse map within the stem node.
 
+$\text{values}[i] = \bot$ for an absent leaf, and $\text{values}[i] = v$ for a present leaf with the value $v$. So $\text{get}$ returns $\bot$ for an absent leaf and $\mathbf{0}^{32}$ for a present leaf with the value $\mathbf{0}^{32}$.
+
 ### 3.3 Insertion
 
 **Definition (Insert):**
@@ -154,17 +178,35 @@ Where $T'$ is constructed by:
    - Create internal nodes to separate the two stems
 4. If $T = \text{Internal}(L, R)$: Recursively insert into appropriate child
 
+The value $v$ is stored as a present leaf for every $v$, including $v = \mathbf{0}^{32}$. An insertion of $\mathbf{0}^{32}$ does not remove the leaf or the stem node.
+
 **Invariant 3.1 (Minimal Internal Nodes):** The tree contains the minimum number of internal nodes necessary to distinguish all stems.
 
 ### 3.4 Deletion
 
 **Definition (Delete):**
 
+Given tree $T$ and key $k$:
+
 $$
-\text{delete}(T, k) = \text{insert}(T, k, \mathbf{0}^{32})
+\text{delete}(T, k) = T'
 $$
 
-Setting a value to zero is equivalent to deletion.
+Where $T'$ is constructed by:
+
+1. If $T$ has no stem node with the stem $k.\text{stem}$: $T' = T$
+2. Otherwise: Remove the leaf at subindex $k.\text{subindex}$ of that stem node. The position becomes $\text{Empty}$, and the leaf is absent
+3. If the stem node has no present leaf left: Remove the stem node, and remove the internal nodes that are no longer necessary to distinguish the stems that remain (Invariant 3.1)
+
+After a deletion the key is in the state "never written": $\text{get}(\text{delete}(T, k), k) = \bot$.
+
+**Definition (Zero Write):**
+
+$$
+\text{zeroWrite}(T, k) = \text{insert}(T, k, \mathbf{0}^{32})
+$$
+
+A zero write is not a deletion. It leaves a present leaf with the value $\mathbf{0}^{32}$, and it keeps the stem node. The zero write is the go-ethereum way to delete: `DeleteStorage` and `DeleteAccount` of go-ethereum `trie/bintrie` write $\mathbf{0}^{32}$, and go-ethereum has no operation that removes a leaf or a stem node. A zero write and a deletion give different trees, and different root hashes under the assumptions of Property 6.7.
 
 ---
 
@@ -305,6 +347,7 @@ A UBT $T$ is well-formed iff:
 2. All stem nodes have stems of length 31
 3. All leaf values are 32 bytes
 4. No two stem nodes share the same stem
+5. Every stem node holds one present leaf or more
 
 **Invariant 6.2 (Minimal Depth):**
 For any two stems $s_1 \neq s_2$ in tree $T$, they are separated at depth $d$ where $d = \min\{i : \text{bit}(s_1, i) \neq \text{bit}(s_2, i)\}$.
@@ -332,8 +375,10 @@ $$
 
 **Property 6.4 (Get-Insert):**
 $$
-\text{get}(\text{insert}(T, k, v), k) = v \quad \text{if } v \neq \mathbf{0}^{32}
+\text{get}(\text{insert}(T, k, v), k) = v
 $$
+
+The property holds for every $v$, including $v = \mathbf{0}^{32}$.
 
 **Property 6.5 (Get-Insert-Other):**
 $$
@@ -343,6 +388,32 @@ $$
 **Property 6.6 (Delete-Get):**
 $$
 \text{get}(\text{delete}(T, k), k) = \bot
+$$
+
+Deletion is a removal of the leaf, for every value that the leaf holds, including $\mathbf{0}^{32}$. It does not change other keys:
+$$
+\text{get}(\text{delete}(T, k), k') = \text{get}(T, k') \quad \text{if } k \neq k'
+$$
+
+If the leaf at $k$ is the last present leaf of its stem node, $\text{delete}(T, k)$ has no stem node with the stem $k.\text{stem}$. If $\text{get}(T, k) = \bot$, a deletion after an insertion restores the tree:
+$$
+\text{delete}(\text{insert}(T, k, v), k) = T \quad \text{if } \text{get}(T, k) = \bot
+$$
+
+**Property 6.7 (Zero Write):**
+$$
+\text{get}(\text{insert}(T, k, \mathbf{0}^{32}), k) = \mathbf{0}^{32} \neq \bot = \text{get}(\text{delete}(T, k), k)
+$$
+
+A zero write leaves a present leaf, and a deletion leaves no leaf, so the two lookups are different for every $T$. The trees $\text{insert}(T, k, \mathbf{0}^{32})$ and $\text{delete}(T, k)$ are also different. Their root hashes are different with overwhelming probability under two assumptions:
+
+1. Property 6.1 (collision resistance of $H$)
+2. An output of $H$ is $\mathbf{0}^{32}$ only with negligible probability
+
+The second assumption is necessary because $\text{delete}(T, k)$ can be the empty tree. Its hash is the constant $\mathbf{0}^{32}$ of Section 2.4, which is not an output of $H$, so Property 6.1 does not cover it. The all-zero pair of Section 2.3 has the hash $\mathbf{0}^{32}$ by rule and is not part of the assumption.
+
+$$
+\Pr[\text{hash}(\text{insert}(T, k, \mathbf{0}^{32})) = \text{hash}(\text{delete}(T, k))] \approx 0
 $$
 
 ---
@@ -399,6 +470,7 @@ struct TreeKey {
 enum Node {
     Empty,
     Internal { left: Box<Node>, right: Box<Node> },
+    // An entry of `values` is a present leaf, also when its value is zero.
     Stem { stem: Stem, left: Box<Node>, right: Box<Node>, values: HashMap<SubIndex, Value> },
     Leaf { value: Value },
 }

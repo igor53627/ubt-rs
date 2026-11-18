@@ -26,16 +26,17 @@ fn arb_tree_key() -> impl Strategy<Value = TreeKey> {
     (arb_stem(), arb_subindex()).prop_map(|(stem, subindex)| TreeKey::new(stem, subindex))
 }
 
+/// Values include `B256::ZERO` with a weight of 1 in 5, because a zero value is a
+/// present leaf and random bytes practically never give it.
 fn arb_value() -> impl Strategy<Value = B256> {
-    prop::array::uniform32(any::<u8>()).prop_map(B256::from)
-}
-
-fn arb_nonzero_value() -> impl Strategy<Value = B256> {
-    arb_value().prop_filter("value must be nonzero", |v| *v != B256::ZERO)
+    prop_oneof![
+        1 => Just(B256::ZERO),
+        4 => prop::array::uniform32(any::<u8>()).prop_map(B256::from),
+    ]
 }
 
 fn arb_key_value() -> impl Strategy<Value = (TreeKey, B256)> {
-    (arb_tree_key(), arb_nonzero_value())
+    (arb_tree_key(), arb_value())
 }
 
 fn arb_key_value_list(max_len: usize) -> impl Strategy<Value = Vec<(TreeKey, B256)>> {
@@ -49,7 +50,7 @@ fn arb_key_value_list(max_len: usize) -> impl Strategy<Value = Vec<(TreeKey, B25
 proptest! {
     /// P1: get after insert returns the inserted value
     #[test]
-    fn prop_get_insert_same(key in arb_tree_key(), value in arb_nonzero_value()) {
+    fn prop_get_insert_same(key in arb_tree_key(), value in arb_value()) {
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
         tree.insert(key, value);
         prop_assert_eq!(tree.get(&key), Some(value));
@@ -60,8 +61,8 @@ proptest! {
     fn prop_get_insert_other(
         k1 in arb_tree_key(),
         k2 in arb_tree_key(),
-        v1 in arb_nonzero_value(),
-        v2 in arb_nonzero_value()
+        v1 in arb_value(),
+        v2 in arb_value()
     ) {
         prop_assume!(k1 != k2);
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
@@ -73,7 +74,7 @@ proptest! {
 
     /// P3: delete removes the value (insert then delete returns None)
     #[test]
-    fn prop_insert_delete(key in arb_tree_key(), value in arb_nonzero_value()) {
+    fn prop_insert_delete(key in arb_tree_key(), value in arb_value()) {
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
         tree.insert(key, value);
         tree.delete(&key);
@@ -82,7 +83,7 @@ proptest! {
 
     /// P4: insert is idempotent (inserting same value twice = inserting once)
     #[test]
-    fn prop_insert_idempotent(key in arb_tree_key(), value in arb_nonzero_value()) {
+    fn prop_insert_idempotent(key in arb_tree_key(), value in arb_value()) {
         let mut tree1: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
         tree1.insert(key, value);
 
@@ -111,8 +112,8 @@ proptest! {
     fn prop_insert_preserves_other_stems(
         k1 in arb_tree_key(),
         k2 in arb_tree_key(),
-        v1 in arb_nonzero_value(),
-        v2 in arb_nonzero_value()
+        v1 in arb_value(),
+        v2 in arb_value()
     ) {
         prop_assume!(k1.stem != k2.stem);
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
@@ -127,8 +128,8 @@ proptest! {
         stem in arb_stem(),
         idx1 in arb_subindex(),
         idx2 in arb_subindex(),
-        v1 in arb_nonzero_value(),
-        v2 in arb_nonzero_value()
+        v1 in arb_value(),
+        v2 in arb_value()
     ) {
         prop_assume!(idx1 != idx2);
         let k1 = TreeKey::new(stem, idx1);
@@ -152,7 +153,7 @@ proptest! {
         stem in arb_stem(),
         idx1 in arb_subindex(),
         idx2 in arb_subindex(),
-        v in arb_nonzero_value()
+        v in arb_value()
     ) {
         prop_assume!(idx1 != idx2);
         let k1 = TreeKey::new(stem, idx1);
@@ -173,7 +174,7 @@ proptest! {
 proptest! {
     /// P9: delete is idempotent
     #[test]
-    fn prop_delete_idempotent(key in arb_tree_key(), value in arb_nonzero_value()) {
+    fn prop_delete_idempotent(key in arb_tree_key(), value in arb_value()) {
         let mut tree1: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
         tree1.insert(key, value);
         tree1.delete(&key);
@@ -186,20 +187,42 @@ proptest! {
         prop_assert_eq!(tree1.root_hash().unwrap(), tree2.root_hash().unwrap());
     }
 
-    /// P10: insert zero is equivalent to delete (both result in None for get)
+    /// P10: insert zero is not a delete. A zero write keeps a present leaf and its
+    /// stem, as in go-ethereum; a delete restores the state "never written".
     #[test]
-    fn prop_zero_insert_is_delete(key in arb_tree_key(), value in arb_nonzero_value()) {
+    fn prop_zero_insert_is_present_not_delete(
+        key in arb_tree_key(),
+        other in arb_tree_key(),
+        value in arb_value()
+    ) {
+        prop_assume!(key != other);
+
+        let mut never_written: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        never_written.insert(other, value);
+
         let mut tree1: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        tree1.insert(other, value);
         tree1.insert(key, value);
         tree1.delete(&key);
 
         let mut tree2: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        tree2.insert(other, value);
         tree2.insert(key, value);
         tree2.insert(key, B256::ZERO);
 
-        // Both should return None for get (zero = deleted)
         prop_assert_eq!(tree1.get(&key), None);
+        prop_assert_eq!(tree1.len(), 1);
+        prop_assert_eq!(tree2.get(&key), Some(B256::ZERO));
+        prop_assert!(tree2.contains_key(&key));
+        prop_assert_eq!(tree2.len(), 2);
+
+        let never_written_root = never_written.root_hash().unwrap();
+        prop_assert_eq!(tree1.root_hash().unwrap(), never_written_root);
+        prop_assert_ne!(tree2.root_hash().unwrap(), never_written_root);
+
+        tree2.delete(&key);
         prop_assert_eq!(tree2.get(&key), None);
+        prop_assert_eq!(tree2.root_hash().unwrap(), never_written_root);
     }
 
     /// P11: delete nonexistent key is a no-op
@@ -207,7 +230,7 @@ proptest! {
     fn prop_delete_nonexistent_noop(
         k1 in arb_tree_key(),
         k2 in arb_tree_key(),
-        v in arb_nonzero_value()
+        v in arb_value()
     ) {
         prop_assume!(k1 != k2);
 
@@ -225,8 +248,8 @@ proptest! {
     #[test]
     fn prop_last_insert_wins(
         key in arb_tree_key(),
-        v1 in arb_nonzero_value(),
-        v2 in arb_nonzero_value()
+        v1 in arb_value(),
+        v2 in arb_value()
     ) {
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
         tree.insert(key, v1);
@@ -265,8 +288,8 @@ proptest! {
     #[test]
     fn prop_different_values_different_hashes(
         key in arb_tree_key(),
-        v1 in arb_nonzero_value(),
-        v2 in arb_nonzero_value()
+        v1 in arb_value(),
+        v2 in arb_value()
     ) {
         prop_assume!(v1 != v2);
 
@@ -290,8 +313,8 @@ proptest! {
     fn prop_batch_operations_commute(
         k1 in arb_tree_key(),
         k2 in arb_tree_key(),
-        v1 in arb_nonzero_value(),
-        v2 in arb_nonzero_value()
+        v1 in arb_value(),
+        v2 in arb_value()
     ) {
         prop_assume!(k1 != k2);
 
@@ -369,7 +392,7 @@ proptest! {
     fn prop_batch_then_individual(
         batch_entries in arb_key_value_list(10),
         k in arb_tree_key(),
-        v in arb_nonzero_value()
+        v in arb_value()
     ) {
         // Ensure k is not in batch
         let batch_keys: std::collections::HashSet<_> = batch_entries.iter().map(|(k, _)| k).collect();
@@ -409,9 +432,7 @@ proptest! {
         // Deduplicate and sort
         let mut deduped = std::collections::HashMap::new();
         for (k, v) in &entries {
-            if *v != B256::ZERO {
-                deduped.insert(*k, *v);
-            }
+            deduped.insert(*k, *v);
         }
         let mut sorted: Vec<_> = deduped.into_iter().collect();
         sorted.sort_by(|a, b| (a.0.stem, a.0.subindex).cmp(&(b.0.stem, b.0.subindex)));
@@ -437,9 +458,7 @@ proptest! {
         // Deduplicate and sort
         let mut deduped = std::collections::HashMap::new();
         for (k, v) in &entries {
-            if *v != B256::ZERO {
-                deduped.insert(*k, *v);
-            }
+            deduped.insert(*k, *v);
         }
         let mut sorted: Vec<_> = deduped.into_iter().collect();
         sorted.sort_by(|a, b| (a.0.stem, a.0.subindex).cmp(&(b.0.stem, b.0.subindex)));
@@ -462,7 +481,7 @@ proptest! {
     fn prop_incremental_equals_full(
         initial in arb_key_value_list(10),
         update_key in arb_tree_key(),
-        update_value in arb_nonzero_value()
+        update_value in arb_value()
     ) {
         // Ensure update_key is not in initial
         let initial_keys: std::collections::HashSet<_> = initial.iter().map(|(k, _)| k).collect();
@@ -545,7 +564,7 @@ proptest! {
 proptest! {
     /// P24: max subindex (255) works correctly
     #[test]
-    fn prop_max_subindex_works(stem in arb_stem(), value in arb_nonzero_value()) {
+    fn prop_max_subindex_works(stem in arb_stem(), value in arb_value()) {
         let key = TreeKey::new(stem, 255);
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
         tree.insert(key, value);
@@ -554,7 +573,7 @@ proptest! {
 
     /// P25: min subindex (0) works correctly
     #[test]
-    fn prop_min_subindex_works(stem in arb_stem(), value in arb_nonzero_value()) {
+    fn prop_min_subindex_works(stem in arb_stem(), value in arb_value()) {
         let key = TreeKey::new(stem, 0);
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
         tree.insert(key, value);
@@ -566,25 +585,19 @@ proptest! {
     fn prop_full_stem_256_values(stem in arb_stem()) {
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
 
-        // Insert all 256 subindices (use idx|1 to ensure nonzero values)
+        // Insert all 256 subindices; the value at subindex 0 is B256::ZERO
         for idx in 0u8..=255 {
             let key = TreeKey::new(stem, idx);
-            // Create a nonzero value: set first byte to idx, last byte to 0xFF
-            let mut value_bytes = [idx; 32];
-            value_bytes[31] = 0xFF; // Ensure nonzero
-            let value = B256::from(value_bytes);
-            tree.insert(key, value);
+            tree.insert(key, B256::repeat_byte(idx));
         }
 
         // Verify all 256 values
         for idx in 0u8..=255 {
             let key = TreeKey::new(stem, idx);
-            let mut expected_bytes = [idx; 32];
-            expected_bytes[31] = 0xFF;
-            let expected = B256::from(expected_bytes);
-            prop_assert_eq!(tree.get(&key), Some(expected));
+            prop_assert_eq!(tree.get(&key), Some(B256::repeat_byte(idx)));
         }
 
+        prop_assert_eq!(tree.len(), 256);
         prop_assert_eq!(tree.stem_count(), 1);
     }
 }
@@ -628,12 +641,9 @@ proptest! {
         }
 
         // All values should be retrievable
-        for (k, v) in &entries {
-            let got = tree.get(k);
-            // Due to overwrites, we just check it's Some if v is nonzero
-            if *v != B256::ZERO {
-                prop_assert!(got.is_some());
-            }
+        for (k, _) in &entries {
+            // Due to overwrites, we just check it's Some; a zero value is present too
+            prop_assert!(tree.get(k).is_some());
         }
 
         // Hash should be deterministic
@@ -663,12 +673,17 @@ proptest! {
         }
 
         // Verify remaining entries
-        for (i, (k, v)) in entries.iter().enumerate() {
+        let deleted_keys: std::collections::HashSet<TreeKey> = delete_indices
+            .iter()
+            .filter_map(|idx| entries.get(*idx).map(|(k, _)| *k))
+            .collect();
+        for (i, (k, _)) in entries.iter().enumerate() {
             if delete_indices.contains(&i) {
                 prop_assert_eq!(tree.get(k), None);
-            } else if *v != B256::ZERO {
-                // May have been overwritten by duplicate key
-                let _ = tree.get(k);
+            } else if !deleted_keys.contains(k) {
+                // A duplicate key can overwrite the value, so only presence is
+                // checked; a zero value is present too
+                prop_assert!(tree.get(k).is_some());
             }
         }
 
@@ -683,7 +698,8 @@ proptest! {
 // Oracle-Suggested Tests: Invariants (P31-P35)
 // ============================================================================
 
-/// Strategy that allows zero values (for testing zero-as-delete semantics)
+/// Strategy for update sequences; `arb_value` includes zero values, which are
+/// present leaves
 fn arb_updates(max_len: usize) -> impl Strategy<Value = Vec<(TreeKey, B256)>> {
     prop::collection::vec((arb_tree_key(), arb_value()), 0..max_len)
 }
@@ -699,17 +715,13 @@ proptest! {
 
         for (k, v) in &updates {
             tree.insert(*k, *v);
-            if *v == B256::ZERO {
-                map.remove(k);
-            } else {
-                map.insert(*k, *v);
-            }
+            map.insert(*k, *v);
         }
 
-        // len == number of keys with nonzero final value
+        // len == number of written keys; a key with a zero final value is counted
         prop_assert_eq!(tree.len(), map.len());
 
-        // stem_count == number of stems that have at least one nonzero value
+        // stem_count == number of stems that have at least one written value
         let logical_stems: HashSet<_> = map.keys().map(|k| k.stem).collect();
         prop_assert_eq!(tree.stem_count(), logical_stems.len());
 
@@ -717,6 +729,19 @@ proptest! {
         for (k, v) in &map {
             prop_assert_eq!(tree.get(k), Some(*v));
         }
+
+        // iter() gives the same entries, zero values included
+        let iterated: HashMap<TreeKey, B256> = tree.iter().collect();
+        prop_assert_eq!(&iterated, &map);
+
+        // delete removes a key for every final value, and the last one removes the stem
+        for k in map.keys() {
+            tree.delete(k);
+            prop_assert_eq!(tree.get(k), None);
+        }
+        prop_assert_eq!(tree.len(), 0);
+        prop_assert_eq!(tree.stem_count(), 0);
+        prop_assert_eq!(tree.root_hash().unwrap(), B256::ZERO);
     }
 
     /// P32: Deleting the only value for a stem removes that stem
@@ -724,7 +749,7 @@ proptest! {
     fn prop_delete_last_value_removes_stem(
         stem in arb_stem(),
         idx in arb_subindex(),
-        value in arb_nonzero_value()
+        value in arb_value()
     ) {
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
         let key = TreeKey::new(stem, idx);
@@ -847,8 +872,8 @@ proptest! {
     #[test]
     fn prop_deep_colliding_stems(
         base in prop::array::uniform31(any::<u8>()),
-        v1 in arb_nonzero_value(),
-        v2 in arb_nonzero_value()
+        v1 in arb_value(),
+        v2 in arb_value()
     ) {
         let s1 = Stem::new(base);
         let mut other = base;
@@ -890,7 +915,7 @@ proptest! {
     #[test]
     fn prop_stem_proof_reconstructs_subtree(
         stem in arb_stem(),
-        values in prop::collection::btree_map(arb_subindex(), arb_nonzero_value(), 1..20),
+        values in prop::collection::btree_map(arb_subindex(), arb_value(), 1..20),
         query_idx in arb_subindex()
     ) {
         let hasher = Blake3Hasher;
@@ -931,7 +956,7 @@ proptest! {
     fn prop_stem_proof_value_correct(
         stem in arb_stem(),
         idx in arb_subindex(),
-        value in arb_nonzero_value()
+        value in arb_value()
     ) {
         let hasher = Blake3Hasher;
         let mut node = StemNode::new(stem);
@@ -1284,14 +1309,8 @@ proptest! {
 // Codec properties
 // ============================================================================
 
-fn arb_nonzero_b256() -> impl Strategy<Value = B256> {
-    prop::array::uniform32(any::<u8>())
-        .prop_map(B256::from)
-        .prop_filter("zero values are treated as deletes", |v| !v.is_zero())
-}
-
 fn arb_stem_node() -> impl Strategy<Value = StemNode> {
-    let arb_values = prop::collection::hash_map(any::<u8>(), arb_nonzero_b256(), 0..=256);
+    let arb_values = prop::collection::hash_map(any::<u8>(), arb_value(), 0..=256);
     (arb_stem(), arb_values).prop_map(|(stem, values)| {
         let mut node = StemNode::new(stem);
         for (subindex, value) in values {
@@ -1312,6 +1331,8 @@ proptest! {
         for (&subindex, &value) in &node.values {
             prop_assert_eq!(decoded.get_value(subindex), Some(value));
         }
+        prop_assert_eq!(&decoded, &node);
+        prop_assert_eq!(encode_stem_node(&decoded), bytes);
     }
 
     /// P59: encoded_stem_size matches actual encoded length

@@ -4,6 +4,9 @@
 //! maintaining EIP-7864 state. It supports:
 //!
 //! - O(1) key-value operations (insert, get, delete)
+//! - go-ethereum zero-value semantics: a leaf that holds 32 zero bytes is present
+//!   and is hashed. [`UnifiedBinaryTree::insert`] with `B256::ZERO` does not remove
+//!   the leaf; [`UnifiedBinaryTree::delete`] does.
 //! - Lazy root hash computation (only on [`UnifiedBinaryTree::root_hash`] call)
 //! - Parallel stem hashing via rayon (when `parallel` feature is enabled)
 //! - Incremental root updates via intermediate node caching
@@ -167,17 +170,28 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
         self.node_hash_cache.reserve(additional * 2);
     }
 
-    /// Returns the number of unique stems in the tree.
+    /// Returns the number of stem nodes in the tree.
+    ///
+    /// A stem whose values are all zero is counted, because zero values are present
+    /// leaves. A stem node without values that
+    /// [`get_or_create_stem`](Self::get_or_create_stem) created is counted too,
+    /// although it contributes nothing to the root hash.
     pub fn stem_count(&self) -> usize {
         self.store.len()
     }
 
-    /// Check if the tree is empty.
+    /// Check if the tree has no stem nodes.
+    ///
+    /// A tree that holds only zero values is not empty.
     pub fn is_empty(&self) -> bool {
         self.store.is_empty()
     }
 
     /// Get a value by its full 32-byte key.
+    ///
+    /// Returns `None` if the key is absent: it was never written, or it was removed
+    /// with [`delete`](Self::delete). Returns `Some(B256::ZERO)` for a key that holds
+    /// a zero value.
     #[must_use]
     pub fn get(&self, key: &TreeKey) -> Option<B256> {
         self.store
@@ -192,6 +206,33 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
     }
 
     /// Insert a value at the given key.
+    ///
+    /// Every value is stored as a present leaf, including `B256::ZERO`. As in
+    /// go-ethereum `trie/bintrie`, a zero write does not remove the leaf and does not
+    /// remove the stem: the leaf is hashed as 32 zero bytes, and the root hash differs
+    /// from the root hash of a tree where the key is absent.
+    ///
+    /// `insert(key, B256::ZERO)` is the equivalent of the zero writes that go-ethereum
+    /// does in `DeleteStorage` and `DeleteAccount`. Use it when the root hash must
+    /// agree with go-ethereum. [`delete`](Self::delete) removes the leaf instead.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use ubt::{Sha256Hasher, TreeKey, UnifiedBinaryTree, B256};
+    ///
+    /// let key = TreeKey::from_bytes(B256::repeat_byte(0x01));
+    /// let mut tree: UnifiedBinaryTree<Sha256Hasher> = UnifiedBinaryTree::new();
+    ///
+    /// tree.insert(key, B256::ZERO);
+    /// assert_eq!(tree.get(&key), Some(B256::ZERO));
+    /// assert_eq!(tree.len(), 1);
+    /// assert_ne!(tree.root_hash().unwrap(), B256::ZERO);
+    ///
+    /// tree.delete(&key);
+    /// assert_eq!(tree.get(&key), None);
+    /// assert_eq!(tree.root_hash().unwrap(), B256::ZERO);
+    /// ```
     pub fn insert(&mut self, key: TreeKey, value: B256) {
         let stem_node = self.store.get_or_create(key.stem);
         stem_node.set_value(key.subindex, value);
@@ -200,14 +241,26 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
     }
 
     /// Insert a value using a B256 key.
+    ///
+    /// Like [`insert`](Self::insert), this stores `B256::ZERO` as a present leaf.
     pub fn insert_b256(&mut self, key: B256, value: B256) {
         self.insert(TreeKey::from_bytes(key), value);
     }
 
-    /// Delete a value at the given key.
+    /// Remove the value at the given key.
+    ///
+    /// After the call the key is absent, and a stem with no values left is removed
+    /// from the store. For that key, the tree is in the state "never written": the
+    /// root hash is equal to the root hash of a tree that never held the key.
+    ///
+    /// This operation has no go-ethereum counterpart. go-ethereum has no delete path:
+    /// `DeleteStorage` and `DeleteAccount` write zero values, and a stem is never
+    /// removed. The go-ethereum equivalent is
+    /// [`insert(key, B256::ZERO)`](Self::insert), which gives a different root hash
+    /// than `delete`.
     pub fn delete(&mut self, key: &TreeKey) {
         if let Some(stem_node) = self.store.get_mut(&key.stem) {
-            stem_node.set_value(key.subindex, B256::ZERO);
+            stem_node.remove_value(key.subindex);
 
             if stem_node.values.is_empty() {
                 self.store.remove(&key.stem);
@@ -222,6 +275,12 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
     /// Note: This is a low-level mutating API. Any modifications to the returned
     /// `StemNode` will affect the tree's root hash. Do not change the `stem` field
     /// of the returned node: the tree finds the node by `stem` and hashes the field.
+    ///
+    /// A stem node with no values contributes nothing to the root hash, so a call
+    /// that writes nothing does not change the root. The node stays in the store, and
+    /// [`stem_count`](Self::stem_count) and [`is_empty`](Self::is_empty) count it.
+    /// [`StemNode::set_value`] stores a zero value as a present leaf; use
+    /// [`StemNode::remove_value`] to remove a value.
     pub fn get_or_create_stem(&mut self, stem: Stem) -> &mut StemNode {
         self.dirty_stem_hashes.insert(stem);
         self.root_dirty = true;
@@ -229,6 +288,8 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
     }
 
     /// Iterate over all (key, value) pairs in the tree.
+    ///
+    /// Keys that hold a zero value are included.
     pub fn iter(&self) -> impl Iterator<Item = (TreeKey, B256)> + '_ {
         self.store.iter().flat_map(|(stem, stem_node)| {
             stem_node
@@ -238,12 +299,16 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
         })
     }
 
-    /// Get the number of non-empty values in the tree.
+    /// Get the number of present values in the tree.
+    ///
+    /// Keys that hold a zero value are counted.
     pub fn len(&self) -> usize {
         self.store.value_count()
     }
 
     /// Verify a value exists at a key.
+    ///
+    /// Returns `true` for a key that holds a zero value.
     pub fn contains_key(&self, key: &TreeKey) -> bool {
         self.get(key).is_some()
     }

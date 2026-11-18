@@ -56,6 +56,14 @@ use crate::{error::Result, Blake3Hasher, Hasher, Stem, SubIndex, TreeKey};
 ///
 /// In debug builds, strict ascending order is asserted. Duplicate keys are not allowed.
 ///
+/// # Zero Values
+///
+/// Every entry is a present leaf, including an entry whose value is `B256::ZERO`.
+/// The builder does not skip zero values, so it gives the same root hash as
+/// [`UnifiedBinaryTree::insert`](crate::UnifiedBinaryTree::insert) for the same
+/// entries, and the same root hash as go-ethereum with [`Sha256Hasher`](crate::Sha256Hasher).
+/// To get the root of a tree where a key is absent, leave the key out of the input.
+///
 /// # Example
 ///
 /// ```rust
@@ -184,11 +192,12 @@ impl<H: Hasher> StreamingTreeBuilder<H> {
 
 /// Stream through sorted entries and call `on_stem` once per stem, in input order.
 ///
-/// Zero values are skipped, and `on_stem` is not called for a stem that has no
-/// non-zero value. The map passed to `on_stem` holds the values of that stem only;
-/// it is cleared before the next stem starts, so `on_stem` can take it.
+/// Every entry is a present leaf, including an entry with a zero value, so `on_stem`
+/// is called for each stem in the input. The map passed to `on_stem` holds the values
+/// of that stem only; it is cleared before the next stem starts, so `on_stem` can take it.
 ///
-/// In debug builds, strict ascending `(stem, subindex)` order is asserted.
+/// In debug builds, strict ascending `(stem, subindex)` order is asserted. In release
+/// builds, the last value of a repeated key wins, also when that value is zero.
 fn for_each_stem_group(
     entries: impl IntoIterator<Item = (TreeKey, B256)>,
     mut on_stem: impl FnMut(Stem, &mut HashMap<SubIndex, B256>),
@@ -212,21 +221,17 @@ fn for_each_stem_group(
         }
 
         if let Some(stem) = current_stem {
-            if stem != key.stem && !current_values.is_empty() {
+            if stem != key.stem {
                 on_stem(stem, &mut current_values);
                 current_values.clear();
             }
         }
         current_stem = Some(key.stem);
-        if !value.is_zero() {
-            current_values.insert(key.subindex, value);
-        }
+        current_values.insert(key.subindex, value);
     }
 
     if let Some(stem) = current_stem {
-        if !current_values.is_empty() {
-            on_stem(stem, &mut current_values);
-        }
+        on_stem(stem, &mut current_values);
     }
 }
 
@@ -291,9 +296,9 @@ mod tests {
     fn test_streaming_many_stems() {
         let builder: StreamingTreeBuilder<Blake3Hasher> = StreamingTreeBuilder::new();
 
-        // Create many stems with single values (start from 1 to avoid B256::ZERO)
+        // Create many stems with single values; the first value is B256::ZERO
         let mut entries: Vec<(TreeKey, B256)> = Vec::new();
-        for i in 1u8..=100 {
+        for i in 0u8..=100 {
             let mut stem_bytes = [0u8; 31];
             stem_bytes[0] = i;
             stem_bytes[15] = i.wrapping_mul(7);
@@ -381,10 +386,12 @@ mod tests {
         assert_eq!(parallel_root, tree_root);
     }
 
-    /// Zero values are skipped, and a stem whose values are all zero does not
-    /// contribute to the root, at the start, in the middle, and at the end of the input.
+    /// Zero values are present leaves, and a stem whose values are all zero
+    /// contributes to the root, at the start, in the middle, and at the end of the
+    /// input. The builder gives the root of a tree that holds the same entries, and
+    /// not the root of a tree that holds only the non-zero entries.
     #[test]
-    fn test_zero_values_and_all_zero_stems_are_skipped() {
+    fn test_zero_values_and_all_zero_stems_are_present() {
         let builder: StreamingTreeBuilder<Blake3Hasher> = StreamingTreeBuilder::new();
         let stems: Vec<Stem> = (1u8..=5).map(|i| Stem::new([i; 31])).collect();
         let value_a = B256::repeat_byte(0xa1);
@@ -402,10 +409,17 @@ mod tests {
         ];
 
         let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
-        tree.insert(TreeKey::new(stems[1], 1), value_a);
-        tree.insert(TreeKey::new(stems[3], 5), value_b);
+        for (key, value) in &entries {
+            tree.insert(*key, *value);
+        }
+        assert_eq!(tree.len(), 8);
+        assert_eq!(tree.stem_count(), 5);
         let expected = tree.root_hash().unwrap();
-        assert_ne!(expected, B256::ZERO);
+
+        let mut non_zero_only: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        non_zero_only.insert(TreeKey::new(stems[1], 1), value_a);
+        non_zero_only.insert(TreeKey::new(stems[3], 5), value_b);
+        assert_ne!(expected, non_zero_only.root_hash().unwrap());
 
         assert_eq!(builder.build_root_hash(entries.clone()).unwrap(), expected);
         #[cfg(feature = "parallel")]
@@ -415,15 +429,61 @@ mod tests {
             (TreeKey::new(stems[0], 0), B256::ZERO),
             (TreeKey::new(stems[1], 0), B256::ZERO),
         ];
+        let mut all_zero_tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+        for (key, value) in &all_zero {
+            all_zero_tree.insert(*key, *value);
+        }
+        let all_zero_root = all_zero_tree.root_hash().unwrap();
+        assert_ne!(all_zero_root, B256::ZERO);
         assert_eq!(
             builder.build_root_hash(all_zero.clone()).unwrap(),
-            B256::ZERO
+            all_zero_root
         );
         #[cfg(feature = "parallel")]
         assert_eq!(
             builder.build_root_hash_parallel(all_zero).unwrap(),
-            B256::ZERO
+            all_zero_root
         );
+    }
+
+    /// In release builds the order is not asserted, and the last value of a repeated
+    /// key wins, also when it is zero. This is the result of `UnifiedBinaryTree::insert`
+    /// for the same sequence of writes.
+    #[cfg(not(debug_assertions))]
+    #[test]
+    fn test_repeated_key_last_write_wins() {
+        let builder: StreamingTreeBuilder<Blake3Hasher> = StreamingTreeBuilder::new();
+        let key_a = TreeKey::new(Stem::new([1u8; 31]), 4);
+        let key_b = TreeKey::new(Stem::new([2u8; 31]), 0);
+        let value = B256::repeat_byte(0x77);
+
+        for (first, last) in [(value, B256::ZERO), (B256::ZERO, value)] {
+            let entries = vec![(key_a, first), (key_a, last), (key_b, value)];
+
+            let mut tree: UnifiedBinaryTree<Blake3Hasher> = UnifiedBinaryTree::new();
+            for (key, entry_value) in &entries {
+                tree.insert(*key, *entry_value);
+            }
+            assert_eq!(tree.get(&key_a), Some(last));
+            let expected = tree.root_hash().unwrap();
+
+            let last_only = vec![(key_a, last), (key_b, value)];
+            assert_eq!(builder.build_root_hash(last_only).unwrap(), expected);
+            assert_eq!(builder.build_root_hash(entries.clone()).unwrap(), expected);
+            #[cfg(feature = "parallel")]
+            assert_eq!(builder.build_root_hash_parallel(entries).unwrap(), expected);
+        }
+    }
+
+    /// In debug builds a repeated key fails the order assertion.
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "Entries must be sorted")]
+    fn test_repeated_key_panics_in_debug_builds() {
+        let builder: StreamingTreeBuilder<Blake3Hasher> = StreamingTreeBuilder::new();
+        let key = TreeKey::new(Stem::new([1u8; 31]), 4);
+        let entries = vec![(key, B256::repeat_byte(0x77)), (key, B256::ZERO)];
+        let _ = builder.build_root_hash(entries);
     }
 
     #[cfg(feature = "parallel")]

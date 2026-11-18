@@ -65,7 +65,8 @@ pub trait NodeStore: Clone + Debug + Send + Sync {
     /// Iterate over all `(stem, node)` pairs.
     fn iter(&self) -> impl Iterator<Item = (&Stem, &StemNode)>;
 
-    /// Total number of non-empty values across all stems.
+    /// Total number of values across all stems. A zero value is a present value
+    /// and is counted.
     fn value_count(&self) -> usize;
 
     /// Hint that the store should pre-allocate for `additional` stems.

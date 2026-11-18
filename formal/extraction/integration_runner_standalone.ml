@@ -50,7 +50,7 @@ let sim_tree_get (tree : simTree) (key : treeKey) : bytes0 option =
   | Some submap ->
       match IntMap.find_opt key.tk_subindex submap with
       | None -> None
-      | Some v -> if is_zero_value v then None else Some v
+      | Some v -> Some v
 
 let sim_tree_insert (tree : simTree) (key : treeKey) (value : bytes0) : simTree =
   let submap = match StemMap.find_opt key.tk_stem tree with
@@ -64,8 +64,9 @@ let sim_tree_delete (tree : simTree) (key : treeKey) : simTree =
   match StemMap.find_opt key.tk_stem tree with
   | None -> tree
   | Some submap ->
-      let submap' = IntMap.add key.tk_subindex zero32 submap in
-      StemMap.add key.tk_stem submap' tree
+      let submap' = IntMap.remove key.tk_subindex submap in
+      if IntMap.is_empty submap' then StemMap.remove key.tk_stem tree
+      else StemMap.add key.tk_stem submap' tree
 
 (** {1 Integration Test Runner} *)
 

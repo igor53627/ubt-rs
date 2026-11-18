@@ -21,7 +21,7 @@ This directory contains formal verification artifacts for the Unified Binary Tre
 
 | Metric | Count |
 |--------|-------|
-| Total axioms | **209** (`Axiom` declarations outside comments: specs 15, simulations 140, proofs 8, linking 46). `scripts/count_axioms.sh` prints 208 because it does not match `insert_run_refines` in `linking/insert_stepping.v`, which is indented four spaces |
+| Total axioms | **205** (`Axiom` declarations outside comments: specs 14, simulations 136, proofs 8, linking 47). `scripts/count_axioms.sh` prints 204 because it does not match `insert_run_refines` in `linking/insert_stepping.v`, which is indented four spaces |
 | Irreducible axioms | **25** |
 | Parameters | **107** (specs 8, simulations 69, proofs 1, linking 29) |
 | Admitted proofs | **0** in simulations, proofs, linking; **1** in specs (`pair_round_trip` in `specs/serialization_spec.v`) |
@@ -149,9 +149,10 @@ Hash functions (SHA256) are axiomatized since we can't reason about cryptographi
 Parameter hash_value : Value -> Bytes32.
 Parameter hash_pair : Bytes32 -> Bytes32 -> Bytes32.
 
-Axiom hash_zero_value : hash_value zero32 = zero32.
 Axiom hash_zero_pair : hash_pair zero32 zero32 = zero32.
 ```
+
+The zero rule holds for a pair of zero hashes only. There is no axiom for `hash_value zero32`: a leaf that holds 32 zero bytes is a present leaf and is hashed, as in go-ethereum. An absent leaf contributes `zero32` without a call of `hash_value`.
 
 ## Requirements
 
@@ -176,9 +177,11 @@ opam install coq-quickchick
 
 | Property | Description |
 |----------|-------------|
-| `prop_get_insert_same` | `get (insert t k v) k = Some v` (when v ≠ 0) |
+| `prop_get_insert_same` | `get (insert t k v) k = Some v` (for every v, including zero) |
 | `prop_get_insert_other` | `get (insert t k1 v) k2 = get t k2` (when k1 ≠ k2) |
 | `prop_insert_delete` | `get (delete (insert t k v) k) k = None` |
+| `prop_zero_insert_is_present` | `get (insert t k zero32) k = Some zero32` (a zero insert is not a delete) |
+| `prop_delete_removes` | `get (delete t k) k = None`, also after a zero insert |
 | `prop_insert_idempotent` | `insert (insert t k v) k v ≈ insert t k v` |
 | `prop_empty_get` | `get empty_tree k = None` |
 

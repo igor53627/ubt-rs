@@ -18,58 +18,65 @@ sim_tree_get : SimTree → TreeKey → option Value
 **User Mental Model:** A UBT should be thought of as a map from 32-byte keys to 32-byte values, where:
 - Keys are split into a 31-byte **stem** and 1-byte **subindex**
 - Keys sharing the same stem are co-located in a 256-slot subtree
-- The tree is **sparse**: absent keys return `None`, zero values are treated as deletions
+- The tree is **sparse**: absent keys return `None`. A zero value is a present value: `get` returns `Some zero32` for it. A delete is a separate removal
 
-The `SimTree` type in [simulations/tree.v:L532-534](../simulations/tree.v#L532-L534) models this as a `StemMap` (map from stems to `SubIndexMap`), where each `SubIndexMap` is a map from subindex to value.
+The `SimTree` type in [simulations/tree.v:L575-577](../simulations/tree.v#L575-L577) models this as a `StemMap` (map from stems to `SubIndexMap`), where each `SubIndexMap` is a map from subindex to value.
 
 ---
 
 ## Tree Operations
 
 ### Get from Empty
-- **Theorem:** `get_empty` in [tree.v:L564-570](../simulations/tree.v#L564-L570)
+- **Theorem:** `get_empty` in [tree.v:L621-627](../simulations/tree.v#L621-L627)
 - **Statement:** "Getting any key from an empty tree returns None"
 - **Formal:** `∀ k, sim_tree_get empty_tree k = None`
 - **Axioms:** None (fully proven)
 - **User implication:** Fresh trees contain no data
 
 ### Get-Insert Same Key
-- **Theorem:** `get_insert_same` in [tree.v:L573-584](../simulations/tree.v#L573-L584)
-- **Statement:** "After inserting (k, v), getting k returns v (for non-zero v)"
-- **Formal:** `∀ t k v, value_nonzero v → sim_tree_get (sim_tree_insert t k v) k = Some v`
+- **Theorem:** `get_insert_same` in [tree.v:L629-639](../simulations/tree.v#L629-L639)
+- **Statement:** "After inserting (k, v), getting k returns v (for every v, including zero)"
+- **Formal:** `∀ t k v, sim_tree_get (sim_tree_insert t k v) k = Some v`
 - **Axioms:** None (fully proven)
 - **User implication:** Inserted values are retrievable
 
 ### Get-Insert Other Stem
-- **Theorem:** `get_insert_other_stem` in [tree.v:L655-664](../simulations/tree.v#L655-L664)
+- **Theorem:** `get_insert_other_stem` in [tree.v:L677-686](../simulations/tree.v#L677-L686)
 - **Statement:** "Insert at k₁ doesn't affect get at k₂ when stems differ"
 - **Formal:** `∀ t k₁ k₂ v, stem_eq k₁.stem k₂.stem = false → sim_tree_get (insert t k₁ v) k₂ = sim_tree_get t k₂`
 - **Axioms:** None (fully proven)
 - **User implication:** Keys with different stems are isolated
 
 ### Get-Insert Other Subindex
-- **Theorem:** `get_insert_other_subindex` in [tree.v:L689-717](../simulations/tree.v#L689-L717)
+- **Theorem:** `get_insert_other_subindex` in [tree.v:L711-739](../simulations/tree.v#L711-L739)
 - **Statement:** "Insert at k₁ doesn't affect get at k₂ when same stem but different subindex"
 - **Formal:** `∀ t k₁ k₂ v, stem_eq k₁.stem k₂.stem = true → k₁.subindex ≠ k₂.subindex → sim_tree_get (insert t k₁ v) k₂ = sim_tree_get t k₂`
 - **Axioms:** None (fully proven)
 - **User implication:** Co-located keys with different subindices don't interfere
 
 ### Delete Removes Value
-- **Theorem:** `get_delete` in [tree.v:L720-730](../simulations/tree.v#L720-L730)
+- **Theorem:** `get_delete` in [tree.v:L741-753](../simulations/tree.v#L741-L753)
 - **Statement:** "After deleting k, getting k returns None"
 - **Formal:** `∀ t k, sim_tree_get (sim_tree_delete t k) k = None`
 - **Axioms:** None (fully proven)
-- **User implication:** Deleted keys are no longer in the tree
+- **User implication:** Deleted keys are no longer in the tree. `sim_tree_delete` is a real removal: it removes the subindex, and the stem when it has no entries left (`delete_last_value_removes_stem`). Other keys do not change (`get_delete_other_stem`, `get_delete_other_subindex`), and well-formedness is preserved (`delete_preserves_wf`)
+
+### Zero Insert Is Not a Delete
+- **Theorem:** `insert_zero_not_delete` in [tree.v:L813-825](../simulations/tree.v#L813-L825)
+- **Statement:** "An insert of zero leaves a present zero leaf; a delete leaves no leaf"
+- **Formal:** `∀ t k, sim_tree_get (sim_tree_insert t k zero32) k = Some zero32 ∧ sim_tree_get (sim_tree_delete t k) k = None`
+- **Axioms:** None (fully proven)
+- **User implication:** A write of zero (the go-ethereum way to delete) and `delete` give different trees
 
 ### Order Independence (Different Stems)
-- **Theorem:** `insert_order_independent_stems` in [tree.v:L739-888](../simulations/tree.v#L739-L888)
+- **Theorem:** `insert_order_independent_stems` in [tree.v:L834-983](../simulations/tree.v#L834-L983)
 - **Statement:** "Insertion order doesn't matter for different stems"
 - **Formal:** `∀ t k₁ v₁ k₂ v₂, stem_eq k₁.stem k₂.stem = false → tree_eq (insert (insert t k₁ v₁) k₂ v₂) (insert (insert t k₂ v₂) k₁ v₁)`
 - **Status:** **Fully proven** (December 2025)
 - **User implication:** Batch updates can be applied in any order
 
 ### Order Independence (Same Stem)
-- **Theorem:** `insert_order_independent_subindex` in [tree.v:L941-988](../simulations/tree.v#L941-L988)
+- **Theorem:** `insert_order_independent_subindex` in [tree.v:L1034-1081](../simulations/tree.v#L1034-L1081)
 - **Statement:** "Insertion order doesn't matter for same stem, different subindex"
 - **Status:** **Fully proven** (December 2025)
 - **User implication:** Same as above, for co-located keys
@@ -79,14 +86,14 @@ The `SimTree` type in [simulations/tree.v:L532-534](../simulations/tree.v#L532-L
 ## Hash Properties
 
 ### Empty Tree Hash
-- **Theorem:** `empty_tree_hash_zero` in [tree.v:L1015-1019](../simulations/tree.v#L1015-L1019)
+- **Theorem:** `empty_tree_hash_zero` in [tree.v:L1108-1112](../simulations/tree.v#L1108-L1112)
 - **Statement:** "Empty tree has zero root hash"
 - **Formal:** `sim_node_hash SimEmpty = zero32`
 - **Axioms:** None (fully proven)
 - **User implication:** Empty state has canonical hash (32 zero bytes)
 
 ### Hash Determinism
-- **Theorem:** `hash_deterministic_node` in [tree.v:L1022-1026](../simulations/tree.v#L1022-L1026)
+- **Theorem:** `hash_deterministic_node` in [tree.v:L1115-1119](../simulations/tree.v#L1115-L1119)
 - **Statement:** "Same tree always produces same hash"
 - **Axioms:** None (proven by reflexivity)
 - **User implication:** Hash computation is repeatable
@@ -96,7 +103,7 @@ The `SimTree` type in [simulations/tree.v:L532-534](../simulations/tree.v#L532-L
 ## Stem Co-location
 
 ### Co-location Theorem
-- **Theorem:** `stem_colocation` in [tree.v:L1031-1048](../simulations/tree.v#L1031-L1048)
+- **Theorem:** `stem_colocation` in [tree.v:L1124-1141](../simulations/tree.v#L1124-L1141)
 - **Statement:** "Keys with same stem are stored in same subtree"
 - **Formal:** `∀ t k₁ k₂, stem_eq k₁.stem k₂.stem = true → ∃ submap, stems_get (insert t k₁ v).stems k₁.stem = Some submap ∧ stems_get (insert t k₁ v).stems k₂.stem = Some submap`
 - **Axioms:** None (fully proven)
@@ -107,7 +114,7 @@ The `SimTree` type in [simulations/tree.v:L532-534](../simulations/tree.v#L532-L
 ## Well-Formedness
 
 ### Insertion Preserves Well-Formedness
-- **Theorem:** `insert_preserves_wf` in [tree.v:L1248-1253](../simulations/tree.v#L1248-L1253)
+- **Theorem:** `insert_preserves_wf` in [tree.v:L1408-1413](../simulations/tree.v#L1408-L1413)
 - **Statement:** "Insertion preserves tree well-formedness"
 - **Formal:** `∀ t k v, wf_tree t → wf_value v → wf_stem k.stem → wf_tree (sim_tree_insert t k v)`
 - **Axioms:** None (fully proven)
@@ -120,17 +127,16 @@ The `SimTree` type in [simulations/tree.v:L532-534](../simulations/tree.v#L532-L
 ### Cryptographic Axioms (Low Risk - Standard Assumptions)
 | Axiom | File | Line | Purpose |
 |-------|------|------|---------|
-| `hash_zero_value` | tree.v | L358 | Zero value hashes to zero (EIP-7864 design) |
-| `hash_zero_pair` | tree.v | L362 | Zero pair hashes to zero |
-| `hash_deterministic_value` | tree.v | L364-365 | Hash is deterministic (now a lemma, proven) |
-| `hash_deterministic_pair` | tree.v | L367-369 | Pair hash is deterministic (now a lemma, proven) |
+| `hash_zero_pair` | tree.v | L366 | Zero pair hashes to zero. It is the only zero rule: `hash_zero_value` is removed, and a leaf that holds zero is hashed |
+| `hash_deterministic_value` | tree.v | L368-369 | Hash is deterministic (now a lemma, proven) |
+| `hash_deterministic_pair` | tree.v | L371-373 | Pair hash is deterministic (now a lemma, proven) |
 
 ### Hash Function Parameters (Abstract)
 | Parameter | File | Line | Purpose |
 |-----------|------|------|---------|
-| `hash_value` | tree.v | L352 | Hash a value to 32 bytes |
-| `hash_pair` | tree.v | L353 | Hash a pair of 32-byte values |
-| `hash_stem` | tree.v | L354 | Hash a stem with subtree hash |
+| `hash_value` | tree.v | L355 | Hash a value to 32 bytes |
+| `hash_pair` | tree.v | L356 | Hash a pair of 32-byte values |
+| `hash_stem` | tree.v | L357 | Hash a stem with subtree hash |
 
 See [axiom_audit.md](axiom_audit.md) for complete axiom documentation.
 
@@ -155,13 +161,14 @@ The [proofs/correctness.v](../proofs/correctness.v) file re-exports theorems fro
 | `empty_tree_zero_hash` | correctness.v | L42-46 |
 | `hash_deterministic` | correctness.v | L54-58 |
 | `get_from_empty` | correctness.v | L65-69 |
-| `get_insert_same_key` | correctness.v | L77-83 |
-| `get_insert_different_stem` | correctness.v | L90-96 |
-| `get_insert_different_subindex` | correctness.v | L104-111 |
-| `get_after_delete` | correctness.v | L119-124 |
-| `keys_share_stem_node` | correctness.v | L132-141 |
-| `insertion_preserves_wellformedness` | correctness.v | L148-154 |
-| `order_independence_different_stems` | correctness.v | L166-174 |
+| `get_insert_same_key` | correctness.v | L78-83 |
+| `zero_write_is_not_delete` | correctness.v | L91-99 |
+| `get_insert_different_stem` | correctness.v | L106-112 |
+| `get_insert_different_subindex` | correctness.v | L120-127 |
+| `get_after_delete` | correctness.v | L137-142 |
+| `keys_share_stem_node` | correctness.v | L150-159 |
+| `insertion_preserves_wellformedness` | correctness.v | L166-172 |
+| `order_independence_different_stems` | correctness.v | L184-192 |
 
 ---
 
@@ -176,7 +183,7 @@ The [simulations/security.v](../simulations/security.v) file provides game-based
 | `merkle_path_binding` | [security.v:L46-53](../simulations/security.v#L46-L53) | Same witness path + same root ⟹ same leaf hash |
 | `merkle_path_distinct` | [security.v:L62-72](../simulations/security.v#L62-L72) | Different leaves ⟹ different roots (same path) |
 | `witness_step_unforgeable` | [security.v:L150-176](../simulations/security.v#L150-L176) | Each Merkle step is unforgeable |
-| `witness_non_malleable` | [security.v:L435-507](../simulations/security.v#L435-L507) | Proof tampering is detectable |
+| `witness_non_malleable` | [security.v:L421-493](../simulations/security.v#L421-L493) | Proof tampering is detectable |
 
 ### Data Integrity
 
@@ -184,7 +191,7 @@ The [simulations/security.v](../simulations/security.v) file provides game-based
 |---------|----------|-----------|
 | `value_integrity_from_hash` | [security.v:L82-87](../simulations/security.v#L82-L87) | Hash equality ⟹ value equality |
 | `merkle_proof_value_integrity` | [security.v:L99-111](../simulations/security.v#L99-L111) | Same proof path + same root ⟹ same value |
-| `end_to_end_proof_security` | [security.v:L319-325](../simulations/security.v#L319-L325) | Verified proof ⟹ value in tree |
+| `end_to_end_proof_security` | [security.v:L308-314](../simulations/security.v#L308-L314) | Verified proof ⟹ value in tree |
 
 ### Unforgeability
 
@@ -192,37 +199,37 @@ The [simulations/security.v](../simulations/security.v) file provides game-based
 |---------|----------|-----------|
 | `internal_node_unforgeability` | [security.v:L121-127](../simulations/security.v#L121-L127) | Same parent hash ⟹ same children |
 | `stem_node_unforgeability` | [security.v:L135-142](../simulations/security.v#L135-L142) | Same stem hash ⟹ same stem and subtree |
-| `merkle_security_reduction` | [security.v:L225-236](../simulations/security.v#L225-L236) | Forgery ⟹ hash collision |
-| `no_forgery_without_collision` | [security.v:L244-256](../simulations/security.v#L244-L256) | Collision resistance ⟹ no forgery |
+| `merkle_security_reduction` | [security.v:L213-224](../simulations/security.v#L213-L224) | Forgery ⟹ hash collision |
+| `no_forgery_without_collision` | [security.v:L232-244](../simulations/security.v#L232-L244) | Collision resistance ⟹ no forgery |
 
 ### Game-Based Security (EUF-MPA)
 
 | Theorem | Location | Statement |
 |---------|----------|-----------|
-| `euf_mpa_security` | [security.v:L1176-1188](../simulations/security.v#L1176-L1188) | Existential unforgeability under Merkle proof attack |
-| `euf_implies_consistency` | [security.v:L1191-1200](../simulations/security.v#L1191-L1200) | EUF-MPA ⟹ consistent oracle state |
-| `binding_game_security` | [security.v:L1229-1245](../simulations/security.v#L1229-L1245) | Binding game: no adversary wins |
-| `merkle_forgery_advantage_negligible` | [security.v:L1326-1340](../simulations/security.v#L1326-L1340) | Forgery advantage < 2^128 for q < 2^64 |
+| `euf_mpa_security` | [security.v:L1157-1169](../simulations/security.v#L1157-L1169) | Existential unforgeability under Merkle proof attack |
+| `euf_implies_consistency` | [security.v:L1172-1181](../simulations/security.v#L1172-L1181) | EUF-MPA ⟹ consistent oracle state |
+| `binding_game_security` | [security.v:L1210-1226](../simulations/security.v#L1210-L1226) | Binding game: no adversary wins |
+| `merkle_forgery_advantage_negligible` | [security.v:L1307-1321](../simulations/security.v#L1307-L1321) | Forgery advantage < 2^128 for q < 2^64 |
 
 ### Accumulator Security
 
 | Theorem | Location | Statement |
 |---------|----------|-----------|
-| `accumulator_inclusion_sound` | [security.v:L1271-1281](../simulations/security.v#L1271-L1281) | Cannot prove membership of non-members |
-| `accumulator_exclusion_sound` | [security.v:L1284-1294](../simulations/security.v#L1284-L1294) | Cannot prove non-membership of members |
-| `accumulator_correctness` | [security.v:L1410-1422](../simulations/security.v#L1410-L1422) | Accumulated elements have valid witnesses |
-| `accumulator_membership_soundness` | [security.v:L1430-1439](../simulations/security.v#L1430-L1439) | Verified witness ⟹ element in tree |
-| `accumulator_uniqueness` | [security.v:L1459-1474](../simulations/security.v#L1459-L1474) | Each key has at most one value |
-| `commitment_is_binding` | [security.v:L1505-1516](../simulations/security.v#L1505-L1516) | Root hash binds to tree contents |
+| `accumulator_inclusion_sound` | [security.v:L1252-1262](../simulations/security.v#L1252-L1262) | Cannot prove membership of non-members |
+| `accumulator_exclusion_sound` | [security.v:L1265-1275](../simulations/security.v#L1265-L1275) | Cannot prove non-membership of members |
+| `accumulator_correctness` | [security.v:L1391-1403](../simulations/security.v#L1391-L1403) | Accumulated elements have valid witnesses |
+| `accumulator_membership_soundness` | [security.v:L1411-1420](../simulations/security.v#L1411-L1420) | Verified witness ⟹ element in tree |
+| `accumulator_uniqueness` | [security.v:L1440-1455](../simulations/security.v#L1440-L1455) | Each key has at most one value |
+| `commitment_is_binding` | [security.v:L1486-1497](../simulations/security.v#L1486-L1497) | Root hash binds to tree contents |
 
 ### Consistency Properties
 
 | Theorem | Location | Statement |
 |---------|----------|-----------|
-| `batch_proof_consistency` | [security.v:L334-343](../simulations/security.v#L334-L343) | Batch proofs for same key must agree |
-| `history_independence_semantics` | [security.v:L760-768](../simulations/security.v#L760-L768) | Same final state ⟹ same semantics |
-| `get_insert_consistency` | [security.v:L967-973](../simulations/security.v#L967-L973) | Get-insert operations are consistent |
-| `insert_delete_consistency` | [security.v:L980-986](../simulations/security.v#L980-L986) | Insert-delete operations are consistent |
+| `batch_proof_consistency` | [security.v:L323-332](../simulations/security.v#L323-L332) | Batch proofs for same key must agree |
+| `history_independence_semantics` | [security.v:L746-754](../simulations/security.v#L746-L754) | Same final state ⟹ same semantics |
+| `get_insert_consistency` | [security.v:L953-958](../simulations/security.v#L953-L958) | Get-insert operations are consistent |
+| `insert_delete_consistency` | [security.v:L965-971](../simulations/security.v#L965-L971) | Insert-delete operations are consistent |
 
 ---
 
@@ -244,12 +251,12 @@ The [simulations/iterator.v](../simulations/iterator.v) file provides iterator m
 
 | Theorem | Location | Statement |
 |---------|----------|-----------|
-| `keys_complete` | [iterator.v:L178-235](../simulations/iterator.v#L178-L235) | All inserted keys appear in iteration |
-| `keys_unique` | [iterator.v:L377-380](../simulations/iterator.v#L377-L380) | No duplicate keys (requires wf_tree) |
-| `entries_match_get` | [iterator.v:L449-452](../simulations/iterator.v#L449-L452) | Iterated entries match individual gets |
-| `key_in_iff_get_some` | [iterator.v:L577-580](../simulations/iterator.v#L577-L580) | k ∈ keys ⟺ get k = Some v |
-| `entry_in_iff_get` | [iterator.v:L605-637](../simulations/iterator.v#L605-L637) | Full characterization of entries |
-| `fold_cons_entries` | [iterator.v:L467-479](../simulations/iterator.v#L467-L479) | Fold with cons equals rev(entries) |
+| `keys_complete` | [iterator.v:L179-236](../simulations/iterator.v#L179-L236) | All inserted keys appear in iteration |
+| `keys_unique` | [iterator.v:L378-381](../simulations/iterator.v#L378-L381) | No duplicate keys (requires wf_tree) |
+| `entries_match_get` | [iterator.v:L450-453](../simulations/iterator.v#L450-L453) | Iterated entries match individual gets |
+| `key_in_iff_get_some` | [iterator.v:L578-581](../simulations/iterator.v#L578-L581) | k ∈ keys ⟺ get k = Some v |
+| `entry_in_iff_get` | [iterator.v:L606-638](../simulations/iterator.v#L606-L638) | Full characterization of entries |
+| `fold_cons_entries` | [iterator.v:L468-480](../simulations/iterator.v#L468-L480) | Fold with cons equals rev(entries) |
 
 ### Notes
 

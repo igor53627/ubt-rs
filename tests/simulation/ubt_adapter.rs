@@ -41,7 +41,7 @@ impl TestableDatabase for UbtDatabase {
         let tree_key = TreeKey::from_bytes(B256::from(key));
         let existed = self.tree.get(&tree_key).is_some();
         if existed {
-            self.tree.insert(tree_key, B256::ZERO);
+            self.tree.delete(&tree_key);
             self.entries.remove(&key);
         }
         Ok(existed)
@@ -139,6 +139,31 @@ mod tests {
         db.insert(key, value).unwrap();
         assert!(db.delete(key).unwrap());
         assert!(!db.delete(key).unwrap());
+        assert_eq!(db.get(key).unwrap(), None);
+        assert_eq!(db.count(), 0);
+        assert_eq!(db.sync().unwrap(), [0u8; 32]);
+    }
+
+    /// A zero value is a present entry in the tree and in the model of the adapter.
+    /// A delete removes it and gives the root of the tree without the key.
+    #[test]
+    fn test_ubt_adapter_zero_value_is_present() {
+        let mut db = UbtDatabase::create();
+
+        let other_key = [2u8; 32];
+        db.insert(other_key, [42u8; 32]).unwrap();
+        let root_without_key = db.sync().unwrap();
+
+        let key = [1u8; 32];
+        db.insert(key, [0u8; 32]).unwrap();
+        assert_eq!(db.get(key).unwrap(), Some([0u8; 32]));
+        assert_eq!(db.count(), 2);
+        assert_ne!(db.sync().unwrap(), root_without_key);
+
+        assert!(db.delete(key).unwrap());
+        assert_eq!(db.get(key).unwrap(), None);
+        assert_eq!(db.count(), 1);
+        assert_eq!(db.sync().unwrap(), root_without_key);
     }
 
     #[test]

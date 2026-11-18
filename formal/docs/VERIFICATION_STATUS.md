@@ -79,6 +79,7 @@ These theorems are proven without admits or axioms at the simulation level:
 | `sim_get_set_same` | tree.v |
 | `sim_get_set_other` | tree.v |
 | `sim_get_set_zero` | tree.v |
+| `sim_get_remove_same` | tree.v |
 | `stems_get_set_same` | tree.v |
 
 ## Previously Partial (Now Complete)
@@ -105,9 +106,8 @@ These properties are assumed rather than proven:
 | `hash_pair_collision_resistant` | Standard crypto assumption |
 | `hash_stem_collision_resistant` | Standard crypto assumption |
 | `hash_value_second_preimage` | Follows from collision resistance |
-| `hash_zero_value` | Design choice per EIP-7864 |
-| `hash_zero_pair` | Design choice per EIP-7864 |
-| `hash_value_nonzero` | Domain separation |
+| `hash_zero_pair` | Design choice per EIP-7864 (the only zero rule; there is no axiom for `hash_value zero32`) |
+| `hash_value_zero_distinct` | Lemma: follows from collision resistance (replaces `hash_value_nonzero`) |
 
 ### Specification Axioms (specs/tree_spec.v)
 
@@ -140,7 +140,7 @@ These properties are assumed rather than proven:
 | `Run.run_panic` | Monad semantics |
 | `GetLink.get_executes` | Rust execution model |
 | `InsertLink.insert_executes` | Rust execution model |
-| `DeleteLink.delete_executes` | Rust execution model |
+| `DeleteLink.delete_executes` | Rust execution model (axiom for the `delete` method, a real removal) |
 | `HashLink.root_hash_executes` | Rust execution model |
 | `root_hash_extensional` | Tree hash extensionality |
 | `root_hash_injective` | Collision resistance at tree level |

@@ -66,6 +66,9 @@ Definition stem_bit_count : nat := 248.
 
 (** ** Helper predicates *)
 
+(** [is_zero_value] and [value_nonzero] only classify a value. They do not
+    say whether a leaf is present: a leaf that holds [zero32] is a present
+    leaf (see [sim_set]). *)
 Definition is_zero_value (v : Value) : bool :=
   forallb (fun b => Z.eqb b 0) v.
 
@@ -252,24 +255,50 @@ Definition sim_get (m : SubIndexMap) (idx : SubIndex) : option Value :=
   | None => None
   end.
 
-Definition sim_set (m : SubIndexMap) (idx : SubIndex) (v : Value) : SubIndexMap :=
-  if is_zero_value v then
-    filter (fun p => negb (Z.eqb (fst p) idx)) m
-  else
-    (idx, v) :: filter (fun p => negb (Z.eqb (fst p) idx)) m.
+(** Remove the entry at [idx]. After the call the subindex is absent.
+    Models [StemNode::remove_value] in src/node.rs. *)
+Definition sim_remove (m : SubIndexMap) (idx : SubIndex) : SubIndexMap :=
+  filter (fun p => negb (Z.eqb (fst p) idx)) m.
 
-(** Helper lemmas for sim_get and sim_set *)
+(** Store [v] at [idx]. The entry is present for every [v], including
+    [zero32]: a zero write does not remove the entry. Models
+    [StemNode::set_value] in src/node.rs, which follows go-ethereum. *)
+Definition sim_set (m : SubIndexMap) (idx : SubIndex) (v : Value) : SubIndexMap :=
+  (idx, v) :: filter (fun p => negb (Z.eqb (fst p) idx)) m.
+
+(** Helper lemmas for sim_get, sim_set and sim_remove *)
+
+Lemma sim_set_remove : forall m idx v,
+  sim_set m idx v = (idx, v) :: sim_remove m idx.
+Proof. reflexivity. Qed.
 
 Lemma sim_get_set_same : forall m idx v,
-  value_nonzero v ->
   sim_get (sim_set m idx v) idx = Some v.
 Proof.
-  intros m idx v Hnonzero.
-  unfold sim_get, sim_set, value_nonzero, is_zero_value in *.
-  rewrite Hnonzero.
+  intros m idx v.
+  unfold sim_get, sim_set.
   simpl.
   rewrite Z.eqb_refl.
   reflexivity.
+Qed.
+
+Lemma sim_get_remove_other : forall m idx1 idx2,
+  idx1 <> idx2 ->
+  sim_get (sim_remove m idx1) idx2 = sim_get m idx2.
+Proof.
+  intros m idx1 idx2 Hneq.
+  unfold sim_get, sim_remove.
+  induction m as [|[i val] rest IH].
+  - reflexivity.
+  - simpl.
+    destruct (Z.eqb i idx1) eqn:E1.
+    + simpl.
+      destruct (Z.eqb i idx2) eqn:E2.
+      * apply Z.eqb_eq in E1. apply Z.eqb_eq in E2.
+        subst. contradiction.
+      * exact IH.
+    + simpl.
+      destruct (Z.eqb i idx2) eqn:E2; auto.
 Qed.
 
 Lemma sim_get_set_other : forall m idx1 idx2 v,
@@ -277,31 +306,11 @@ Lemma sim_get_set_other : forall m idx1 idx2 v,
   sim_get (sim_set m idx1 v) idx2 = sim_get m idx2.
 Proof.
   intros m idx1 idx2 v Hneq.
-  unfold sim_get, sim_set.
-  destruct (is_zero_value v) eqn:Hzero.
-  - induction m as [|[i val] rest IH].
-    + reflexivity.
-    + simpl.
-      destruct (Z.eqb i idx1) eqn:E1.
-      * simpl.
-        destruct (Z.eqb i idx2) eqn:E2.
-        { apply Z.eqb_eq in E1. apply Z.eqb_eq in E2.
-          subst. contradiction. }
-        { exact IH. }
-      * simpl.
-        destruct (Z.eqb i idx2) eqn:E2; auto.
-  - simpl.
-    destruct (Z.eqb idx1 idx2) eqn:E.
-    + apply Z.eqb_eq in E. contradiction.
-    + induction m as [|[i val'] rest IH].
-      * reflexivity.
-      * simpl.
-        destruct (Z.eqb i idx1) eqn:E1; simpl.
-        { destruct (Z.eqb i idx2) eqn:E2.
-          - apply Z.eqb_eq in E1. apply Z.eqb_eq in E2.
-            subst. contradiction.
-          - exact IH. }
-        { destruct (Z.eqb i idx2); auto. }
+  rewrite sim_set_remove.
+  unfold sim_get at 1. simpl.
+  destruct (Z.eqb idx1 idx2) eqn:E.
+  - apply Z.eqb_eq in E. contradiction.
+  - apply sim_get_remove_other. exact Hneq.
 Qed.
 
 Lemma find_filter_none : forall (m : SubIndexMap) idx,
@@ -315,28 +324,22 @@ Proof.
     + rewrite E. apply IH.
 Qed.
 
-Lemma sim_get_set_zero : forall m idx,
-  sim_get (sim_set m idx zero32) idx = None.
+(** A removed subindex is absent *)
+Lemma sim_get_remove_same : forall m idx,
+  sim_get (sim_remove m idx) idx = None.
 Proof.
   intros m idx.
-  unfold sim_get, sim_set.
-  assert (Hzero: is_zero_value zero32 = true).
-  { unfold is_zero_value, zero32, zero_byte.
-    simpl. reflexivity. }
-  rewrite Hzero.
+  unfold sim_get, sim_remove.
   rewrite find_filter_none.
   reflexivity.
 Qed.
 
-Lemma sim_get_set_zero_value : forall m idx v,
-  is_zero_value v = true ->
-  sim_get (sim_set m idx v) idx = None.
+(** A zero write gives a present zero entry. It is not a removal. *)
+Lemma sim_get_set_zero : forall m idx,
+  sim_get (sim_set m idx zero32) idx = Some zero32.
 Proof.
-  intros m idx v Hzero.
-  unfold sim_get, sim_set.
-  rewrite Hzero.
-  rewrite find_filter_none.
-  reflexivity.
+  intros m idx.
+  apply sim_get_set_same.
 Qed.
 
 (** ** Node Type (Simulation) *)
@@ -353,12 +356,13 @@ Parameter hash_value : Value -> Bytes32.
 Parameter hash_pair : Bytes32 -> Bytes32 -> Bytes32.
 Parameter hash_stem : Stem -> Bytes32 -> Bytes32.
 
-(** [AXIOM:DESIGN] Zero-hash property per EIP-7864 sparse tree optimization.
-    Empty values hash to zero, enabling efficient sparse representation. *)
-Axiom hash_zero_value : hash_value zero32 = zero32.
+(** There is no zero rule for [hash_value]. A leaf that holds [zero32] is a
+    present leaf and its hash is the real digest, as in go-ethereum
+    [trie/bintrie] and in [Hasher::hash_32] (src/hash.rs). An absent leaf is
+    an empty subtree and contributes [zero32] without a call of [hash_value]. *)
 
 (** [AXIOM:DESIGN] Zero pair hashing per EIP-7864 sparse tree optimization.
-    Two empty subtrees combine to zero hash. *)
+    Two empty subtrees combine to zero hash. This is the only zero rule. *)
 Axiom hash_zero_pair : hash_pair zero32 zero32 = zero32.
 
 Lemma hash_deterministic_value : forall v1 v2, v1 = v2 -> hash_value v1 = hash_value v2.
@@ -391,6 +395,11 @@ Definition stems_get (m : StemMap) (s : Stem) : option SubIndexMap :=
 
 Definition stems_set (m : StemMap) (s : Stem) (v : SubIndexMap) : StemMap :=
   (s, v) :: filter (fun p => negb (stem_eq (fst p) s)) m.
+
+(** Remove a stem from the stem map. Models [store.remove(&stem)] in
+    [UnifiedBinaryTree::delete] (src/tree/mod.rs). *)
+Definition stems_remove (m : StemMap) (s : Stem) : StemMap :=
+  filter (fun p => negb (stem_eq (fst p) s)) m.
 
 (** Helper lemmas for stems_get and stems_set *)
 
@@ -528,6 +537,40 @@ Proof.
     + destruct (stem_eq stem s2) eqn:E2; [reflexivity | exact IH].
 Qed.
 
+(** A removed stem is absent *)
+Lemma stems_get_remove_same : forall m s,
+  stems_get (stems_remove m s) s = None.
+Proof.
+  intros m s.
+  unfold stems_get, stems_remove.
+  induction m as [|[stem submap] rest IH].
+  - reflexivity.
+  - simpl.
+    destruct (stem_eq stem s) eqn:E; simpl.
+    + exact IH.
+    + rewrite E. exact IH.
+Qed.
+
+(** Removal of a stem does not change the other stems *)
+Lemma stems_get_remove_other : forall m s1 s2,
+  stem_eq s1 s2 = false ->
+  stems_get (stems_remove m s1) s2 = stems_get m s2.
+Proof.
+  intros m s1 s2 Hneq.
+  unfold stems_get, stems_remove.
+  induction m as [|[stem submap] rest IH].
+  - reflexivity.
+  - simpl.
+    destruct (stem_eq stem s1) eqn:E1; simpl.
+    + destruct (stem_eq stem s2) eqn:E2.
+      * exfalso.
+        assert (stem_eq s1 s2 = true).
+        { rewrite stem_eq_sym in E1. eapply stem_eq_via_third; eauto. }
+        rewrite H in Hneq. discriminate.
+      * exact IH.
+    + destruct (stem_eq stem s2) eqn:E2; [reflexivity | exact IH].
+Qed.
+
 (** Simplified tree as map of stems *)
 Record SimTree := mkSimTree {
   st_stems : StemMap
@@ -554,9 +597,23 @@ Definition sim_tree_insert (t : SimTree) (k : TreeKey) (v : Value) : SimTree :=
   let new_submap := sim_set old_submap idx v in
   mkSimTree (stems_set (st_stems t) stem new_submap).
 
-(** Delete value from tree *)
+(** Delete value from tree.
+
+    This is a real removal and follows [UnifiedBinaryTree::delete]
+    (src/tree/mod.rs): the subindex becomes absent, and a stem that has no
+    entries left is removed from the stem map. A tree without the stem is
+    not changed. It is not an insert of [zero32]: an insert of [zero32]
+    stores a present zero leaf (see [insert_zero_not_delete]). *)
 Definition sim_tree_delete (t : SimTree) (k : TreeKey) : SimTree :=
-  sim_tree_insert t k zero32.
+  let stem := tk_stem k in
+  match stems_get (st_stems t) stem with
+  | None => t
+  | Some old_submap =>
+      match sim_remove old_submap (tk_subindex k) with
+      | [] => mkSimTree (stems_remove (st_stems t) stem)
+      | new_submap => mkSimTree (stems_set (st_stems t) stem new_submap)
+      end
+  end.
 
 (** ** Properties *)
 
@@ -569,86 +626,51 @@ Proof.
   simpl. reflexivity.
 Qed.
 
-(** Insert then get same key returns value *)
+(** Insert then get same key returns value. This holds for every value,
+    including [zero32]. *)
 Theorem get_insert_same : forall t k v,
-  value_nonzero v ->
   sim_tree_get (sim_tree_insert t k v) k = Some v.
 Proof.
-  intros t k v Hnonzero.
+  intros t k v.
   unfold sim_tree_get, sim_tree_insert.
   simpl.
   rewrite stems_get_set_same.
-  destruct (stems_get (st_stems t) (tk_stem k)) eqn:Hstems.
-  - apply sim_get_set_same. exact Hnonzero.
-  - apply sim_get_set_same. exact Hnonzero.
+  apply sim_get_set_same.
 Qed.
 
 (** Insert then get key with same stem/subindex returns value *)
 Theorem get_insert_same_eq : forall t k1 k2 v,
-  value_nonzero v ->
   stem_eq (tk_stem k1) (tk_stem k2) = true ->
   tk_subindex k1 = tk_subindex k2 ->
   sim_tree_get (sim_tree_insert t k1 v) k2 = Some v.
 Proof.
-  intros t k1 k2 v Hnonzero Hstem Hidx.
-  unfold sim_tree_get, sim_tree_insert, value_nonzero in *.
+  intros t k1 k2 v Hstem Hidx.
+  unfold sim_tree_get, sim_tree_insert.
   simpl.
   apply stem_eq_true in Hstem.
   rewrite <- Hstem.
   rewrite stems_get_set_same.
-  destruct (stems_get (st_stems t) (tk_stem k1)) eqn:Hstems.
-  - unfold sim_get, sim_set, is_zero_value in *.
-    rewrite Hnonzero.
-    simpl.
-    rewrite <- Hidx.
-    rewrite Z.eqb_refl.
-    reflexivity.
-  - unfold sim_get, sim_set, is_zero_value in *.
-    rewrite Hnonzero.
-    simpl.
-    rewrite <- Hidx.
-    rewrite Z.eqb_refl.
-    reflexivity.
+  rewrite <- Hidx.
+  apply sim_get_set_same.
 Qed.
 
-(** Insert zero value then get same key returns None *)
-Theorem get_insert_zero : forall t k v,
-  is_zero_value v = true ->
-  sim_tree_get (sim_tree_insert t k v) k = None.
+(** Insert of zero then get same key returns the present zero value *)
+Theorem get_insert_zero : forall t k,
+  sim_tree_get (sim_tree_insert t k zero32) k = Some zero32.
 Proof.
-  intros t k v Hzero.
-  unfold sim_tree_get, sim_tree_insert.
-  simpl.
-  rewrite stems_get_set_same.
-  destruct (stems_get (st_stems t) (tk_stem k)) eqn:Hstems.
-  - apply sim_get_set_zero_value. exact Hzero.
-  - apply sim_get_set_zero_value. exact Hzero.
+  intros t k.
+  apply get_insert_same.
 Qed.
 
-(** Insert zero value then get key with same stem/subindex returns None *)
-Theorem get_insert_zero_eq : forall t k1 k2 v,
-  is_zero_value v = true ->
+(** Insert of zero then get key with same stem/subindex returns the present
+    zero value *)
+Theorem get_insert_zero_eq : forall t k1 k2,
   stem_eq (tk_stem k1) (tk_stem k2) = true ->
   tk_subindex k1 = tk_subindex k2 ->
-  sim_tree_get (sim_tree_insert t k1 v) k2 = None.
+  sim_tree_get (sim_tree_insert t k1 zero32) k2 = Some zero32.
 Proof.
-  intros t k1 k2 v Hzero Hstem Hidx.
-  unfold sim_tree_get, sim_tree_insert.
-  simpl.
-  apply stem_eq_true in Hstem.
-  rewrite <- Hstem.
-  rewrite stems_get_set_same.
-  destruct (stems_get (st_stems t) (tk_stem k1)) eqn:Hstems.
-  - unfold sim_get, sim_set.
-    rewrite Hzero.
-    rewrite <- Hidx.
-    rewrite find_filter_none.
-    reflexivity.
-  - unfold sim_get, sim_set.
-    rewrite Hzero.
-    rewrite <- Hidx.
-    rewrite find_filter_none.
-    reflexivity.
+  intros t k1 k2 Hstem Hidx.
+  apply get_insert_same_eq; assumption.
 Qed.
 
 (** Insert then get different key (different stem) is unchanged *)
@@ -721,12 +743,85 @@ Theorem get_delete : forall t k,
   sim_tree_get (sim_tree_delete t k) k = None.
 Proof.
   intros t k.
-  unfold sim_tree_delete, sim_tree_get, sim_tree_insert.
-  simpl.
-  rewrite stems_get_set_same.
-  destruct (stems_get (st_stems t) (tk_stem k)).
-  - apply sim_get_set_zero.
-  - apply sim_get_set_zero.
+  unfold sim_tree_delete, sim_tree_get.
+  destruct (stems_get (st_stems t) (tk_stem k)) as [old_submap|] eqn:Hstems.
+  - destruct (sim_remove old_submap (tk_subindex k)) as [|p rest] eqn:Hrem.
+    + simpl. rewrite stems_get_remove_same. reflexivity.
+    + simpl. rewrite stems_get_set_same.
+      rewrite <- Hrem. apply sim_get_remove_same.
+  - rewrite Hstems. reflexivity.
+Qed.
+
+(** Delete then get different key (different stem) is unchanged *)
+Theorem get_delete_other_stem : forall t k1 k2,
+  stem_eq (tk_stem k1) (tk_stem k2) = false ->
+  sim_tree_get (sim_tree_delete t k1) k2 = sim_tree_get t k2.
+Proof.
+  intros t k1 k2 Hdiff.
+  unfold sim_tree_delete, sim_tree_get.
+  destruct (stems_get (st_stems t) (tk_stem k1)) as [old_submap|] eqn:Hstems.
+  - destruct (sim_remove old_submap (tk_subindex k1)) as [|p rest] eqn:Hrem.
+    + simpl. rewrite stems_get_remove_other by exact Hdiff. reflexivity.
+    + simpl. rewrite stems_get_set_other by exact Hdiff. reflexivity.
+  - reflexivity.
+Qed.
+
+(** Delete then get different key (same stem, different subindex) is unchanged *)
+Theorem get_delete_other_subindex : forall t k1 k2,
+  stem_eq (tk_stem k1) (tk_stem k2) = true ->
+  tk_subindex k1 <> tk_subindex k2 ->
+  sim_tree_get (sim_tree_delete t k1) k2 = sim_tree_get t k2.
+Proof.
+  intros t k1 k2 Hsame Hdiff.
+  assert (Hstem_eq: tk_stem k1 = tk_stem k2) by (apply stem_eq_true; exact Hsame).
+  unfold sim_tree_delete, sim_tree_get.
+  rewrite <- Hstem_eq.
+  destruct (stems_get (st_stems t) (tk_stem k1)) as [old_submap|] eqn:Hstems.
+  - assert (Hother: sim_get (sim_remove old_submap (tk_subindex k1)) (tk_subindex k2) =
+                    sim_get old_submap (tk_subindex k2))
+      by (apply sim_get_remove_other; exact Hdiff).
+    destruct (sim_remove old_submap (tk_subindex k1)) as [|p rest] eqn:Hrem.
+    + simpl. rewrite stems_get_remove_same.
+      rewrite <- Hother. reflexivity.
+    + simpl. rewrite stems_get_set_same.
+      exact Hother.
+  - rewrite Hstems. reflexivity.
+Qed.
+
+(** Delete of the last value of a stem removes the stem from the stem map *)
+Theorem delete_last_value_removes_stem : forall t k submap,
+  stems_get (st_stems t) (tk_stem k) = Some submap ->
+  sim_remove submap (tk_subindex k) = [] ->
+  stems_get (st_stems (sim_tree_delete t k)) (tk_stem k) = None.
+Proof.
+  intros t k submap Hstems Hrem.
+  unfold sim_tree_delete.
+  rewrite Hstems, Hrem.
+  simpl. apply stems_get_remove_same.
+Qed.
+
+(** Delete on a tree without the stem does not change the tree *)
+Theorem delete_absent_stem : forall t k,
+  stems_get (st_stems t) (tk_stem k) = None ->
+  sim_tree_delete t k = t.
+Proof.
+  intros t k Hstems.
+  unfold sim_tree_delete.
+  rewrite Hstems. reflexivity.
+Qed.
+
+(** An insert of [zero32] and a delete are different on the same key: the
+    insert leaves a present zero leaf, the delete leaves no leaf. *)
+Theorem insert_zero_not_delete : forall t k,
+  sim_tree_get (sim_tree_insert t k zero32) k = Some zero32 /\
+  sim_tree_get (sim_tree_delete t k) k = None /\
+  sim_tree_get (sim_tree_insert t k zero32) k <>
+  sim_tree_get (sim_tree_delete t k) k.
+Proof.
+  intros t k.
+  rewrite get_insert_zero, get_delete.
+  repeat split.
+  discriminate.
 Qed.
 
 (** ** Order Independence *)
@@ -892,10 +987,8 @@ Lemma sim_get_set_same_idx : forall m1 m2 idx v,
   sim_get (sim_set m1 idx v) idx = sim_get (sim_set m2 idx v) idx.
 Proof.
   intros m1 m2 idx v.
-  unfold sim_get, sim_set.
-  destruct (is_zero_value v).
-  - simpl. rewrite find_filter_none. rewrite find_filter_none. reflexivity.
-  - simpl. rewrite Z.eqb_refl. reflexivity.
+  rewrite !sim_get_set_same.
+  reflexivity.
 Qed.
 
 (** Helper: sim_set commutes for different indices *)
@@ -1105,58 +1198,48 @@ Proof.
   - unfold all_submaps_nodup, empty_tree. simpl. constructor.
 Qed.
 
+(** Helper: sim_remove preserves NoDup *)
+Lemma sim_remove_preserves_nodup : forall m idx,
+  submap_nodup m ->
+  submap_nodup (sim_remove m idx).
+Proof.
+  intros m idx Hnd.
+  unfold submap_nodup, sim_remove in *.
+  induction m as [|[i val] rest IH].
+  - simpl. constructor.
+  - simpl. destruct (Z.eqb i idx) eqn:E.
+    + simpl. simpl in Hnd. inversion Hnd. subst.
+      apply IH. exact H2.
+    + simpl. constructor.
+      * intro Hin. simpl in Hnd. inversion Hnd. subst.
+        rewrite In_map_iff in Hin.
+        destruct Hin as [[j w] [Hin' Heq]].
+        simpl in Heq. subst i.
+        apply filter_In in Hin'.
+        destruct Hin' as [Hin' _].
+        (* (j,w) is in rest, so j = fst (j,w) is in map fst rest *)
+        apply H1. exact (in_map fst _ _ Hin').
+      * simpl in Hnd. inversion Hnd. subst.
+        apply IH. exact H2.
+Qed.
+
 (** Helper: sim_set preserves NoDup when filtering removes duplicates *)
 Lemma sim_set_preserves_nodup : forall m idx v,
   submap_nodup m ->
   submap_nodup (sim_set m idx v).
 Proof.
   intros m idx v Hnd.
-  unfold submap_nodup, sim_set.
-  destruct (is_zero_value v) eqn:Hzero.
-  - (* Zero value: filter only *)
-    unfold submap_nodup in Hnd.
-    induction m as [|[i val] rest IH].
-    + simpl. constructor.
-    + simpl. destruct (Z.eqb i idx) eqn:E.
-      * simpl. simpl in Hnd. inversion Hnd. subst.
-        apply IH. exact H2.
-      * simpl. constructor.
-        { intro Hin. simpl in Hnd. inversion Hnd. subst.
-          rewrite In_map_iff in Hin.
-          destruct Hin as [[j w] [Hin' Heq]].
-          simpl in Heq. subst i.
-          apply filter_In in Hin'.
-          destruct Hin' as [Hin' _].
-          (* (j,w) is in rest, so j = fst (j,w) is in map fst rest *)
-          apply H1. exact (in_map fst _ _ Hin'). }
-        { simpl in Hnd. inversion Hnd. subst.
-          apply IH. exact H2. }
-  - (* Non-zero: prepend and filter *)
-    simpl. constructor.
-    + intro Hin.
-      rewrite In_map_iff in Hin.
-      destruct Hin as [[j w] [Hin' Heq]].
-      simpl in Heq. subst idx.
-      apply filter_In in Hin'.
-      destruct Hin' as [_ Hfilter].
-      simpl in Hfilter.
-      rewrite Z.eqb_refl in Hfilter. discriminate.
-    + unfold submap_nodup in Hnd.
-      induction m as [|[i val'] rest IH].
-      * simpl. constructor.
-      * simpl. destruct (Z.eqb i idx) eqn:E.
-        { simpl. simpl in Hnd. inversion Hnd. subst.
-          apply IH. exact H2. }
-        { simpl. constructor.
-          - intro Hin. simpl in Hnd. inversion Hnd. subst.
-            rewrite In_map_iff in Hin.
-            destruct Hin as [[j w] [Hin' Heq]].
-            simpl in Heq. subst i.
-            apply filter_In in Hin'.
-            destruct Hin' as [Hin' _].
-            apply H1. exact (in_map fst _ _ Hin').
-          - simpl in Hnd. inversion Hnd. subst.
-            apply IH. exact H2. }
+  rewrite sim_set_remove.
+  unfold submap_nodup. simpl. constructor.
+  - intro Hin.
+    rewrite In_map_iff in Hin.
+    destruct Hin as [[j w] [Hin' Heq]].
+    simpl in Heq. subst idx.
+    apply filter_In in Hin'.
+    destruct Hin' as [_ Hfilter].
+    simpl in Hfilter.
+    rewrite Z.eqb_refl in Hfilter. discriminate.
+  - apply sim_remove_preserves_nodup. exact Hnd.
 Qed.
 
 (** Helper: stems_set preserves NoDup by filtering out old entry *)
@@ -1244,12 +1327,287 @@ Proof.
         unfold submap_nodup. simpl. constructor.
 Qed.
 
+(** Helper: stems_remove preserves NoDup of stems *)
+Lemma stems_remove_preserves_nodup : forall m s,
+  stems_nodup m ->
+  stems_nodup (stems_remove m s).
+Proof.
+  intros m s Hnd.
+  unfold stems_nodup, stems_remove in *.
+  induction m as [|[stem submap] rest IH].
+  - simpl. constructor.
+  - simpl. destruct (stem_eq stem s) eqn:E.
+    + simpl in Hnd. inversion Hnd. subst.
+      apply IH. exact H2.
+    + simpl. constructor.
+      * intro Hin. simpl in Hnd. inversion Hnd. subst.
+        rewrite In_map_iff in Hin.
+        destruct Hin as [[stem' submap'] [Hin' Heq]].
+        simpl in Heq. subst stem.
+        apply filter_In in Hin'.
+        destruct Hin' as [Hin' _].
+        apply H1. exact (in_map fst _ _ Hin').
+      * simpl in Hnd. inversion Hnd. subst.
+        apply IH. exact H2.
+Qed.
+
+(** Helper: stems_remove keeps NoDup of the remaining submaps *)
+Lemma stems_remove_preserves_all_submaps_nodup : forall m s,
+  all_submaps_nodup m ->
+  all_submaps_nodup (stems_remove m s).
+Proof.
+  intros m s Hall.
+  unfold all_submaps_nodup, stems_remove in *.
+  induction m as [|[stem sm] rest IH].
+  - simpl. constructor.
+  - simpl. destruct (stem_eq stem s) eqn:E.
+    + inversion Hall. subst. apply IH. exact H2.
+    + constructor.
+      * inversion Hall. subst. simpl. exact H1.
+      * inversion Hall. subst. apply IH. exact H2.
+Qed.
+
+(** Helper: a submap found by stems_get has NoDup when all submaps have it *)
+Lemma stems_get_submap_nodup : forall m s submap,
+  all_submaps_nodup m ->
+  stems_get m s = Some submap ->
+  submap_nodup submap.
+Proof.
+  intros m s submap Hall Hget.
+  unfold all_submaps_nodup, stems_get in *.
+  induction m as [|[stem sm] rest IH].
+  - simpl in Hget. discriminate.
+  - simpl in Hget. inversion Hall. subst.
+    destruct (stem_eq stem s) eqn:E.
+    + injection Hget as Hsm. subst sm. exact H1.
+    + apply IH; assumption.
+Qed.
+
+(** Delete preserves strong well-formedness *)
+Theorem wf_tree_strong_delete : forall t k,
+  wf_tree_strong t ->
+  wf_tree_strong (sim_tree_delete t k).
+Proof.
+  intros t k [Hstems Hsubmaps].
+  unfold sim_tree_delete.
+  destruct (stems_get (st_stems t) (tk_stem k)) as [old_submap|] eqn:E.
+  - assert (Hnd: submap_nodup (sim_remove old_submap (tk_subindex k))).
+    { apply sim_remove_preserves_nodup.
+      eapply stems_get_submap_nodup; eauto. }
+    destruct (sim_remove old_submap (tk_subindex k)) as [|p rest] eqn:Hrem.
+    + constructor; simpl.
+      * apply stems_remove_preserves_nodup. exact Hstems.
+      * apply stems_remove_preserves_all_submaps_nodup. exact Hsubmaps.
+    + constructor; simpl.
+      * apply stems_set_preserves_nodup. exact Hstems.
+      * apply stems_set_preserves_all_submaps_nodup; assumption.
+  - constructor; assumption.
+Qed.
+
 (** Insertion preserves well-formedness (original) *)
 Theorem insert_preserves_wf : forall t k v,
   wf_tree t -> wf_value v -> wf_stem (tk_stem k) ->
   wf_tree (sim_tree_insert t k v).
 Proof.
   intros. constructor; assumption.
+Qed.
+
+(** ** Delete Preserves Well-Formedness
+
+    [wf_tree] is the set of trees that are built from [empty_tree] by
+    inserts. A delete is not an insert, so [wf_tree (sim_tree_delete t k)]
+    needs a proof that the result of the delete can also be built by
+    inserts. The proof goes through an invariant of the stem map
+    ([stems_inv]) that characterizes [wf_tree].
+*)
+
+(** Invariant of a submap in a well-formed tree: it is not empty (a stem
+    with no values is removed by delete and is never made by insert), it
+    has unique subindices, and its values are well-formed. *)
+Definition submap_inv (m : SubIndexMap) : Prop :=
+  m <> [] /\ submap_nodup m /\ Forall (fun p => wf_value (snd p)) m.
+
+(** Invariant of the stem map of a well-formed tree *)
+Definition stems_inv (sm : StemMap) : Prop :=
+  stems_nodup sm /\
+  Forall (fun p => wf_stem (fst p) /\ submap_inv (snd p)) sm.
+
+Lemma Forall_filter_keep : forall {A : Type} (P : A -> Prop) (f : A -> bool) (l : list A),
+  Forall P l -> Forall P (filter f l).
+Proof.
+  intros A P f l Hall.
+  rewrite Forall_forall in *.
+  intros x Hin. apply filter_In in Hin. destruct Hin as [Hin _].
+  apply Hall. exact Hin.
+Qed.
+
+Lemma filter_subindex_notin : forall (m : SubIndexMap) idx,
+  ~ In idx (map fst m) ->
+  filter (fun p => negb (Z.eqb (fst p) idx)) m = m.
+Proof.
+  induction m as [|[i v] rest IH]; intros idx Hnotin.
+  - reflexivity.
+  - simpl. destruct (Z.eqb i idx) eqn:E.
+    + exfalso. apply Hnotin. apply Z.eqb_eq in E. left. simpl. exact E.
+    + simpl. f_equal. apply IH. intro Hin. apply Hnotin. right. exact Hin.
+Qed.
+
+Lemma filter_stem_notin : forall (sm : StemMap) s,
+  ~ In s (map fst sm) ->
+  filter (fun p => negb (stem_eq (fst p) s)) sm = sm.
+Proof.
+  induction sm as [|[s' m] rest IH]; intros s Hnotin.
+  - reflexivity.
+  - simpl. destruct (stem_eq s' s) eqn:E.
+    + exfalso. apply Hnotin. apply stem_eq_true in E. left. simpl. exact E.
+    + simpl. f_equal. apply IH. intro Hin. apply Hnotin. right. exact Hin.
+Qed.
+
+Lemma stems_get_notin : forall (sm : StemMap) s,
+  ~ In s (map fst sm) -> stems_get sm s = None.
+Proof.
+  intros sm s Hnotin. unfold stems_get.
+  induction sm as [|[s' m] rest IH].
+  - reflexivity.
+  - simpl. destruct (stem_eq s' s) eqn:E.
+    + exfalso. apply Hnotin. apply stem_eq_true in E. left. simpl. exact E.
+    + apply IH. intro Hin. apply Hnotin. right. exact Hin.
+Qed.
+
+Lemma stems_get_in : forall (sm : StemMap) s submap,
+  stems_get sm s = Some submap -> In (s, submap) sm.
+Proof.
+  intros sm s submap Hget. unfold stems_get in Hget.
+  induction sm as [|[s' m] rest IH].
+  - simpl in Hget. discriminate.
+  - simpl in Hget. destruct (stem_eq s' s) eqn:E; simpl in Hget.
+    + injection Hget as Hm. subst m. apply stem_eq_true in E. subst s'.
+      left. reflexivity.
+    + right. apply IH. exact Hget.
+Qed.
+
+(** A stem with a submap that satisfies the invariant can be added in front
+    of a well-formed tree by a sequence of inserts *)
+Lemma wf_tree_cons_stem : forall rest s m,
+  wf_tree (mkSimTree rest) ->
+  ~ In s (map fst rest) ->
+  wf_stem s ->
+  submap_inv m ->
+  wf_tree (mkSimTree ((s, m) :: rest)).
+Proof.
+  intros rest s m Hrest Hnotin Hwfs.
+  induction m as [|[i v] m' IHm]; intros [Hne [Hmnd Hmwf]].
+  - exfalso. apply Hne. reflexivity.
+  - unfold submap_nodup in Hmnd. simpl in Hmnd.
+    apply NoDup_cons_iff in Hmnd. destruct Hmnd as [Hinotin Hmnd'].
+    apply Forall_cons_iff in Hmwf. destruct Hmwf as [Hv Hmwf']. simpl in Hv.
+    destruct m' as [|p m''].
+    + assert (Heq : sim_tree_insert (mkSimTree rest) (mkTreeKey s i) v =
+                    mkSimTree ((s, [(i, v)]) :: rest)).
+      { unfold sim_tree_insert. simpl.
+        rewrite stems_get_notin by exact Hnotin.
+        unfold stems_set, sim_set. simpl.
+        rewrite filter_stem_notin by exact Hnotin. reflexivity. }
+      pose proof (wf_insert (mkSimTree rest) (mkTreeKey s i) v Hrest Hv Hwfs) as Hins.
+      rewrite Heq in Hins. exact Hins.
+    + assert (Hprev : wf_tree (mkSimTree ((s, p :: m'') :: rest))).
+      { apply IHm. split; [discriminate | split; [exact Hmnd' | exact Hmwf']]. }
+      assert (Heq : sim_tree_insert (mkSimTree ((s, p :: m'') :: rest)) (mkTreeKey s i) v =
+                    mkSimTree ((s, (i, v) :: p :: m'') :: rest)).
+      { unfold sim_tree_insert, stems_get, stems_set. simpl.
+        rewrite stem_eq_refl. simpl.
+        rewrite filter_stem_notin by exact Hnotin.
+        unfold sim_set.
+        rewrite filter_subindex_notin by exact Hinotin. reflexivity. }
+      pose proof (wf_insert (mkSimTree ((s, p :: m'') :: rest)) (mkTreeKey s i) v
+                    Hprev Hv Hwfs) as Hins.
+      rewrite Heq in Hins. exact Hins.
+Qed.
+
+(** A stem map that satisfies the invariant is the stem map of a
+    well-formed tree *)
+Lemma stems_inv_wf_tree : forall sm,
+  stems_inv sm -> wf_tree (mkSimTree sm).
+Proof.
+  induction sm as [|[s m] rest IH]; intros [Hnd Hall].
+  - exact wf_empty.
+  - unfold stems_nodup in Hnd. simpl in Hnd.
+    apply NoDup_cons_iff in Hnd. destruct Hnd as [Hnotin Hnd'].
+    apply Forall_cons_iff in Hall. destruct Hall as [[Hwfs Hminv] Hall'].
+    simpl in Hwfs, Hminv.
+    apply wf_tree_cons_stem; try assumption.
+    apply IH. split; assumption.
+Qed.
+
+(** The stem map of a well-formed tree satisfies the invariant *)
+Lemma wf_tree_stems_inv : forall t,
+  wf_tree t -> stems_inv (st_stems t).
+Proof.
+  intros t Hwf.
+  induction Hwf as [|t k v Hwf IH Hv Hs].
+  - split; constructor.
+  - destruct IH as [Hnd Hall].
+    unfold sim_tree_insert. simpl.
+    set (old := match stems_get (st_stems t) (tk_stem k) with
+                | Some m => m
+                | None => []
+                end).
+    assert (Hold : submap_nodup old /\ Forall (fun p => wf_value (snd p)) old).
+    { subst old.
+      destruct (stems_get (st_stems t) (tk_stem k)) as [m|] eqn:E.
+      - apply stems_get_in in E.
+        rewrite Forall_forall in Hall. apply Hall in E. simpl in E.
+        destruct E as [_ [_ [H1 H2]]]. split; assumption.
+      - split; constructor. }
+    destruct Hold as [Holdnd Holdwf].
+    split.
+    + apply stems_set_preserves_nodup. exact Hnd.
+    + unfold stems_set. constructor.
+      * simpl. split; [exact Hs |].
+        split; [unfold sim_set; discriminate |].
+        split.
+        -- apply sim_set_preserves_nodup. exact Holdnd.
+        -- unfold sim_set. constructor; [exact Hv |].
+           apply Forall_filter_keep. exact Holdwf.
+      * apply Forall_filter_keep. exact Hall.
+Qed.
+
+(** Delete keeps the invariant of the stem map *)
+Lemma delete_preserves_stems_inv : forall t k,
+  stems_inv (st_stems t) -> stems_inv (st_stems (sim_tree_delete t k)).
+Proof.
+  intros t k [Hnd Hall]. unfold sim_tree_delete.
+  destruct (stems_get (st_stems t) (tk_stem k)) as [old|] eqn:E.
+  - pose proof (stems_get_in _ _ _ E) as Hin.
+    pose proof Hall as Hall'.
+    rewrite Forall_forall in Hall'. apply Hall' in Hin. simpl in Hin.
+    destruct Hin as [Hs [_ [Holdnd Holdwf]]].
+    destruct (sim_remove old (tk_subindex k)) as [|p rest] eqn:Hrem.
+    + simpl. split.
+      * apply stems_remove_preserves_nodup. exact Hnd.
+      * unfold stems_remove. apply Forall_filter_keep. exact Hall.
+    + simpl. split.
+      * apply stems_set_preserves_nodup. exact Hnd.
+      * unfold stems_set. constructor.
+        -- simpl. split; [exact Hs |].
+           split; [discriminate |].
+           rewrite <- Hrem. split.
+           ++ apply sim_remove_preserves_nodup. exact Holdnd.
+           ++ unfold sim_remove. apply Forall_filter_keep. exact Holdwf.
+        -- apply Forall_filter_keep. exact Hall.
+  - split; assumption.
+Qed.
+
+(** Deletion preserves well-formedness: the tree after a delete can be
+    built from [empty_tree] by inserts *)
+Theorem delete_preserves_wf : forall t k,
+  wf_tree t -> wf_tree (sim_tree_delete t k).
+Proof.
+  intros t k Hwf.
+  pose proof (delete_preserves_stems_inv t k (wf_tree_stems_inv t Hwf)) as Hinv.
+  revert Hinv. generalize (sim_tree_delete t k).
+  intros [sm] Hinv. simpl in Hinv.
+  apply stems_inv_wf_tree. exact Hinv.
 Qed.
 
 (** ** Permutation Lemmas for Map Lookups

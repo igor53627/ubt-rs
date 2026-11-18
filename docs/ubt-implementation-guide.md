@@ -32,11 +32,15 @@ enum Node {
 ## Hash Rules
 
 ```
-hash(0x00 * 64) = 0x00 * 32    // special case for empty
+hash(0x00 * 64) = 0x00 * 32    // special case for an empty pair
 hash(left || right) = H(left || right)
+leaf_hash = H(value)           // no special case: a value of 32 zero bytes is present and is hashed
+absent_leaf = 0x00 * 32        // a subindex that was never written
 stem_hash = H(stem || 0x00 || subtree_root)
 empty_hash = 0x00 * 32
 ```
+
+As in go-ethereum `trie/bintrie`, a write of a zero value does not delete the leaf or the stem. In the `ubt` crate, `insert(key, B256::ZERO)` stores a present zero leaf, and `delete(&key)` removes the leaf (go-ethereum has no such operation). A stem node with no values hashes to `0x00 * 32` in the crate; go-ethereum cannot have such a node.
 
 ## Tree Operations
 
@@ -275,7 +279,7 @@ tree.insert_batch(entries).unwrap();  // Single root recomputation
 ## Implementation Checklist
 
 - [ ] Node types: Empty, Internal, Stem, Leaf
-- [ ] Hash function with empty special case
+- [ ] Hash function with empty special case for a pair of nodes (not for a leaf value)
 - [ ] Stem extraction from 32-byte key
 - [ ] Tree insertion with stem splitting
 - [ ] Address to tree key conversion

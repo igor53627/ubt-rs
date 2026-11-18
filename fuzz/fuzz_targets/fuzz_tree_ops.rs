@@ -26,8 +26,9 @@ fuzz_target!(|data: &[u8]| {
                 tree.insert(key, value);
             }
             1 => {
-                // Insert zero (delete semantics)
+                // Insert zero (a present zero leaf, not a delete)
                 tree.insert(key, B256::ZERO);
+                assert_eq!(tree.get(&key), Some(B256::ZERO));
             }
             2 => {
                 // Delete

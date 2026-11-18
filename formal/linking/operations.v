@@ -44,6 +44,20 @@
     - [AXIOM:BATCH] - Batch verification operations
     
     See formal/docs/axiom_audit.md for full audit.
+    
+    ** Zero values and the age of the translation
+    
+    The simulation follows the current Rust source: a write of zero32
+    stores a present zero leaf, and delete is a separate removal
+    (sim_tree_delete). The translated code in formal/src/ is older than
+    this rule. Its StemNode::set_value removes the entry on a zero value,
+    and its hash_32 has a zero rule. So the execution axioms of this file
+    (get_executes, insert_executes, delete_executes, new_executes,
+    root_hash_executes) describe the current Rust source. Two of them do
+    not describe the terms in formal/src/ until the translation is
+    generated again: insert_executes for a zero value, and
+    root_hash_executes for a tree that holds a zero leaf. The axioms are
+    not proven against the source or against the translation.
 *)
 
 Require Import RocqOfRust.RocqOfRust.
@@ -271,7 +285,7 @@ Module Termination.
     - apply insert_preserves_wf; assumption.
   Qed.
 
-  (** Delete terminates (follows from insert) *)
+  (** Delete terminates (the simulation function is total) *)
   Lemma delete_terminates :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey),
       wf_tree sim_t ->
@@ -432,7 +446,7 @@ End GetLink.
     4. Return new SimTree
     
     ** Key Properties:
-    - Insert with zero value acts as delete
+    - Insert with zero value stores a present zero leaf (it is not a delete)
     - Insert preserves well-formedness
     - Insert at different stems commutes
     - Insert at same stem, different subindex commutes
@@ -484,7 +498,13 @@ Module InsertLink.
       - wf_tree, wf_stem, wf_value (well-formedness)
       
       Used by: insert_simulation_equiv, insert_preserves_refinement,
-               get_after_insert_same, delete_executes *)
+               get_after_insert_same, zero_write_executes
+      
+      Zero values: the statement holds for every v, also zero32. The
+      simulation stores a zero value as a present leaf, as the current
+      StemNode::set_value does. The translated set_value in formal/src/ is
+      older and removes the entry on a zero value, so for v = zero32 this
+      axiom does not describe the translated term (see the file header). *)
   Axiom insert_executes :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey) (v : Value),
     forall (rust_tree : Value.t) (s : Run.State),
@@ -530,48 +550,93 @@ Module InsertLink.
     reflexivity.
   Qed.
   
-  (** Insert with zero is deletion - simulation property lifted to linking *)
-  Lemma insert_zero_is_delete :
+  (** Insert with zero stores a present zero leaf, and it is not a deletion -
+      simulation property lifted to linking. This replaces the former lemma
+      insert_zero_is_delete (sim_tree_insert t k zero32 = sim_tree_delete t k),
+      which is false for the current rule. *)
+  Lemma insert_zero_is_present :
     forall (sim_t : SimTree) (k : TreeKey),
-      sim_tree_insert sim_t k zero32 = sim_tree_delete sim_t k.
+      sim_tree_get (sim_tree_insert sim_t k zero32) k = Some zero32 /\
+      sim_tree_get (sim_tree_delete sim_t k) k = None.
   Proof.
     intros sim_t k.
-    unfold sim_tree_delete.
-    reflexivity.
+    split; [apply get_insert_zero | apply get_delete].
+  Qed.
+
+  (** Zero value well-formedness: zero32 satisfies wf_value. *)
+  Lemma zero32_wf : wf_value zero32.
+  Proof.
+    unfold wf_value, zero32, zero_byte.
+    simpl. reflexivity.
+  Qed.
+
+  (** zero_write_executes: a write of zero32 is an instance of insert_executes.
+      
+      This is the go-ethereum way to delete (DeleteStorage, DeleteAccount):
+      a write of zero32. The result refines sim_tree_insert with zero32,
+      which holds a present zero leaf. It does not refine sim_tree_delete.
+      
+      Before the zero-value change this statement was named
+      DeleteLink.delete_executes, with rust_delete defined as this zero
+      write. *)
+  Theorem zero_write_executes :
+    forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey),
+    forall (rust_tree : Value.t) (s : Run.State),
+      tree_refines H rust_tree sim_t ->
+      wf_tree sim_t ->
+      wf_stem (tk_stem k) ->
+      exists (rust_tree' : Value.t) (s' : Run.State),
+        Run.run_ok (rust_insert H [] [] [rust_tree; φ k; φ zero32]) s rust_tree' s' /\
+        tree_refines H rust_tree' (sim_tree_insert sim_t k zero32).
+  Proof.
+    intros H sim_t k rust_tree s Href Hwf Hstem.
+    apply insert_executes; auto.
+    exact zero32_wf.
   Qed.
 
 End InsertLink.
 
 (** ** DeleteLink Module: Delete Operation Linking
     
-    This module establishes the correspondence between Rust's tree deletion
-    and the simulation's sim_tree_delete.
+    This module establishes the correspondence between Rust's
+    UnifiedBinaryTree::delete() method and the simulation's sim_tree_delete.
     
     ** Key Design Decision:
-    Delete is implemented as insert with zero value (zero32). This matches
-    EIP-7864's sparse tree optimization where zero values are treated as absent.
+    Delete is a real removal. It is not an insert of zero32: an insert of
+    zero32 stores a present zero leaf (InsertLink.zero_write_executes).
     
-    ** Rust Implementation Path:
-    Rust doesn't have an explicit delete() method. Deletion is done via:
-    tree.insert(key, B256::ZERO)
+    ** Rust Implementation Path (src/tree/mod.rs):
+    1. Look up the stem node with get_mut()
+    2. Call StemNode::remove_value() to make the subindex absent
+    3. Remove the stem from the store when it has no values left
+    4. Mark the stem and the root as dirty
+    A tree without the stem is not changed.
     
     ** Simulation Path (simulations/tree.v):
-    sim_tree_delete t k = sim_tree_insert t k zero32
+    sim_tree_delete removes the subindex with sim_remove, and removes the
+    stem with stems_remove when the submap is empty.
     
     ** Key Properties:
     - Delete is idempotent
     - Get after delete returns None
     - Delete preserves well-formedness
     
-    ** Proof Strategy for delete_executes:
-    This reduces directly to insert_executes with v = zero32.
+    ** Status of delete_executes:
+    delete_executes is an axiom, in the style of get_executes and
+    insert_executes. It cannot be reduced to insert_executes any more.
 *)
 
 Module DeleteLink.
   
-  (** Delete is implemented as insert with zero value *)
+  (** The translated delete function from src/tree.v.
+      
+      The translation in formal/src/ is older than the current Rust source.
+      Its delete calls set_value(subindex, B256::ZERO), and its set_value
+      removes the entry on a zero value, so the translated delete is also a
+      removal of the subindex, followed by the removal of an empty stem. The
+      current Rust delete calls remove_value instead. *)
   Definition rust_delete (H : Ty.t) (tree : Value.t) (key : Value.t) : M :=
-    InsertLink.rust_insert H [] [] [tree; key; φ zero32].
+    src.tree.tree.Impl_ubt_tree_UnifiedBinaryTree_H.delete H [] [] [tree; key].
   
   (** Main refinement theorem for delete operation.
       This shows the simulation function is well-defined for all inputs. *)
@@ -585,54 +650,48 @@ Module DeleteLink.
     reflexivity.
   Qed.
   
+  (** Zero value well-formedness, re-exported for existing users. *)
+  Definition zero32_wf : wf_value zero32 := InsertLink.zero32_wf.
+
   (** [AXIOM:IMPL-GAP] Rust delete execution matches simulation.
       
-      Status: Axiomatized - reduces to insert_executes with zero value.
+      Status: Axiomatized pending M monad interpreter.
       
-      Verification Gap: This axiom is essentially a corollary of insert_executes.
-      Once insert_executes is proven, this follows immediately since:
-        rust_delete = rust_insert with zero32
-        sim_tree_delete = sim_tree_insert with zero32
+      History: this was an axiom, then a theorem (Issue #43), and is an
+      axiom again. The theorem was proven from insert_executes, with
+      rust_delete DEFINED as rust_insert with zero32 and sim_tree_delete
+      defined as sim_tree_insert with zero32. That theorem was a statement
+      about a zero write, not about the Rust delete method. It is kept as
+      InsertLink.zero_write_executes. With the go-ethereum zero rule a zero
+      write stores a present zero leaf, so delete is not an instance of
+      insert, and the link for the real delete method needs its own axiom.
       
-      Risk: Medium - depends on insert_executes correctness.
+      Verification Gap: To prove it requires:
+      1. M monad step semantics for HashMap.get_mut and HashMap.remove
+      2. StemNode::remove_value correspondence with sim_remove
+      3. The is_empty test and stems_remove correspondence
       
-      Mitigation: Verified reduction to insert with zero32.
+      Risk: High - Rust implementation may diverge from simulation.
+      
+      Known defect (issue #25): the statement has the shape of
+      insert_executes. It binds the value that run_ok returns as the
+      updated tree, but the translated delete returns the unit tuple,
+      changes the tree through the &mut self reference, and takes the key
+      by reference. A correct statement refines the tree in the post-state
+      s'. insert_executes has the same defect.
+      
+      Mitigation:
+      - Rust property tests compare delete with a reference model
+        (tests/proptests.rs, tests/simulation/)
+      - QuickChick properties for sim_tree_delete
       
       Dependencies:
-      - insert_executes (main dependency)
-      - wf_value zero32 (proven: zero32 is well-formed)
+      - tree_refines (type correspondence)
+      - wf_tree, wf_stem (well-formedness)
       
-      Used by: get_after_delete_same, delete_idempotent
-      
-      Issue #43: CONVERTED FROM AXIOM TO THEOREM *)
-  
-  (** Behavioral equivalence: delete = insert with zero.
-      Moved before delete_executes so it can be used in the proof. *)
-  Theorem delete_is_insert_zero :
-    forall (t : SimTree) (k : TreeKey),
-      sim_tree_delete t k = sim_tree_insert t k zero32.
-  Proof.
-    intros t k.
-    unfold sim_tree_delete.
-    reflexivity.
-  Qed.
-  
-  (** Zero value well-formedness: zero32 satisfies wf_value.
-      Moved before delete_executes so it can be used in the proof. *)
-  Lemma zero32_wf : wf_value zero32.
-  Proof.
-    unfold wf_value, zero32, zero_byte.
-    simpl. reflexivity.
-  Qed.
-
-  (** delete_executes: PROVEN via insert_executes with zero32.
-      
-      This theorem was previously an axiom. The proof reduces delete to insert:
-      - rust_delete = rust_insert with zero32
-      - sim_tree_delete = sim_tree_insert with zero32
-      
-      The proof applies insert_executes with v = zero32. *)
-  Theorem delete_executes :
+      Used by: PanicFreedom.delete_no_panic, and delete_terminates,
+               delete_correct, delete_executes_from_link in interpreter.v *)
+  Axiom delete_executes :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey),
     forall (rust_tree : Value.t) (s : Run.State),
       tree_refines H rust_tree sim_t ->
@@ -641,15 +700,22 @@ Module DeleteLink.
       exists (rust_tree' : Value.t) (s' : Run.State),
         Run.run_ok (rust_delete H rust_tree (φ k)) s rust_tree' s' /\
         tree_refines H rust_tree' (sim_tree_delete sim_t k).
+
+  (** Behavioral difference: a delete is not an insert of zero.
+      This replaces the former theorem delete_is_insert_zero
+      (sim_tree_delete t k = sim_tree_insert t k zero32), which is false
+      for the current rule. *)
+  Theorem delete_is_not_insert_zero :
+    forall (t : SimTree) (k : TreeKey),
+      sim_tree_get (sim_tree_delete t k) k <>
+      sim_tree_get (sim_tree_insert t k zero32) k.
   Proof.
-    intros H sim_t k rust_tree s Href Hwf Hstem.
-    unfold rust_delete.
-    rewrite delete_is_insert_zero.
-    apply InsertLink.insert_executes; auto.
-    exact zero32_wf.
+    intros t k Heq.
+    destruct (insert_zero_not_delete t k) as [_ [_ Hneq]].
+    apply Hneq. symmetry. exact Heq.
   Qed.
 
-  (** Delete simulation equivalence follows from insert *)
+  (** Delete simulation equivalence: the simulation function is defined *)
   Theorem delete_simulation_equiv :
     forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey),
     forall (rust_tree : Value.t),
@@ -833,7 +899,7 @@ End HashLink.
     
     ** Proof Types:
     - InclusionProof: proves a key has a specific value
-    - ExclusionProof: proves a key is absent (has zero value)
+    - ExclusionProof: proves a key is absent (a present zero leaf is not absent)
     
     ** Rust Implementation Path (src/proof.rs):
     verify_proof() validates Merkle paths by:
@@ -1081,8 +1147,8 @@ Module PanicFreedom.
   
   (** [PROVEN] Delete never panics on valid inputs.
       
-      Proof strategy: delete = insert with zero32, so this follows from
-      delete_executes returning Run.run_ok (success).
+      Proof strategy: this follows from the axiom delete_executes, which
+      returns Run.run_ok (success).
       
       Converted from axiom: Issue low-hanging-axioms
       Updated for relational run_ok: Issue #60 *)
@@ -1253,12 +1319,10 @@ Qed.
 
 Theorem get_after_insert_same :
   forall (H : Ty.t) (sim_t : SimTree) (k : TreeKey) (v : Value),
-    value_nonzero v ->
     sim_tree_get (sim_tree_insert sim_t k v) k = Some v.
 Proof.
-  intros H sim_t k v Hv.
+  intros H sim_t k v.
   apply get_insert_same.
-  exact Hv.
 Qed.
 
 Theorem get_after_insert_other_stem :
@@ -1307,13 +1371,11 @@ Theorem insert_insert_comm_subindex :
   forall (H : Ty.t) (t : SimTree) (k1 k2 : TreeKey) (v1 v2 : Value),
     stem_eq (tk_stem k1) (tk_stem k2) = true ->
     tk_subindex k1 <> tk_subindex k2 ->
-    value_nonzero v1 ->
-    value_nonzero v2 ->
     tree_eq
       (sim_tree_insert (sim_tree_insert t k1 v1) k2 v2)
       (sim_tree_insert (sim_tree_insert t k2 v2) k1 v1).
 Proof.
-  intros H t k1 k2 v1 v2 Hstem Hidx Hv1 Hv2.
+  intros H t k1 k2 v1 v2 Hstem Hidx.
   apply insert_order_independent_subindex; assumption.
 Qed.
 
@@ -1350,10 +1412,7 @@ Theorem delete_preserves_wf_link :
     UBT.Sim.tree.wf_tree (sim_tree_delete t k).
 Proof.
   intros H t k Hwf Hstem.
-  unfold sim_tree_delete.
-  apply insert_preserves_wf; try assumption.
-  unfold wf_value, zero32. simpl.
-  reflexivity.
+  apply delete_preserves_wf. exact Hwf.
 Qed.
 
 (** ** Batch Operation Theorems *)
@@ -1411,11 +1470,7 @@ Proof.
         -- exact Hwf.
         -- destruct Hop as [Hstem Hval]. exact Hval.
         -- destruct Hop as [Hstem Hval]. exact Hstem.
-      * simpl. unfold sim_tree_delete.
-        apply insert_preserves_wf.
-        -- exact Hwf.
-        -- unfold wf_value, zero32. simpl. reflexivity.
-        -- exact Hop.
+      * simpl. apply delete_preserves_wf. exact Hwf.
     + exact Hrest.
 Qed.
 
@@ -1516,12 +1571,10 @@ Qed.
 (** Delete then insert restores value *)
 Theorem insert_after_delete :
   forall (t : SimTree) (k : TreeKey) (v : Value),
-    value_nonzero v ->
     sim_tree_get (sim_tree_insert (sim_tree_delete t k) k v) k = Some v.
 Proof.
-  intros t k v Hv.
+  intros t k v.
   apply get_insert_same.
-  exact Hv.
 Qed.
 
 (** ** BatchVerifyLink Module: Batch Proof Verification Linking
@@ -1952,8 +2005,11 @@ Module Limitations.
          - Monad laws (run_pure, run_panic) are now PROVEN
          
       2. Execution theorems (the executes axioms)
-         - get_executes, insert_executes, new_executes, root_hash_executes
-         - delete_executes is PROVEN (reduced to insert)
+         - get_executes, insert_executes, delete_executes, new_executes,
+           root_hash_executes
+         - delete_executes is an axiom again: delete is a real removal and
+           is not an instance of insert. The zero write is proven
+           (InsertLink.zero_write_executes, an instance of insert_executes)
          - These require full trait resolution and closure semantics
       
       3. Panic freedom (PanicFreedom module)
@@ -1995,7 +2051,9 @@ Module Limitations.
   
   (** Issue #43, #60: Axiom tracking
       
-      Issue #43: DeleteLink.delete_executes - now a proven theorem
+      Issue #43: DeleteLink.delete_executes was proven as a zero write.
+        Refs #7: that proof is now InsertLink.zero_write_executes, and
+        DeleteLink.delete_executes is an axiom for the real delete method
       Issue #60: Run.run_* axioms eliminated via MRun module
       
       Low-hanging axioms converted to theorems:
@@ -2004,13 +2062,13 @@ Module Limitations.
       - Run.run_bind - PROVEN via MRun.Laws.let_sequence (1 axiom)
       - PanicFreedom.get_no_panic - PROVEN via get_executes
       - PanicFreedom.insert_no_panic - PROVEN via insert_executes
-      - PanicFreedom.delete_no_panic - PROVEN via delete_executes
+      - PanicFreedom.delete_no_panic - PROVEN via delete_executes (axiom)
       - PanicFreedom.root_hash_no_panic - PROVEN via root_hash_executes *)
   Definition axiomatized_theorems : list string := [
     "MRun.Laws.let_sequence";
     "GetLink.get_executes";
     "InsertLink.insert_executes";
-    (* "DeleteLink.delete_executes" - PROVEN via insert_executes (Issue #43) *)
+    "DeleteLink.delete_executes";
     "NewLink.new_executes";
     "HashLink.root_hash_executes";
     (* Run.run_pure, Run.run_bind, Run.run_panic - ELIMINATED via MRun (Issue #60) *)

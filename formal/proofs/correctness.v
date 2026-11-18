@@ -71,15 +71,31 @@ Qed.
 (**
    Theorem 4: Get-Insert correctness
    
-   After inserting (k, v), getting k returns v (if v ≠ all zeros).
+   After inserting (k, v), getting k returns v, for every v.
+   A value of all zeros is stored as a present leaf.
    get(insert(T, k, v), k) = Some(v)
 *)
 Theorem get_insert_same_key :
   forall t k v,
-    value_nonzero v ->
     sim_tree_get (sim_tree_insert t k v) k = Some v.
 Proof.
   exact get_insert_same.
+Qed.
+
+(**
+   Theorem 4a: Zero write is not a delete
+   
+   An insert of zero32 leaves a present zero leaf. A delete leaves no leaf.
+   get(insert(T, k, 0^32), k) = Some(0^32) and get(delete(T, k), k) = None
+*)
+Theorem zero_write_is_not_delete :
+  forall t k,
+    sim_tree_get (sim_tree_insert t k zero32) k = Some zero32 /\
+    sim_tree_get (sim_tree_delete t k) k = None /\
+    sim_tree_get (sim_tree_insert t k zero32) k <>
+    sim_tree_get (sim_tree_delete t k) k.
+Proof.
+  exact insert_zero_not_delete.
 Qed.
 
 (**
@@ -113,7 +129,9 @@ Qed.
 (**
    Theorem 7: Delete correctness
    
-   After deleting k, getting k returns None.
+   After deleting k, getting k returns None. Delete is a real removal of
+   the leaf (and of the stem when it has no leaves left). It is not an
+   insert of zero32.
    get(delete(T, k), k) = None
 *)
 Theorem get_after_delete :
@@ -176,15 +194,14 @@ Qed.
 (** ** Axiomatized Properties *)
 
 (**
-   These properties hold by the hash function axioms.
-   They cannot be proven without access to hash internals.
+   This property holds by the hash function axioms.
+   It cannot be proven without access to hash internals.
+   
+   The zero rule holds for a pair of zero hashes only. There is no zero
+   rule for hash_value: the former theorem hash_zero_is_zero
+   (hash_value zero32 = zero32) is removed with its axiom, because a leaf
+   that holds zero32 is a present leaf and is hashed.
 *)
-
-Theorem hash_zero_is_zero :
-  hash_value zero32 = zero32.
-Proof.
-  exact hash_zero_value.
-Qed.
 
 Theorem hash_pair_zero_is_zero :
   hash_pair zero32 zero32 = zero32.
