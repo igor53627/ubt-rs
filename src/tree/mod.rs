@@ -216,6 +216,14 @@ impl<H: Hasher, S: NodeStore> UnifiedBinaryTree<H, S> {
     /// does in `DeleteStorage` and `DeleteAccount`. Use it when the root hash must
     /// agree with go-ethereum. [`delete`](Self::delete) removes the leaf instead.
     ///
+    /// # Proofs
+    ///
+    /// `insert` accepts every stem. A stem that starts with 12 zero bytes and is
+    /// not zero has no proof that [`Proof::verify`](crate::Proof::verify) accepts
+    /// while its stem node has a leaf. The zero stem is not in this group. A stem
+    /// from [`get_binary_tree_key`](crate::get_binary_tree_key) is in this group
+    /// with a probability of 2^-96. See "Limits" in [`Proof`](crate::Proof).
+    ///
     /// # Example
     ///
     /// ```

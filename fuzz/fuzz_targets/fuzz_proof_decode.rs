@@ -49,14 +49,27 @@ fuzz_target!(|data: &[u8]| {
             }
             1 => {
                 // Extension node
-                if i + 64 <= data.len() {
+                if i + 65 <= data.len() {
                     let stem_bytes: [u8; 31] = data[i + 1..i + 32].try_into().unwrap();
-                    let hash_bytes: [u8; 32] = data[i + 32..i + 64].try_into().unwrap();
+                    let subindex = data[i + 32];
+                    let value_bytes: [u8; 32] = data[i + 33..i + 65].try_into().unwrap();
+                    let mut subtree_siblings = Vec::new();
+
+                    // Parse up to 8 siblings
+                    let mut j = i + 65;
+                    while j + 32 <= data.len() && subtree_siblings.len() < 8 {
+                        let sib: [u8; 32] = data[j..j + 32].try_into().unwrap();
+                        subtree_siblings.push(B256::from(sib));
+                        j += 32;
+                    }
+
                     path.push(ProofNode::Extension {
                         stem: Stem::new(stem_bytes),
-                        stem_hash: B256::from(hash_bytes),
+                        subindex,
+                        value: B256::from(value_bytes),
+                        subtree_siblings,
                     });
-                    i += 64;
+                    i = j;
                 } else {
                     break;
                 }

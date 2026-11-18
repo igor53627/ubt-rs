@@ -50,7 +50,8 @@ Scope: the library crate `ubt` (`src/`, without `src/bin/`). The `simulate` bina
 | Stem subtree                  | 256 leaves, 8 levels                                   | Per stem node                    | By the types: `SubIndex` is `u8`, the hash buffer is `[B256; 256]` | Cannot occur                                         |
 | Encoded stem node             | 64 to 8256 bytes, equal to 64 + 32 x (set bitmap bits) | Per `decode_stem_node` call      | Before the values are read                                         | `UbtError::InvalidEncoding`                          |
 | Encoded internal, leaf, empty | 65, 33 and 1 bytes, exact                              | Per decode call                  | Before the fields are read                                         | `UbtError::InvalidEncoding`                          |
-| Proof stem siblings           | 8 hashes, exact                                        | Per `ProofNode::Stem`            | In `Proof::compute_root`, before the hashes are used               | `UbtError::InvalidProof`                             |
+| Proof stem siblings           | 8 hashes, exact                                        | Per stem or extension node       | In `Proof::compute_root`, before the hashes are used               | `UbtError::InvalidProof`                             |
+| Proof path                    | 1 stem or extension node, 248 internal nodes           | Per `Proof`                      | In `Proof::compute_root`, before the hashes are used               | `UbtError::InvalidProof`                             |
 | Leading PUSHDATA count        | 31 bytes                                               | Per code chunk                   | Checked conversion in `chunkify_code`                              | The count is set to 31 (PUSH data covers the chunk)  |
 | Reserved memory for code      | 31 bytes x (number of chunks)                          | Per `dechunkify_code` call       | Before the allocation; `code_size` is a claim of the caller        | The result has only the bytes that the chunks supply |
 | Order of streamed entries     | Strictly ascending `(stem, subindex)`                  | Per `StreamingTreeBuilder` build | At each entry, in every build                                      | `UbtError::EntriesNotSorted`                         |
@@ -111,7 +112,7 @@ Resources with no limit in the crate:
 
 ## 8. Open questions
 
-- `Proof::verify` does not bind a proof to its key, and the proof path has no length limit ([#19](https://github.com/igor53627/ubt-rs/issues/19)). This is a baseline defect ("Carry no security debt"), not a profile choice.
+- `Proof::verify` binds a proof to its key and limits the path ([#19](https://github.com/igor53627/ubt-rs/issues/19)). One limit stays ([#26](https://github.com/igor53627/ubt-rs/issues/26)): the hash of EIP-7864 does not separate stem nodes from internal nodes, and the verifier sees one path. A proof is not sound for a tree that holds a stem `s` when a party knows an input whose hash is `s || 0x00`; a party that can insert arbitrary stems needs about 2^9 to 2^10 attempts. The `Proof` docs state the rules of the verifier and this limit.
 - `clippy::arithmetic_side_effects` and `clippy::indexing_slicing` are not enforced. The library has 41 and 52 sites. Most of them index a fixed-size array with a value that the types bound (`[B256; 256]` with a `u8`).
 - Fuzzing runs only on request (`.github/workflows/fuzz.yml`, `workflow_dispatch`). The guide asks for continuous fuzzing of every parser.
 - The repository has no `SECURITY.md`, and private vulnerability reporting is off.
