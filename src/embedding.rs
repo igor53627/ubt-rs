@@ -36,7 +36,10 @@ pub const BASIC_DATA_LEAF_KEY: SubIndex = 0;
 /// Subindex for code hash
 pub const CODE_HASH_LEAF_KEY: SubIndex = 1;
 
-/// Offset in basic data leaf for code size (bytes 5-7)
+/// Offset in basic data leaf for code size, as in EIP-7864 (bytes 5-7).
+///
+/// [`BasicDataLeaf`] writes 4 bytes that start one byte before this offset, as
+/// go-ethereum does.
 pub const BASIC_DATA_CODE_SIZE_OFFSET: usize = 5;
 
 /// Offset in basic data leaf for nonce (bytes 8-15)
@@ -167,18 +170,23 @@ pub fn get_code_chunk_key(address: &Address, chunk_number: u64) -> TreeKey {
 
 /// Basic account data packed into a single 32-byte leaf.
 ///
-/// Layout (per EIP-7864 / go-ethereum):
+/// Layout:
 /// - Byte 0: Version (currently 0)
-/// - Bytes 1-4: Reserved
-/// - Bytes 5-7: Code size (3 bytes, big-endian)
+/// - Bytes 1-3: Reserved
+/// - Bytes 4-7: Code size (4 bytes, big-endian)
 /// - Bytes 8-15: Nonce (8 bytes, big-endian)
 /// - Bytes 16-31: Balance (16 bytes, big-endian)
+///
+/// EIP-7864 gives the code size 3 bytes at offset 5 and reserves bytes 1 to 4. It
+/// states that the layout allows an extension of the code size to 4 bytes.
+/// go-ethereum `trie/bintrie` writes 4 bytes at offset 4, and this type does the
+/// same. The two layouts are equal for a code size below 2^24.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BasicDataLeaf {
     /// Version byte (currently 0)
     pub version: u8,
-    /// Code size in bytes (max ~16MB with 3 bytes)
+    /// Code size in bytes
     pub code_size: u32,
     /// Account nonce
     pub nonce: u64,
@@ -201,8 +209,8 @@ impl BasicDataLeaf {
     pub fn encode(&self) -> B256 {
         let mut bytes = [0u8; 32];
         bytes[0] = self.version;
-        // bytes[1..5] = reserved
-        bytes[5..8].copy_from_slice(&self.code_size.to_be_bytes()[1..4]); // 3 bytes
+        // bytes[1..4] = reserved
+        bytes[4..8].copy_from_slice(&self.code_size.to_be_bytes());
         bytes[8..16].copy_from_slice(&self.nonce.to_be_bytes());
         bytes[16..32].copy_from_slice(&self.balance.to_be_bytes());
         B256::from(bytes)
@@ -213,7 +221,7 @@ impl BasicDataLeaf {
         let bytes = value.as_slice();
 
         let mut code_size_bytes = [0u8; 4];
-        code_size_bytes[1..4].copy_from_slice(&bytes[5..8]);
+        code_size_bytes.copy_from_slice(&bytes[4..8]);
 
         let mut nonce_bytes = [0u8; 8];
         nonce_bytes.copy_from_slice(&bytes[8..16]);
@@ -317,6 +325,30 @@ mod tests {
         let encoded = original.encode();
         let decoded = BasicDataLeaf::decode(encoded);
         assert_eq!(original, decoded);
+    }
+
+    /// go-ethereum writes the code size as 4 bytes at offset 4
+    /// (`PutUint32(basicData[BasicDataCodeSizeOffset-1:], ...)`), so a size of
+    /// 2^24 or more keeps its top byte.
+    #[test]
+    fn test_basic_data_code_size_has_4_bytes() {
+        let nonce: u64 = 7;
+        let balance: u128 = 9;
+        for code_size in [0u32, 1024, 0x00ff_ffff, 0x0100_0000, 0x0100_0001, u32::MAX] {
+            let leaf = BasicDataLeaf::new(nonce, balance, code_size);
+            let encoded: B256 = leaf.encode();
+
+            let mut expected = [0u8; 32];
+            expected[4..8].copy_from_slice(&code_size.to_be_bytes());
+            expected[8..16].copy_from_slice(&nonce.to_be_bytes());
+            expected[16..32].copy_from_slice(&balance.to_be_bytes());
+            assert_eq!(encoded, B256::from(expected), "code size {code_size:#x}");
+            assert_eq!(
+                BasicDataLeaf::decode(encoded),
+                leaf,
+                "code size {code_size:#x}"
+            );
+        }
     }
 
     #[test]

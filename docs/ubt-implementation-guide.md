@@ -125,6 +125,8 @@ For any account, tree_index=0 gives the account subtree:
 [16-31]:  balance (16 bytes)
 ```
 
+This is the layout of EIP-7864. `BasicDataLeaf` writes and reads the code size as 4 bytes at offset 4, as go-ethereum `trie/bintrie` does. The result is the same for a code size below 2^24.
+
 ## Bytecode Chunking
 
 Each chunk is 32 bytes:

@@ -21,6 +21,5 @@ fuzz_target!(|data: &[u8]| {
     assert_eq!(decoded.version, redecoded.version);
     assert_eq!(decoded.nonce, redecoded.nonce);
     assert_eq!(decoded.balance, redecoded.balance);
-    // code_size is only 24 bits, so mask it
-    assert_eq!(decoded.code_size & 0x00FFFFFF, redecoded.code_size);
+    assert_eq!(decoded.code_size, redecoded.code_size);
 });
