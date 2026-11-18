@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Docs: the "Limits" section of `Proof`, `README.md` ("Scope and Direction") and `docs/TIGER_STYLE_PROFILE.md` state the cause of the proof limits and their final state. The hash of EIP-7864 has no tag for the kind of node; EIP-8297 adds one (`LEAF_TAG`, `BRANCH_TAG`). This crate keeps the hash of EIP-7864, so the limits stay. Issue [#26](https://github.com/igor53627/ubt-rs/issues/26) is closed as not planned.
+
 ## [0.6.0] - 2026-11-18
 
 This release has breaking changes: root hashes of trees that have zero values and the `Hasher::hash_32` contract (issue #7), the proof format and the proof verifier (issue #19), and the public API (issue #29).
