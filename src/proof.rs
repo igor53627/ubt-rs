@@ -23,8 +23,12 @@ pub enum Direction {
 }
 
 /// A node in a Merkle proof path.
+///
+/// The enum is non-exhaustive: a later proof format can add a kind of node, so a
+/// `match` outside this crate needs a wildcard arm.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub enum ProofNode {
     /// Sibling hash at an internal node level
     Internal {
@@ -472,71 +476,6 @@ pub fn generate_stem_proof<H: Hasher>(
     }
 
     (value, siblings)
-}
-
-/// A multi-proof for multiple keys.
-#[derive(Clone, Debug, Default)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct MultiProof {
-    /// Keys being proven
-    pub keys: Vec<TreeKey>,
-    /// Values at keys (None for non-existence)
-    pub values: Vec<Option<B256>>,
-    /// Shared proof nodes (deduplicated)
-    pub nodes: Vec<B256>,
-    /// Stems included in the proof
-    pub stems: Vec<Stem>,
-}
-
-impl MultiProof {
-    /// Create a new empty multi-proof.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Get the number of keys in the proof.
-    pub fn len(&self) -> usize {
-        self.keys.len()
-    }
-
-    /// Check if the proof is empty.
-    pub fn is_empty(&self) -> bool {
-        self.keys.is_empty()
-    }
-
-    /// Get the size of the proof in bytes.
-    pub fn size(&self) -> usize {
-        let mut size = 0;
-        size += self.keys.len() * 32; // keys
-        size += self.values.len() * 33; // values with option tag
-        size += self.nodes.len() * 32; // shared nodes
-        size += self.stems.len() * STEM_LEN; // stems
-        size
-    }
-}
-
-/// Witness data for stateless execution.
-#[derive(Clone, Debug, Default)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Witness {
-    /// Pre-state values needed for execution
-    pub pre_values: Vec<(TreeKey, B256)>,
-    /// Proof for pre-state
-    pub proof: MultiProof,
-}
-
-impl Witness {
-    /// Create a new empty witness.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Get the size of the witness in bytes.
-    pub fn size(&self) -> usize {
-        let mut size = self.proof.size();
-        size += self.pre_values.len() * (32 + 32); // key + value
-        size
-    }
 }
 
 #[cfg(test)]

@@ -133,7 +133,7 @@ pub use hash::{Blake3Hasher, Hasher, Sha256Hasher};
 pub use key::{Stem, SubIndex, TreeKey, STEM_LEN, SUBINDEX_BITS};
 pub use node::{InternalNode, LeafNode, Node, StemNode};
 
-pub use code::{chunkify_code, dechunkify_code, CodeChunk};
+pub use code::{chunkify_code, dechunkify_code, CodeChunk, CODE_CHUNK_DATA_SIZE};
 pub use embedding::{
     get_basic_data_key, get_binary_tree_key, get_code_chunk_key, get_code_hash_key,
     get_storage_slot_key, get_storage_slot_key_u256, AccountStem, BasicDataLeaf,
@@ -141,9 +141,7 @@ pub use embedding::{
     BASIC_DATA_NONCE_OFFSET, CODE_HASH_LEAF_KEY, CODE_OFFSET, HEADER_STORAGE_OFFSET,
     STEM_SUBTREE_WIDTH,
 };
-pub use proof::{generate_stem_proof, Direction, MultiProof, Proof, ProofNode, Witness};
-#[doc(hidden)]
-pub use std::collections::HashMap;
+pub use proof::{generate_stem_proof, Direction, Proof, ProofNode};
 pub use store::{InMemoryStore, NodeStore};
 pub use streaming::StreamingTreeBuilder;
 pub use tree::UnifiedBinaryTree;

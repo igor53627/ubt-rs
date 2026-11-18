@@ -1003,12 +1003,11 @@ use ubt::{chunkify_code, dechunkify_code, BasicDataLeaf, CodeChunk};
 
 proptest! {
     /// P41: BasicDataLeaf encode/decode roundtrip
-    /// Note: code_size is limited to 24 bits (3 bytes) in encoding
     #[test]
     fn prop_basic_data_leaf_roundtrip(
         nonce in any::<u64>(),
         balance in any::<u128>(),
-        code_size in 0u32..0x00FF_FFFF // 24-bit max
+        code_size in any::<u32>()
     ) {
         let leaf = BasicDataLeaf::new(nonce, balance, code_size);
         let decoded = BasicDataLeaf::decode(leaf.encode());

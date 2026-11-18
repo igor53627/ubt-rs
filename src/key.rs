@@ -7,6 +7,8 @@
 use alloy_primitives::B256;
 use std::fmt;
 
+use crate::UbtError;
+
 /// Length of a stem in bytes (31 bytes = 248 bits)
 pub const STEM_LEN: usize = 31;
 
@@ -28,7 +30,8 @@ impl Stem {
     ///
     /// # Panics
     ///
-    /// Panics if the length of `slice` is not [`STEM_LEN`] (31).
+    /// Panics if the length of `slice` is not [`STEM_LEN`] (31). For a slice
+    /// whose length is not known, use `Stem::try_from(slice)`.
     pub fn from_slice(slice: &[u8]) -> Self {
         let mut bytes = [0u8; STEM_LEN];
         bytes.copy_from_slice(slice);
@@ -89,6 +92,23 @@ impl fmt::Debug for Stem {
 impl From<[u8; STEM_LEN]> for Stem {
     fn from(bytes: [u8; STEM_LEN]) -> Self {
         Self(bytes)
+    }
+}
+
+impl TryFrom<&[u8]> for Stem {
+    type Error = UbtError;
+
+    /// Create a stem from a slice.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`UbtError::InvalidStemLength`] if the length of `slice` is not
+    /// [`STEM_LEN`] (31).
+    fn try_from(slice: &[u8]) -> Result<Self, Self::Error> {
+        let bytes: [u8; STEM_LEN] = slice
+            .try_into()
+            .map_err(|_| UbtError::InvalidStemLength(slice.len()))?;
+        Ok(Self(bytes))
     }
 }
 
@@ -182,6 +202,21 @@ mod tests {
         let stem3 = Stem(bytes3);
 
         assert_eq!(stem1.first_differing_bit(&stem3), Some(7));
+    }
+
+    #[test]
+    fn test_stem_try_from_slice() {
+        let mut bytes = [0u8; STEM_LEN];
+        for (byte, value) in bytes.iter_mut().zip(1u8..=31) {
+            *byte = value;
+        }
+        assert_eq!(Stem::try_from(&bytes[..]).unwrap(), Stem::new(bytes));
+
+        for len in [0usize, 30, 32] {
+            let slice = vec![0u8; len];
+            let err = Stem::try_from(slice.as_slice()).unwrap_err();
+            assert!(matches!(err, UbtError::InvalidStemLength(got) if got == len));
+        }
     }
 
     #[test]
