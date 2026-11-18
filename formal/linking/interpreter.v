@@ -1316,6 +1316,12 @@ Module OpExec.
       composition axiom. The result holds a present zero leaf
       (sim_tree_insert with zero32). It is not a delete.
       
+      Condition: this is the composition axiom at v = zero32. The
+      translated set_value in formal/src/ removes the entry on a zero
+      value, so for zero32 that axiom does not describe the translated
+      term (issue #22). The axiom states the behaviour of the current
+      Rust source.
+      
       Before the zero-value change this proof was named
       delete_executes_from_insert, with rust_delete defined as this zero
       write and sim_tree_delete defined as sim_tree_insert with zero32. *)

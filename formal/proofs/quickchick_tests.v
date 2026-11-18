@@ -245,12 +245,14 @@ Definition prop_deep_tree_operations (seeds : list Z) (query_seed : Z) (v : Valu
   let t' := sim_tree_insert (fst t) query_key v in
   option_value_eqb (sim_tree_get t' query_key) (Some v).
 
-(** Property 19: Alternating insert-delete stress test *)
+(** Property 19: Alternating insert-delete stress test.
+    Each key in [keys] is inserted and then deleted, so each one is absent
+    afterward, also a key that the start tree [t] already holds. *)
 Definition prop_alternating_insert_delete (t : SimTree) (keys : list TreeKey) (v : Value) : bool :=
   let t' := fold_left (fun acc k =>
     sim_tree_delete (sim_tree_insert acc k v) k) keys t in
   List.forallb (fun k =>
-    option_value_eqb (sim_tree_get t' k) (sim_tree_get t k)) keys.
+    option_value_eqb (sim_tree_get t' k) None) keys.
 
 (** Property 20: Batch vs individual equivalence (distinct keys only) *)
 Definition prop_batch_then_individual (t : SimTree) (k1 k2 k3 : TreeKey) (v1 v2 v3 : Value) : bool :=

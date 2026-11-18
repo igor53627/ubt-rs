@@ -92,7 +92,7 @@ Note: Axiom count includes all `Axiom` declarations outside comments. The other 
 |---------|--------|------------|
 | `new_executes` | **PROVEN** | 100% |
 | `delete_executes` | AXIOM (the `delete` method is a real removal, not an insert of zero) | not assessed |
-| `zero_write_executes` | **PROVEN** from `insert_executes` (it was named `delete_executes` before the zero-value change) | 100% |
+| `zero_write_executes` | **PROVEN** from the axiom `insert_executes` (it was named `delete_executes` before the zero-value change). The translated zero-write path in `formal/src/` does not match this axiom (see `formal/linking/README.md` and issue #22) | 95% (the value of `insert_executes`) |
 | `get_executes` | **PROVEN** | 90% |
 | `insert_executes` | **PROVEN** | 95% |
 | `insert_executes_derived` | **PROVEN** | 95% |

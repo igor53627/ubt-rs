@@ -673,6 +673,13 @@ Module DeleteLink.
       
       Risk: High - Rust implementation may diverge from simulation.
       
+      Known defect (issue #25): the statement has the shape of
+      insert_executes. It binds the value that run_ok returns as the
+      updated tree, but the translated delete returns the unit tuple,
+      changes the tree through the &mut self reference, and takes the key
+      by reference. A correct statement refines the tree in the post-state
+      s'. insert_executes has the same defect.
+      
       Mitigation:
       - Rust property tests compare delete with a reference model
         (tests/proptests.rs, tests/simulation/)
