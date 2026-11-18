@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-The next release must be 0.6.0: this section contains a breaking change of root hashes and of the `Hasher::hash_32` contract.
+## [0.6.0] - 2026-11-18
+
+This release has breaking changes: root hashes of trees that have zero values and the `Hasher::hash_32` contract (issue #7), the proof format and the proof verifier (issue #19), and the public API (issue #29).
+
+`Proof::verify` has limits that this release does not remove (issue #26): a proof is not sound for a tree that holds arbitrary stems, or for keys of the zero address. The rules of the verifier come from tests and a search over small trees; they are not proven. See "Limits" in the docs of `Proof`.
 
 ### Added
 - `TryFrom<&[u8]> for Stem`. It returns `UbtError::InvalidStemLength` for a slice that does not have 31 bytes. `Stem::from_slice` stays and panics on a wrong length. ([#29](https://github.com/igor53627/ubt-rs/issues/29))
