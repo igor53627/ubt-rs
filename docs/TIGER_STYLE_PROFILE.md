@@ -112,7 +112,7 @@ Resources with no limit in the crate:
 
 ## 8. Open questions
 
-- `Proof::verify` binds a proof to its key and limits the path ([#19](https://github.com/igor53627/ubt-rs/issues/19)). One limit stays ([#26](https://github.com/igor53627/ubt-rs/issues/26)): the hash of EIP-7864 does not separate stem nodes from internal nodes, and the verifier sees one path. A proof is not sound for a tree that holds a stem `s` when a party knows an input whose hash is `s || 0x00`; a party that can insert arbitrary stems needs about 2^9 to 2^10 attempts. The `Proof` docs state the rules of the verifier and this limit.
+- `Proof::verify` binds a proof to its key and limits the path ([#19](https://github.com/igor53627/ubt-rs/issues/19)). One limit stays ([#26](https://github.com/igor53627/ubt-rs/issues/26)): the hash of EIP-7864 does not separate stem nodes from internal nodes, and the verifier sees one path. A proof is not sound for a tree that holds a stem `s` when a party knows an input whose hash is `s || 0x00`; a party that can insert arbitrary stems needs about 2^9 to 2^10 attempts. The `Proof` docs state the rules of the verifier and this limit. #26 is closed as not planned: no change of the verifier removes the limit with the hash of EIP-7864, and EIP-8297 removes it with tagged hash inputs.
 - `clippy::arithmetic_side_effects` and `clippy::indexing_slicing` are not enforced. The library has 41 and 52 sites. Most of them index a fixed-size array with a value that the types bound (`[B256; 256]` with a `u8`).
 - Fuzzing runs only on request (`.github/workflows/fuzz.yml`, `workflow_dispatch`). The guide asks for continuous fuzzing of every parser.
 - The repository has no `SECURITY.md`, and private vulnerability reporting is off.

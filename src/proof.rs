@@ -130,6 +130,17 @@ pub enum ProofNode {
 ///   [`UnifiedBinaryTree::insert`](crate::UnifiedBinaryTree::insert) accepts
 ///   such a stem.
 ///
+/// The cause of the limits is the hash of EIP-7864: its input has no tag for the
+/// kind of node. EIP-8297, the later design of the binary tree, puts a tag first
+/// in each hash input (`LEAF_TAG`, `BRANCH_TAG`), and its text states that no
+/// leaf input and branch input can coincide. This crate keeps the hash inputs
+/// of EIP-7864 for every [`Hasher`], so that its root hashes with
+/// [`Sha256Hasher`](crate::Sha256Hasher) agree with go-ethereum `trie/bintrie`
+/// (the default [`Blake3Hasher`](crate::Blake3Hasher) gives other root
+/// hashes). No change of the verifier removes the limits with these hash
+/// inputs, so they stay
+/// ([issue #26](https://github.com/igor53627/ubt-rs/issues/26)).
+///
 /// The rules and the limits come from tests and from a search over small trees.
 /// They are not proven.
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -280,6 +280,7 @@ Decision (2026-11-17): `ubt` stays an implementation of the unified binary tree.
 - The reference for this crate is go-ethereum `trie/bintrie` at commit `b0f9324c`, the last commit before go-ethereum removed the package.
 - The EIP-7864 text changed on 2026-06-24 (ethereum/EIPs pull request 11832). The current text puts a storage-type byte first in the key and allows keys of arbitrary length. This crate implements the earlier design with fixed 32-byte keys.
 - EIP-8297 (Partitioned Binary Tree, Draft, created 2026-06-11) is a different tree. It has variable-length keys with a zone byte (34 and 66 bytes), no stem node with a fixed 256-leaf subtree, tagged leaf and branch hashes with a bit prefix, and code keyed by code hash. Of this crate, only the code chunking and the basic data layout apply to it. An implementation of EIP-8297 belongs in a separate crate.
+- Proofs: the hash of this tree has no tag for the kind of node, so `Proof::verify` has limits for trees that hold arbitrary stems and for keys of the zero address (see "Limits" in the docs of `Proof`). The tagged hashes of EIP-8297 remove that ambiguity. With the hash of EIP-7864 the limits stay ([#26](https://github.com/igor53627/ubt-rs/issues/26), closed as not planned).
 
 ## Formal Verification Status
 
